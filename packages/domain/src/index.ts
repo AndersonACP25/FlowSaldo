@@ -30,3 +30,31 @@ export const demoMovements: Movement[] = [
   { id: 'demo-3', type: 'TRANSFER', amountMinor: 500000, currency: 'DOP', description: 'Entre cuentas propias', occurredAt: '2026-10-22T12:00:00.000Z', category: 'Transferencias' },
   { id: 'demo-4', type: 'EXPENSE', amountMinor: 1299, currency: 'USD', description: 'Suscripción de ejemplo', occurredAt: '2026-10-22T12:00:00.000Z', category: 'Servicios' }
 ];
+
+export function parseAmount(value: string): number {
+  // One decimal separator, never guess thousands separators.
+  const normalized = value.trim().replace(',', '.');
+  if (!/^\d+(\.\d{1,2})?$/.test(normalized)) throw new Error('Usa un monto positivo sin separadores de miles; ejemplo: 1250.50');
+  const [major, fraction = ''] = normalized.split('.');
+  const minor = Number(major) * 100 + Number(fraction.padEnd(2, '0'));
+  if (!Number.isSafeInteger(minor) || minor <= 0 || minor > 2147483647) throw new Error('Monto fuera de rango');
+  return minor;
+}
+export function validDate(value: string): boolean {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) return false;
+  const stamp = Date.parse(value + 'T12:00:00.000Z');
+  return Number.isFinite(stamp) && new Date(stamp).toISOString().slice(0,10) === value;
+}
+export function filterMovements(rows: Movement[], filter: { currency: Currency; month: string; type?: MovementType | 'ALL'; search?: string }): Movement[] {
+  const search = (filter.search ?? '').trim().toLocaleLowerCase('es');
+  return rows.filter(m => m.currency === filter.currency && m.occurredAt.startsWith(filter.month) && (!filter.type || filter.type === 'ALL' || m.type === filter.type) && (!search || `${m.description} ${m.category}`.toLocaleLowerCase('es').includes(search))).sort((a,b) => b.occurredAt.localeCompare(a.occurredAt));
+}
+export function categoryExpenses(rows: Movement[]): Array<{ category: string; amountMinor: number }> {
+  const totals = new Map<string, number>();
+  for (const m of rows.filter(m => m.type === 'EXPENSE')) totals.set(m.category, (totals.get(m.category) ?? 0) + m.amountMinor);
+  return Array.from(totals, ([category, amountMinor]) => ({ category, amountMinor })).sort((a,b) => b.amountMinor - a.amountMinor);
+}
+export function movementsCsv(rows: Movement[]): string {
+  const cell = (value: string) => '"' + (/^[=+@\-\t\r]/.test(value) ? "'" + value : value).replaceAll('"', '""') + '"';
+  return ['fecha,tipo,moneda,monto,descripcion,categoria', ...rows.map(m => [m.occurredAt.slice(0,10), m.type, m.currency, (m.amountMinor / 100).toFixed(2), m.description, m.category].map(cell).join(','))].join('\r\n');
+}

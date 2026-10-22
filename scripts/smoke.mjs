@@ -27,5 +27,17 @@ try {
  assert.equal(imports.find(x=>x.externalId==='ci-review')?.status, 'REVIEW');
  const movements = await (await request('/movements')).json();
  assert.equal(movements.filter(x=>x.description==='Smoke').length, 1);
+ const preflight=await fetch('http://127.0.0.1:3000/movements',{method:'OPTIONS',headers:{Origin:'http://localhost:8081','Access-Control-Request-Method':'POST','Access-Control-Request-Headers':'authorization,content-type'}});
+ assert.equal(preflight.headers.get('access-control-allow-origin'),'http://localhost:8081');
+ const denied=await fetch('http://127.0.0.1:3000/health',{headers:{Origin:'https://untrusted.example'}});
+ assert.equal(denied.headers.get('access-control-allow-origin'),null);
+ const created=await request('/movements',{method:'POST',body:JSON.stringify({amountMinor:12345,currency:'USD',type:'EXPENSE',description:'Manual smoke',category:'Servicios',occurredAt:'2026-09-12T12:00:00.000Z'})});
+ assert.equal(created.status,201); const manual=await created.json();
+ const filtered=await (await request('/movements?month=2026-09&currency=USD')).json();
+ assert.ok(filtered.some(x=>x.id===manual.id)); assert.ok(filtered.every(x=>x.currency==='USD'&&x.occurredAt.startsWith('2026-09')));
+ assert.equal((await request('/movements?month=2026-13')).status,400);
+ assert.equal((await request('/movements/'+manual.id,{method:'PATCH',body:JSON.stringify({...manual,description:'Updated smoke'})})).status,200);
+ assert.equal((await request('/movements/'+manual.id,{method:'DELETE'})).status,204);
+ assert.equal((await request('/movements/'+manual.id,{method:'DELETE'})).status,404);
  console.info('Smoke: auth, validation, persistence, idempotency and review passed');
 } finally { api.kill('SIGTERM'); worker.kill('SIGTERM'); }

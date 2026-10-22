@@ -1,5 +1,7 @@
 import express from 'express';
 import helmet from 'helmet';
+import cors from 'cors';
+import { validDate } from '@flowsaldo/domain';
 import { timingSafeEqual } from 'node:crypto';
 import { z } from 'zod';
 import { db } from '@flowsaldo/database';
@@ -8,6 +10,8 @@ const token = process.env.DEV_API_TOKEN;
 if (!token || token.length < 24) throw new Error('Configura DEV_API_TOKEN con al menos 24 caracteres');
 const app = express();
 app.use(helmet());
+const origins = (process.env.WEB_ORIGINS ?? 'http://localhost:8081,http://127.0.0.1:8081').split(',').map(s => s.trim());
+app.use(cors({ origin: origins, methods: ['GET','POST','PATCH','DELETE','OPTIONS'], allowedHeaders: ['Authorization','Content-Type'] }));
 app.use(express.json({ limit: '32kb' }));
 app.get('/health', (_req, res) => res.json({ status: 'ok', mode: 'personal-development' }));
 app.use((req, res, next) => {
@@ -17,10 +21,28 @@ app.use((req, res, next) => {
  next();
 });
 const movementSchema = z.object({ amountMinor: z.number().int().positive().max(2147483647), currency: z.enum(['DOP','USD']), type: z.enum(['INCOME','EXPENSE','TRANSFER']), description: z.string().trim().min(1).max(100), category: z.string().trim().min(1).max(60).default('Sin categorizar'), occurredAt: z.iso.datetime() });
-app.get('/movements', async (_req, res) => res.json(await db.movement.findMany({ orderBy: { occurredAt: 'desc' }, take: 200 })));
+app.get('/movements', async (req, res) => {
+ const filter = z.object({ currency: z.enum(['DOP','USD']).optional(), month: z.string().regex(/^\d{4}-\d{2}$/).refine(v => validDate(v+'-01')).optional() }).parse(req.query);
+ const from = filter.month ? new Date(filter.month+'-01T00:00:00.000Z') : undefined;
+ const to = from ? new Date(from) : undefined;
+ if(to) to.setUTCMonth(to.getUTCMonth()+1);
+ res.json(await db.movement.findMany({ where: { currency: filter.currency, ...(from ? {occurredAt:{gte:from,lt:to}} : {}) }, orderBy: [{ occurredAt: 'desc' },{id:'asc'}], take: 200 }));
+});
 app.post('/movements', async (req, res) => {
  const data = movementSchema.parse(req.body);
  res.status(201).json(await db.movement.create({ data }));
+});
+
+app.patch('/movements/:id', async (req, res) => {
+ const data = movementSchema.parse(req.body);
+ const result = await db.movement.updateMany({where:{id:req.params.id},data});
+ if(!result.count) {res.status(404).json({error:'Movimiento no encontrado'});return;}
+ res.json(await db.movement.findUnique({where:{id:req.params.id}}));
+});
+app.delete('/movements/:id', async (req, res) => {
+ const result = await db.movement.deleteMany({where:{id:req.params.id}});
+ if(!result.count) {res.status(404).json({error:'Movimiento no encontrado'});return;}
+ res.status(204).end();
 });
 app.get('/summary', async (req, res) => {
  const currency = z.enum(['DOP','USD']).parse(req.query.currency ?? 'DOP');
@@ -34,6 +56,7 @@ app.post('/imports', async (req, res) => {
 });
 app.get('/imports', async (_req, res) => res.json(await db.mailImport.findMany({ select: { id: true, externalId: true, status: true, reason: true, parserVersion: true, createdAt: true }, orderBy: { createdAt: 'desc' }, take: 100 })));
 app.use((error: unknown, _req: express.Request, res: express.Response, _next: express.NextFunction) => {
+ if (error instanceof SyntaxError) { res.status(400).json({ error: 'JSON inválido' }); return; }
  if (error instanceof z.ZodError) { res.status(400).json({ error: 'Datos inválidos', issues: error.issues.map(i => ({ path: i.path, message: i.message })) }); return; }
  res.status(500).json({ error: 'Error interno' });
 });
