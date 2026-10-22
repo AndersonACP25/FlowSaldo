@@ -1,0 +1,44 @@
+generator client {
+ provider = "prisma-client-js"
+}
+datasource db {
+ provider = "postgresql"
+}
+enum ImportStatus {
+ PENDING
+ PARSED
+ REVIEW
+}
+enum MovementType {
+ INCOME
+ EXPENSE
+ TRANSFER
+}
+enum Currency {
+ DOP
+ USD
+}
+model MailImport {
+ id String @id @default(cuid())
+ externalId String @unique
+ body String
+ status ImportStatus @default(PENDING)
+ reason String?
+ parserVersion String @default("demo-v1")
+ createdAt DateTime @default(now())
+ movement Movement?
+ @@index([status, createdAt])
+}
+model Movement {
+ id String @id @default(cuid())
+ amountMinor Int
+ currency Currency
+ type MovementType
+ description String
+ category String @default("Sin categorizar")
+ occurredAt DateTime
+ createdAt DateTime @default(now())
+ importId String? @unique
+ source MailImport? @relation(fields: [importId], references: [id])
+ @@index([currency, occurredAt])
+}

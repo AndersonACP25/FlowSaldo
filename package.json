@@ -1,0 +1,32 @@
+{
+  "name": "flowsaldo",
+  "private": true,
+  "version": "0.1.0",
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
+  "engines": {
+    "node": ">=24.11 <25"
+  },
+  "scripts": {
+    "dev:mobile": "npm run start -w @flowsaldo/mobile",
+    "dev:api": "npm run dev -w @flowsaldo/api",
+    "dev:worker": "npm run dev -w @flowsaldo/worker",
+    "db:generate": "npm run generate -w @flowsaldo/database",
+    "db:migrate": "npm run migrate -w @flowsaldo/database",
+    "db:seed": "npm run seed -w @flowsaldo/database",
+    "typecheck": "npm run typecheck --workspaces --if-present",
+    "lint": "eslint .",
+    "test": "node --test packages/domain/test/*.test.ts",
+    "check": "npm run lint && npm run typecheck && npm test"
+  },
+  "devDependencies": {
+    "typescript": "~5.9.3",
+    "tsx": "^4.20.0",
+    "eslint": "^9.39.0",
+    "typescript-eslint": "^8.46.0",
+    "@eslint/js": "^9.39.0",
+    "@types/node": "^24.0.0"
+  }
+}
