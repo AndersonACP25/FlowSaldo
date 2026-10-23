@@ -2,13 +2,13 @@
   "expo": {
     "name": "FlowSaldo",
     "slug": "flowsaldo",
-    "version": "0.2.0",
+    "version": "0.3.0",
     "orientation": "portrait",
-    "userInterfaceStyle": "light",
+    "userInterfaceStyle": "dark",
     "android": {
       "package": "com.andersonacp.flowsaldo"
     },
     "plugins": [],
-    "backgroundColor": "#F5F6FC"
+    "backgroundColor": "#0a0e16"
   }
 }

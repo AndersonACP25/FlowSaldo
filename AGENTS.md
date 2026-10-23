@@ -9,3 +9,5 @@
 - No desplegar este prototipo de token compartido como aplicación multiusuario.
 - Leer MEMORY.md al retomar y actualizarlo ante cambios de alcance o decisiones. No almacenar secretos ni datos personales.
 - Comandos de interfaz desde raíz: npm start (Expo Go), npm run web (PC), npm run android (emulador).
+- Leer DESIGN.md antes de modificar interfaz; usar sus tokens y cuatro accesos de navegación.
+- Ante cambios del arranque web ejecutar npm run test:dev además de exportar: un bundle de producción no cubre Metro dev.

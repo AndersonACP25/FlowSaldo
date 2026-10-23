@@ -39,5 +39,19 @@ try {
  assert.equal((await request('/movements/'+manual.id,{method:'PATCH',body:JSON.stringify({...manual,description:'Updated smoke'})})).status,200);
  assert.equal((await request('/movements/'+manual.id,{method:'DELETE'})).status,204);
  assert.equal((await request('/movements/'+manual.id,{method:'DELETE'})).status,404);
+ const review=imports.find(x=>x.externalId==='ci-review');
+ const detail=await (await request('/imports/'+review.id)).json();assert.equal(detail.body,'desconocido');
+ const confirmed={amountMinor:350000,currency:'DOP',type:'TRANSFER',description:'Manual review smoke',category:'Transferencias',occurredAt:'2026-10-22T12:00:00.000Z'};
+ const resolutions=await Promise.all([1,2].map(()=>request('/imports/'+review.id+'/resolve',{method:'POST',body:JSON.stringify(confirmed)})));
+ assert.deepEqual(resolutions.map(r=>r.status).sort(),[201,409]);
+ const afterReview=await (await request('/movements')).json();assert.equal(afterReview.filter(x=>x.importId===review.id).length,1);
+ assert.equal((await (await request('/imports/'+review.id)).json()).body,'');
+ await request('/imports',{method:'POST',body:JSON.stringify({externalId:'ci-discard',body:'Formato desconocido para descartar'})});
+ let discard;
+ for(let i=0;i<40;i++){const rows=await (await request('/imports')).json();discard=rows.find(x=>x.externalId==='ci-discard');if(discard?.status==='REVIEW')break;await pause();}
+ assert.equal(discard?.status,'REVIEW');
+ assert.equal((await request('/imports/'+discard.id+'/dismiss',{method:'POST'})).status,204);
+ assert.equal((await request('/imports/'+discard.id+'/resolve',{method:'POST',body:JSON.stringify(confirmed)})).status,409);
+ assert.equal((await (await request('/imports/'+discard.id)).json()).status,'DISMISSED');
  console.info('Smoke: auth, validation, persistence, idempotency and review passed');
 } finally { api.kill('SIGTERM'); worker.kill('SIGTERM'); }

@@ -58,3 +58,15 @@ export function movementsCsv(rows: Movement[]): string {
   const cell = (value: string) => '"' + (/^[=+@\-\t\r]/.test(value) ? "'" + value : value).replaceAll('"', '""') + '"';
   return ['fecha,tipo,moneda,monto,descripcion,categoria', ...rows.map(m => [m.occurredAt.slice(0,10), m.type, m.currency, (m.amountMinor / 100).toFixed(2), m.description, m.category].map(cell).join(','))].join('\r\n');
 }
+
+export function dailyCashFlow(rows: Movement[], endDate: string) {
+  if(!validDate(endDate)) throw new Error('Fecha inválida');
+  const end=new Date(endDate+'T12:00:00.000Z');
+  return Array.from({length:7},(_,i)=>{
+    const d=new Date(end); d.setUTCDate(end.getUTCDate()-6+i); const day=d.toISOString().slice(0,10);
+    const selected=rows.filter(m=>m.occurredAt.startsWith(day));
+    const incomeMinor=selected.filter(m=>m.type==='INCOME').reduce((n,m)=>n+m.amountMinor,0);
+    const expenseMinor=selected.filter(m=>m.type==='EXPENSE').reduce((n,m)=>n+m.amountMinor,0);
+    return {day,incomeMinor,expenseMinor,netMinor:incomeMinor-expenseMinor};
+  });
+}

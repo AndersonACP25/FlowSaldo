@@ -48,7 +48,7 @@ try{
  await page.getByRole('button',{name:'Eliminar',exact:true}).click();
  await page.getByRole('button',{name:'Confirmar eliminación',exact:true}).click();
  await page.getByText('No hay movimientos con estos filtros',{exact:true}).waitFor();
- await page.getByRole('button',{name:'Resumen',exact:true}).click();
+ await page.getByRole('button',{name:'Panel',exact:true}).click();
  await page.getByText('82% utilizado · DOP 3,000.00',{exact:true}).waitFor();
  await page.getByRole('button',{name:'USD',exact:true}).click();
  await page.getByText('USD 12.99',{exact:true}).first().waitFor();
@@ -59,6 +59,22 @@ try{
  await page.getByRole('button',{name:'DOP',exact:true}).click();
 
  assert.ok(await page.evaluate(()=>Array.from(document.querySelectorAll('div')).every(e=>e.scrollWidth<=e.clientWidth+2)), 'no horizontal overflow in scroll containers');
+ await page.getByRole('button',{name:'Por revisar',exact:true}).click();
+ await page.getByText('3 movimientos por confirmar',{exact:true}).waitFor();
+ await page.getByRole('button',{name:'Ver correo de prueba',exact:true}).first().click();
+ await page.getByText('CORREO SINTÉTICO: se recibió DOP 3500.00. Referencia: traslado de ejemplo.',{exact:true}).waitFor();
+ await page.getByRole('button',{name:'Revisar y confirmar',exact:true}).first().click();
+ await page.getByRole('button',{name:'Guardar movimiento',exact:true}).click();
+ await page.getByText('2 movimientos por confirmar',{exact:true}).waitFor();
+ await page.reload({waitUntil:'networkidle'});
+ await page.getByRole('button',{name:'Por revisar',exact:true}).click();
+ await page.getByText('2 movimientos por confirmar',{exact:true}).waitFor();
+ await page.getByRole('button',{name:'Descartar',exact:true}).first().click();
+ await page.getByRole('button',{name:'Confirmar descarte',exact:true}).click();
+ await page.getByText('1 movimiento por confirmar',{exact:true}).waitFor();
+ await page.getByRole('button',{name:'Conexiones',exact:true}).click();
+ await page.getByText('Gmail Personal',{exact:true}).waitFor();
+ assert.equal(await page.getByText('Próximamente · sin conectar',{exact:true}).count(),2);
  assert.deepEqual(errors,[]);
  console.log('PASS: create/edit/delete + cancel, persistence, budget, month/currency filters, CSV download, mobile width; no page errors.');
 }finally{await browser.close();server.close();}
