@@ -56,3 +56,8 @@ test('catalog rejects duplicate roles and writable reviewers',async()=>{
  assert.throws(()=>validateManifest({...manifest,agents:[...manifest.agents,manifest.agents[0]]}));
  assert.throws(()=>validateManifest({...manifest,agents:manifest.agents.map(a=>a.id==='security'?{...a,readOnly:false,writablePaths:['apps/api/']}:a)}));
 });
+test('language and export reviews are required before documentation',()=>{
+ const tasks=createPlan(manifest,'Mejora','frontend').tasks;
+ const language=tasks.find(t=>t.agent==='language-editor');const guardian=tasks.find(t=>t.agent==='export-guardian');
+ assert.ok(language.requiredChecks.includes('pnpm text:check'));assert.deepEqual(guardian.dependsOn,[language.id]);assert.ok(guardian.requiredChecks.includes('pnpm exports:test'));assert.deepEqual(tasks.find(t=>t.agent==='docs').dependsOn,[guardian.id]);
+});

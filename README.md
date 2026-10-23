@@ -1,4 +1,4 @@
-# FlowSaldo ↗ · v0.4 (app v0.3)
+# FlowSaldo ↗ · v0.5
 
 Base Android de finanzas personales: React Native + Expo + TypeScript, Express, worker y PostgreSQL con Prisma.
 
@@ -6,7 +6,7 @@ Base Android de finanzas personales: React Native + Expo + TypeScript, Express, 
 
 ## Requisitos
 
-- Node.js 24 LTS (>=24.11), npm y Git.
+- Node.js 24 LTS (>=24.11), pnpm 10.34.7 y Git. Puedes instalar pnpm con `npm install --global pnpm@10.34.7` (solo para instalar el gestor).
 - VS Code y Expo Go compatible con el SDK indicado en `apps/mobile/package.json`.
 - Docker Desktop con Compose para la API; también puedes usar PostgreSQL local.
 - Cuenta Expo solo para compilar en EAS. Android Studio es opcional con teléfono físico y compilación en la nube.
@@ -18,17 +18,19 @@ En PowerShell:
 ```powershell
 git clone https://github.com/AndersonACP25/FlowSaldo.git
 cd FlowSaldo
-# Si el PR de v0.3 no se ha integrado:
-# git switch feature/v3-dark-review
-npm ci
-npm start
+# Si el PR de v0.5 no se ha integrado:
+# git switch feature/v5-account-pnpm
+pnpm install --frozen-lockfile
+pnpm start
 ```
 
-Conecta PC y Android al mismo Wi-Fi, abre Expo Go y escanea el QR. Si la red impide conectar: `npm exec -w @flowsaldo/mobile -- expo start --go --tunnel`.
+Conecta PC y Android al mismo Wi-Fi, abre Expo Go y escanea el QR. Si la red impide conectar: `pnpm --filter @flowsaldo/mobile exec expo start --go --tunnel`.
 
-Para abrir en la PC: `npm run web`. Para Expo Go: `npm start`. Para un emulador Android encendido: `npm run android`. Ejecuta todo desde la raíz. Las dependencias web ya están incluidas.
+Para abrir en la PC: `pnpm web`. Para Expo Go: `pnpm start`. Para un emulador Android encendido: `pnpm android`. Ejecuta todo desde la raíz. Las dependencias web ya están incluidas.
 
 La navegación sigue DESIGN.md: Panel, Movimientos, Por revisar y Conexiones, con una paleta Dark Slate/esmeralda/cian. Panel muestra el flujo de los últimos siete días. Por revisar permite confirmar datos manualmente o descartar correos sintéticos; solo los confirmados generan movimientos. Conexiones muestra el estado real del prototipo y permite encolar avisos sintéticos al worker cuando conectas la API. Gmail y Outlook están marcados como próximos, sin conexión ni IA activa.
+
+La pantalla inicial es una vista previa de inicio de sesión; permite pasar a registro o pulsar «Explorar demostración». No hay autenticación, creación de cuentas ni envío/persistencia de credenciales. Configuración se abre desde el botón del encabezado y permite guardar moneda predeterminada y ocultación visual de importes. No modifica los archivos exportados.
 
 La demo permite crear, editar y eliminar movimientos con confirmación, buscar por descripción/categoría, filtrar mes/moneda/tipo, ver gastos por categoría, guardar presupuesto por mes/moneda y exportar el conjunto filtrado. En web se descarga CSV; Android comparte el texto CSV mediante el menú nativo. Los movimientos demo y presupuestos persisten con AsyncStorage (almacenamiento sin cifrar, solo datos ficticios), separados de la API. La sesión y token API nunca se guardan. Conexiones permite restablecer la demo con confirmación. Las muestras iniciales se ubican en el mes actual al iniciar una demo nueva.
 
@@ -42,13 +44,13 @@ Desde la raíz:
 Copy-Item .env.example .env
 # Cambia DEV_API_TOKEN por un secreto aleatorio de 24 caracteres o más.
 docker compose up -d
-npm run db:generate
-npm run db:migrate -- --name initial
-npm run db:seed
-npm run dev:api
+pnpm db:generate
+pnpm db:migrate --name initial
+pnpm db:seed
+pnpm dev:api
 ```
 
-En otra terminal: `npm run dev:worker`. Ejecuta cada comando desde la raíz. Si usas PostgreSQL instalado, omite Docker y ajusta DATABASE_URL. Las credenciales del compose son exclusivamente locales.
+En otra terminal: `pnpm dev:worker`. Ejecuta cada comando desde la raíz. Si usas PostgreSQL instalado, omite Docker y ajusta DATABASE_URL. Las credenciales del compose son exclusivamente locales.
 
 Para conectar el teléfono:
 
@@ -75,13 +77,13 @@ Repetir externalId no crea otro trabajo. El worker transforma PENDING en PARSED 
 ## Calidad
 
 ```powershell
-npm run db:generate
-npm run check
+pnpm db:generate
+pnpm check
 # Opcional: prueba de interfaz web (instala Chromium una vez)
-npx playwright install chromium
-npm run test:web
+pnpm exec playwright install chromium
+pnpm test:web
 # Prueba el servidor de desarrollo y la URL del bundle reportada
-npm run test:dev
+pnpm test:dev
 ```
 
 Pruebas de dominio ejecutables sin instalar dependencias: `node --test packages/domain/test/*.test.ts` (Node 24).
@@ -91,14 +93,14 @@ CI verifica instalación con lockfile, Prisma, lint, tipos, dominio, smoke de AP
 
 ```powershell
 cd apps/mobile
-npx eas-cli@latest login
-npx eas-cli@latest build:configure
-npx eas-cli@latest build --platform android --profile preview
+pnpm dlx eas-cli@latest login
+pnpm dlx eas-cli@latest build:configure
+pnpm dlx eas-cli@latest build --platform android --profile preview
 ```
 
 EAS pedirá vincular el proyecto y configurar firma. Abre el enlace final en Android y descarga el APK. El perfil preview no necesita Metro ni la PC encendida para mostrar la demo. Con API conectada, necesita acceso al servidor. La compilación no se ha ejecutado como parte de esta entrega.
 
-Para un development build primero instala `expo-dev-client` mediante `npx expo install expo-dev-client`; luego compila con `--profile development`. No contiene aún OAuth bancario ni permisos especiales.
+Para un development build primero instala `expo-dev-client` mediante `pnpm exec expo install expo-dev-client`; luego compila con `--profile development`. No contiene aún OAuth bancario ni permisos especiales.
 
 ## Organización
 
@@ -124,25 +126,47 @@ La ruta `/apps/mobile/index.ts.bundle?...` es un recurso generado por Metro, no 
 Si vienes de una versión anterior, detén Metro (Ctrl+C) y ejecuta desde la raíz:
 
 ```powershell
-npm ci
-npm run web
+pnpm install --frozen-lockfile
+pnpm web
 ```
 
 Si vuelve a devolver 500, copia el cuerpo de esa respuesta y el error de la terminal Metro: el código de estado por sí solo no identifica la causa. Comprueba Node 24 con `node --version`. No necesitas iniciar PostgreSQL para abrir la demo. La URL reportada respondió 200 en la reproducción con instalación limpia; no se confirmó la causa del fallo original de tu PC.
 
 ## Actualización de datos v0.2 -> v0.3
 
-Se conserva la clave local `flowsaldo.demo.v2` para no borrar movimientos ni presupuestos. Si faltan revisiones, se agregan las muestras sintéticas iniciales al leer los datos. Las revisiones confirmadas o descartadas se guardan junto con la demo. Para API aplica `npm run db:migrate` después de actualizar: añade DISMISSED sin borrar tablas.
+Se conserva la clave local `flowsaldo.demo.v2` para no borrar movimientos ni presupuestos. Si faltan revisiones, se agregan las muestras sintéticas iniciales al leer los datos. Las revisiones confirmadas o descartadas se guardan junto con la demo. Para API aplica `pnpm db:migrate` después de actualizar: añade DISMISSED sin borrar tablas.
 
 ## v0.4 — Agentes de desarrollo
 
 La app conserva funcionalidad v0.3. Esta entrega añade [coordinación IA neutral](ai/README.md): perfiles, orquestador, contratos, políticas y CLI sin proveedor. No necesita API keys.
 
 ```powershell
-npm run ai:validate
-npm run ai:plan -- --task "Agregar filtros de categoría" --scope frontend
-npm run ai:packet -- --task "Agregar filtros de categoría" --scope frontend --agent frontend
-npm run ai:test
+pnpm ai:validate
+pnpm ai:plan --task "Agregar filtros de categoría" --scope frontend
+pnpm ai:packet --task "Agregar filtros de categoría" --scope frontend --agent frontend
+pnpm ai:test
 ```
 
 El planificador prepara el trabajo; tu editor/CLI ejecuta los roles. No inicia modelos ni agentes por sí solo. Consultar CONTRIBUTING.md, TESTING.md, SECURITY.md y CHANGELOG.md.
+
+## v0.5 — pnpm, cuenta y controles de calidad
+
+Usar exclusivamente pnpm en el proyecto. pnpm-workspace.yaml declara workspaces, nodeLinker hoisted para compatibilidad Expo y la lista explícita de scripts de instalación permitidos. pnpm-lock.yaml sustituye package-lock.json; los paquetes internos usan workspace:*.
+
+Al migrar una instalación anterior, detener Expo, eliminar únicamente los directorios node_modules de raíz y workspaces si existen (sin borrar .env ni datos), instalar pnpm y ejecutar:
+
+```powershell
+pnpm install --frozen-lockfile
+pnpm web
+# O para Android físico:
+pnpm start
+```
+
+Los perfiles language-editor y export-guardian se añaden al plan de IA. pnpm text:check detecta errores conocidos; la revisión lingüística completa sigue a cargo del perfil y su host. CSV se descarga con nombre FlowSaldo y seis columnas con encabezados en mayúscula inicial. El guardián de desarrollo también inspecciona archivos Excel .xlsx reales. La app conserva exportación CSV; no añade exportador Excel.
+
+```powershell
+pnpm exports:test
+pnpm exports:check FlowSaldo-2026-10.csv Reporte.xlsx
+```
+
+La preferencia local de privacidad no cifra datos ni autentica usuarios. No introducir credenciales reales en las pantallas de vista previa. La confirmación de registro e inicio de sesión está deshabilitada explícitamente.

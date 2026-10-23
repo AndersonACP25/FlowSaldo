@@ -56,7 +56,7 @@ export function categoryExpenses(rows: Movement[]): Array<{ category: string; am
 }
 export function movementsCsv(rows: Movement[]): string {
   const cell = (value: string) => '"' + (/^[=+@\-\t\r]/.test(value) ? "'" + value : value).replaceAll('"', '""') + '"';
-  return ['fecha,tipo,moneda,monto,descripcion,categoria', ...rows.map(m => [m.occurredAt.slice(0,10), m.type, m.currency, (m.amountMinor / 100).toFixed(2), m.description, m.category].map(cell).join(','))].join('\r\n');
+  return ['Fecha,Tipo,Moneda,Monto,Descripción,Categoría', ...rows.map(m => [m.occurredAt.slice(0,10), m.type, m.currency, (m.amountMinor / 100).toFixed(2), m.description, m.category].map(cell).join(','))].join('\r\n');
 }
 
 export function dailyCashFlow(rows: Movement[], endDate: string) {
@@ -69,4 +69,20 @@ export function dailyCashFlow(rows: Movement[], endDate: string) {
     const expenseMinor=selected.filter(m=>m.type==='EXPENSE').reduce((n,m)=>n+m.amountMinor,0);
     return {day,incomeMinor,expenseMinor,netMinor:incomeMinor-expenseMinor};
   });
+}
+
+export function countLabel(count:number,singular:string,plural:string):string {
+ if(!Number.isSafeInteger(count)||count<0) throw new Error('Cantidad inválida');
+ return `${count} ${count===1?singular:plural}`;
+}
+export function pendingMailMessage(count:number):string {
+ return `${countLabel(count,'correo','correos')} ${count===1?'necesita':'necesitan'} tu criterio`;
+}
+export const movementExportHeaders=['Fecha','Tipo','Moneda','Monto','Descripción','Categoría'] as const;
+export function validateExportName(name:string):void {
+ if(!/^\p{Lu}/u.test(name)||/[\\/:]/.test(name)||name.includes('..'))throw new Error('El nombre del archivo debe comenzar con mayúscula y no contener rutas');
+}
+export function validateExportTable(headers:readonly string[],rows:readonly (readonly unknown[])[]):void {
+ if(headers.length<2||new Set(headers).size!==headers.length||headers.some(h=>!/^\p{Lu}/u.test(h.trim())||/[,;\t\r\n]/.test(h)))throw new Error('Los encabezados deben ser distintos, comenzar con mayúscula y ocupar columnas separadas');
+ if(rows.some(row=>row.length!==headers.length))throw new Error('Cada fila debe tener una celda por columna');
 }

@@ -16,6 +16,7 @@ try {
  browser=await chromium.launch({headless:true,...(process.env.CHROMIUM_EXECUTABLE_PATH?{executablePath:process.env.CHROMIUM_EXECUTABLE_PATH,args:['--no-sandbox','--no-zygote','--single-process','--disable-dev-shm-usage']}: {})});
  const page=await browser.newPage(); const errors=[];page.on('pageerror',e=>errors.push(e.message));
  await page.goto('http://localhost:8083',{waitUntil:'networkidle'});
+ await page.getByRole('button',{name:'Explorar demostración',exact:true}).click();
  await page.getByText('Tu presupuesto mensual',{exact:true}).waitFor();
  await page.getByRole('button',{name:'Por revisar',exact:true}).click();
  await page.getByText('3 movimientos por confirmar',{exact:true}).waitFor();

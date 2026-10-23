@@ -15,7 +15,9 @@
     "DESIGN.md",
     "SECURITY.md",
     "TESTING.md",
-    "docs/architecture.md"
+    "docs/architecture.md",
+    "LANGUAGE.md",
+    "docs/exports.md"
   ],
   "agents": [
     {
@@ -26,8 +28,9 @@
         "ai/",
         "AGENTS.md",
         "package.json",
-        "package-lock.json",
-        ".github/"
+        "pnpm-lock.yaml",
+        ".github/",
+        "pnpm-workspace.yaml"
       ],
       "readOnly": false
     },
@@ -113,6 +116,20 @@
         "TESTING.md"
       ],
       "readOnly": false
+    },
+    {
+      "id": "language-editor",
+      "profile": "ai/agents/language-editor.md",
+      "purpose": "Revisar ortografía, tildes, concordancia, pluralización y claridad en español.",
+      "writablePaths": [],
+      "readOnly": true
+    },
+    {
+      "id": "export-guardian",
+      "profile": "ai/agents/export-guardian.md",
+      "purpose": "Revisar nombres y encabezados con mayúscula y estructura de columnas de CSV y Excel.",
+      "writablePaths": [],
+      "readOnly": true
     }
   ],
   "routes": {

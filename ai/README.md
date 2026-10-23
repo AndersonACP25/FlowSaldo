@@ -7,15 +7,15 @@ Directorio neutral para coordinar asistentes de programación. `ai/` y `manifest
 Desde la raíz, con Node 24, sin dependencias ni claves:
 
 ```powershell
-npm run ai:validate
-npm run ai:plan -- --task "Agregar filtros por categoría" --scope frontend
-npm run ai:packet -- --task "Agregar filtros por categoría" --scope frontend --agent frontend
-npm run ai:test
+pnpm ai:validate
+pnpm ai:plan --task "Agregar filtros por categoría" --scope frontend
+pnpm ai:packet --task "Agregar filtros por categoría" --scope frontend --agent frontend
+pnpm ai:test
 ```
 
 `ai:plan` emite JSON en stdout con el grafo de tareas, responsables y dependencias. Es un borrador: el orquestador debe sustituir los criterios genéricos por criterios verificables de la solicitud antes de delegar. `ai:packet` emite instrucciones y contexto para copiar al host elegido. No ejecutan modelos, shell de terceros, MCP ni cambios del producto. Solo leen archivos del repositorio. La delegación efectiva y el control de permisos corresponden a tu editor/CLI o a un futuro adaptador. Sin capacidad de subagentes, ejecuta los roles secuencialmente y declara que no hubo revisión independiente.
 
-Para guardar un plan local sin versionarlo: `npm run ai:plan -- --task "Corregir filtro" --scope frontend > ai/runs/plan.txt`. El prefijo de npm puede añadir su cabecera; para JSON limpio utiliza `node scripts/ai.mjs plan --task "Corregir filtro" --scope frontend > ai/runs/plan.json`. La carpeta existe y su contenido está ignorado excepto .gitkeep. Revisar siempre las instrucciones antes de compartirlas con un modelo externo.
+Para guardar un plan local sin versionarlo: `pnpm ai:plan --task "Corregir filtro" --scope frontend > ai/runs/plan.txt`. El prefijo de npm puede añadir su cabecera; para JSON limpio utiliza `node scripts/ai.mjs plan --task "Corregir filtro" --scope frontend > ai/runs/plan.json`. La carpeta existe y su contenido está ignorado excepto .gitkeep. Revisar siempre las instrucciones antes de compartirlas con un modelo externo.
 
 ## Agentes y flujo
 
@@ -44,7 +44,7 @@ Infraestructura de IA para desarrollar el proyecto. La app mantiene la funcional
 Copiar la plantilla de tarea y entrega a ai/runs y completar con resultados reales. Luego:
 
 ```powershell
-npm run ai:handoff -- --task-file ai/runs/task.json --file ai/runs/handoff.json
+pnpm ai:handoff --task-file ai/runs/task.json --file ai/runs/handoff.json
 ```
 
 Las plantillas tienen esquemas JSON en templates/*.schema.json para editores. El CLI usa validadores propios y comprobaciones cruzadas; no incorpora un motor JSON Schema general. Una entrega blocked con motivo puede ser consistente sin estar terminada. Solo done exige checks obligatorios pass y ausencia de bloqueos o hallazgos graves. El validador no ejecuta los comandos ni verifica la autenticidad del texto de evidencia.
@@ -56,3 +56,7 @@ Usa ai/prompts/start.md o pega: «Lee AGENTS.md, MEMORY.md y ai/README.md. Actú
 ## Referencias de formato
 
 AGENTS.md toma como referencia https://agents.md/. Los perfiles, manifest, planificador y contratos bajo ai/ son propios de FlowSaldo. Los Agent Skills con SKILL.md son otro formato portable (https://agentskills.io/specification); no se instalan skills ni se asume su descubrimiento en esta versión.
+
+## Nuevos controles v0.5
+
+El catálogo incluye language-editor y export-guardian, ambos de solo lectura. El plan pasa por revisión lingüística y de exportaciones después de QA/seguridad y antes de documentación/revisión final. Las correcciones pertenecen al implementador. Consultar LANGUAGE.md y docs/exports.md.

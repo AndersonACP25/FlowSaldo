@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { Text, View } from 'react-native';
-import type { Currency } from '@flowsaldo/domain';
+import { countLabel, type Currency } from '@flowsaldo/domain';
 import { MovementForm, type Draft } from './MovementForm';
 import type { ReviewItem } from './reviews';
 import { Button, Choice } from './ui';
@@ -10,7 +10,7 @@ export function ReviewInbox({items,currency,month,onResolve,onDiscard,onOriginal
  const [original,setOriginal]=useState<Record<string,string>>({});const [error,setError]=useState('');const [busy,setBusy]=useState(false);
  const pending=items.filter(i=>i.status==='REVIEW');
  async function run(work:()=>Promise<void>){setBusy(true);setError('');try{await work();}catch(e){setError(e instanceof Error?e.message:'No se pudo completar la revisión.');}finally{setBusy(false);}}
- return <View style={{gap:16}}><View><Text style={s.eyebrow}>TU CRITERIO ES PRIMERO</Text><Text style={s.title}>{pending.length} {pending.length===1?'movimiento':'movimientos'} por confirmar</Text><Text style={s.muted}>Ningún pendiente afecta tus totales hasta que confirmes todos sus datos.</Text></View>
+ return <View style={{gap:16}}><View><Text style={s.eyebrow}>TU CRITERIO ES PRIMERO</Text><Text style={s.title}>{countLabel(pending.length,'movimiento','movimientos')} por confirmar</Text><Text style={s.muted}>Ningún pendiente afecta tus totales hasta que confirmes todos sus datos.</Text></View>
  {!!error&&<Text accessibilityRole="alert" style={s.error}>{error}</Text>}
  {!pending.length&&<View style={s.card}><Text style={s.income}>Todo revisado</Text><Text style={s.muted}>No hay correos pendientes de clasificación manual.</Text></View>}
  {pending.map(item=><View key={item.id} style={[s.card,{borderColor:'#2d3748'}]}><View style={s.between}><Text style={s.title}>{item.suggestion?.description??item.externalId}</Text><Text style={{color:palette.amber}}>● Por revisar</Text></View>

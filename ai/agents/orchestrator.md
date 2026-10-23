@@ -19,4 +19,4 @@ Recibir una tarea acotada y su paquete de contexto. Entregar ai/templates/handof
 
 ## Límites
 
-Ámbitos de escritura de referencia: `ai/`, `AGENTS.md`, `package.json`, `package-lock.json`, `.github/`. Estos límites se aplican por el host; el perfil no crea un sandbox. No ampliar la tarea ni solicitar secretos. No delegar a otros agentes: devolver subtareas propuestas al orquestador.
+Ámbitos de escritura de referencia: `ai/`, `AGENTS.md`, `package.json`, `pnpm-lock.yaml`, `.github/`. Estos límites se aplican por el host; el perfil no crea un sandbox. No ampliar la tarea ni solicitar secretos. No delegar a otros agentes: devolver subtareas propuestas al orquestador.

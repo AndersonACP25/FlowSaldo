@@ -1,11 +1,7 @@
 {
   "name": "flowsaldo",
   "private": true,
-  "version": "0.4.0",
-  "workspaces": [
-    "apps/*",
-    "packages/*"
-  ],
+  "version": "0.5.0",
   "engines": {
     "node": ">=24.11 <25"
   },
@@ -13,23 +9,26 @@
     "start": "node scripts/expo.mjs go",
     "web": "node scripts/expo.mjs web",
     "android": "node scripts/expo.mjs android",
-    "dev:api": "npm run dev -w @flowsaldo/api",
-    "dev:worker": "npm run dev -w @flowsaldo/worker",
-    "db:generate": "npm run generate -w @flowsaldo/database",
-    "db:migrate": "npm run migrate -w @flowsaldo/database",
-    "db:seed": "npm run seed -w @flowsaldo/database",
-    "typecheck": "npm run typecheck --workspaces --if-present",
+    "dev:api": "pnpm --filter @flowsaldo/api dev",
+    "dev:worker": "pnpm --filter @flowsaldo/worker dev",
+    "db:generate": "pnpm --filter @flowsaldo/database generate",
+    "db:migrate": "pnpm --filter @flowsaldo/database migrate",
+    "db:seed": "pnpm --filter @flowsaldo/database seed",
+    "typecheck": "pnpm -r --if-present typecheck",
     "lint": "eslint .",
     "test": "node --test packages/domain/test/*.test.ts",
-    "check": "npm run lint && npm run typecheck && npm test",
-    "dev:mobile": "npm start",
-    "test:web": "npm exec -w @flowsaldo/mobile -- expo export --platform web --output-dir ../../dist/web && node scripts/web-smoke.mjs",
+    "check": "pnpm lint && pnpm typecheck && pnpm test && pnpm text:check && pnpm exports:test",
+    "dev:mobile": "pnpm start",
+    "test:web": "pnpm --filter @flowsaldo/mobile exec expo export --platform web --output-dir ../../dist/web && node scripts/web-smoke.mjs",
     "test:dev": "node scripts/dev-smoke.mjs",
     "ai:validate": "node scripts/ai.mjs validate",
     "ai:plan": "node scripts/ai.mjs plan",
     "ai:packet": "node scripts/ai.mjs packet",
     "ai:handoff": "node scripts/ai.mjs handoff",
-    "ai:test": "node --test scripts/ai.test.mjs"
+    "ai:test": "node --test scripts/ai.test.mjs",
+    "text:check": "node scripts/text-check.mjs",
+    "exports:check": "node scripts/export-guardian.mjs",
+    "exports:test": "node --test scripts/export-guardian.test.mjs"
   },
   "devDependencies": {
     "@eslint/js": "^9.39.0",
@@ -38,6 +37,8 @@
     "playwright": "^1.64.1",
     "tsx": "^4.20.0",
     "typescript": "~5.9.3",
-    "typescript-eslint": "^8.46.0"
-  }
+    "typescript-eslint": "^8.46.0",
+    "exceljs": "^4.4.0"
+  },
+  "packageManager": "pnpm@10.34.7"
 }

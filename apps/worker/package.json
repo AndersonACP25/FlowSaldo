@@ -8,8 +8,8 @@
     "typecheck": "tsc -p tsconfig.json"
   },
   "dependencies": {
-    "@flowsaldo/domain": "0.1.0",
-    "@flowsaldo/database": "0.1.0"
+    "@flowsaldo/domain": "workspace:*",
+    "@flowsaldo/database": "workspace:*"
   },
   "devDependencies": {}
 }
