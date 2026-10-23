@@ -1,5 +1,12 @@
 # Cambios
 
+## 0.5.0
+
+- Migración a pnpm con workspaces, lockfile y CI.
+- Inicio de sesión y registro visuales sin autenticación; Configuración con preferencias locales.
+- Revisor lingüístico, reglas de conteo 0/1/N y detector de errores conocidos.
+- Guardián de exportaciones con mayúscula inicial y columnas reales para CSV/Excel .xlsx.
+
 ## 0.4.0 — Infraestructura IA de desarrollo
 
 - Catálogo neutral ai/ con orquestador, especialistas, contratos y workflows.

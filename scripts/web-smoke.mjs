@@ -3,6 +3,8 @@ import { chromium } from 'playwright';
 import assert from 'node:assert/strict';
 import { createServer } from 'node:http';
 import { readFile } from 'node:fs/promises';
+import { parseCsv } from './export-guardian.mjs';
+import { validateExportName } from '../packages/domain/src/index.ts';
 import { resolve, extname, sep } from 'node:path';
 const root=resolve(process.env.WEB_DIST ?? 'dist/web');
 const server=createServer(async(req,res)=>{
@@ -15,9 +17,19 @@ const server=createServer(async(req,res)=>{
 await new Promise(r=>server.listen(8082,'127.0.0.1',r));
 const browser=await chromium.launch({headless:true,...(process.env.CHROMIUM_EXECUTABLE_PATH?{executablePath:process.env.CHROMIUM_EXECUTABLE_PATH,args:['--no-sandbox','--no-zygote','--single-process','--disable-dev-shm-usage']}: {})});
 const page=await browser.newPage({viewport:{width:1440,height:1100}});
+const posts=[];page.on('request',request=>{if(request.method()==='POST')posts.push(request.url());});
 const errors=[];page.on('pageerror',e=>errors.push(e.message));
 try{
  await page.goto('http://127.0.0.1:8082',{waitUntil:'networkidle'});
+ await page.getByText('Iniciar sesión',{exact:true}).waitFor();
+ assert.ok(await page.getByRole('button',{name:'Entrar (próximamente)',exact:true}).isDisabled());
+ await page.getByLabel('Correo electrónico',{exact:true}).fill('prueba@correo.test');
+ await page.getByLabel('Contraseña',{exact:true}).fill('Clave-sintética');
+ await page.getByRole('button',{name:'Ir a crear cuenta',exact:true}).click();
+ await page.getByLabel('Confirmar contraseña',{exact:true}).waitFor();
+ assert.equal(await page.getByLabel('Contraseña',{exact:true}).inputValue(),'');
+ assert.ok(await page.getByRole('button',{name:'Crear cuenta (próximamente)',exact:true}).isDisabled());
+ await page.getByRole('button',{name:'Explorar demostración',exact:true}).click();
  await page.getByText('Tu presupuesto mensual',{exact:true}).waitFor();
 
  await page.getByLabel('Nuevo límite mensual',{exact:true}).fill('3000');
@@ -32,8 +44,12 @@ try{
  await page.getByLabel('Buscar descripción o categoría',{exact:true}).fill('Prueba persistencia');
  assert.equal(await page.getByText('Prueba persistencia',{exact:true}).count(),1);
  const download=page.waitForEvent('download');await page.getByRole('button',{name:'Exportar CSV',exact:true}).click();
- const downloaded=await download;assert.ok(downloaded.suggestedFilename().endsWith('.csv'));
+ const downloaded=await download;validateExportName(downloaded.suggestedFilename());
+ const csvRows=parseCsv(await readFile(await downloaded.path(),'utf8'));
+ assert.deepEqual(csvRows[0],['Fecha','Tipo','Moneda','Monto','Descripción','Categoría']);assert.ok(csvRows.every(row=>row.length===6));
+ assert.equal(await page.getByText('1 movimiento',{exact:true}).count(),1);
  await page.reload({waitUntil:'networkidle'});
+ await page.getByRole('button',{name:'Explorar demostración',exact:true}).click();
  await page.getByRole('button',{name:'Movimientos',exact:true}).click();
  await page.getByText('Prueba persistencia',{exact:true}).waitFor();
  await page.getByRole('button',{name:'Editar Prueba persistencia',exact:true}).click();
@@ -67,6 +83,7 @@ try{
  await page.getByRole('button',{name:'Guardar movimiento',exact:true}).click();
  await page.getByText('2 movimientos por confirmar',{exact:true}).waitFor();
  await page.reload({waitUntil:'networkidle'});
+ await page.getByRole('button',{name:'Explorar demostración',exact:true}).click();
  await page.getByRole('button',{name:'Por revisar',exact:true}).click();
  await page.getByText('2 movimientos por confirmar',{exact:true}).waitFor();
  await page.getByRole('button',{name:'Descartar',exact:true}).first().click();
@@ -75,6 +92,20 @@ try{
  await page.getByRole('button',{name:'Conexiones',exact:true}).click();
  await page.getByText('Gmail Personal',{exact:true}).waitFor();
  assert.equal(await page.getByText('Próximamente · sin conectar',{exact:true}).count(),2);
+ await page.getByRole('button',{name:'Configuración',exact:true}).click();
+ await page.getByText('Preferencias locales',{exact:true}).waitFor();
+ await page.getByRole('button',{name:'USD',exact:true}).click();
+ await page.getByRole('switch',{name:'Ocultar importes',exact:true}).click();
+ await page.getByRole('button',{name:'Guardar preferencias',exact:true}).click();
+ await page.getByText('Preferencias guardadas en este dispositivo.',{exact:true}).waitFor();
+ await page.getByRole('button',{name:'Panel',exact:true}).click();
+ await page.getByText('USD ••••',{exact:true}).first().waitFor();
+ await page.reload({waitUntil:'networkidle'});await page.getByRole('button',{name:'Explorar demostración',exact:true}).click();
+ await page.getByText('USD ••••',{exact:true}).first().waitFor();
+ await page.getByRole('button',{name:'Configuración',exact:true}).click();
+ await page.getByRole('button',{name:'Ver registro',exact:true}).click();
+ await page.getByText('Crear cuenta',{exact:true}).waitFor();
+ assert.deepEqual(posts,[],'Las vistas previas y preferencias locales no envían credenciales ni formularios');
  assert.deepEqual(errors,[]);
- console.log('PASS: create/edit/delete + cancel, persistence, budget, month/currency filters, CSV download, mobile width; no page errors.');
+ console.log('PASS: auth previews without POST, settings persistence, singular counts, CSV columns/name, CRUD, review and responsive layout.');
 }finally{await browser.close();server.close();}

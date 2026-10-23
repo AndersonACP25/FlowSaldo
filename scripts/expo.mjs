@@ -8,7 +8,7 @@ const require=createRequire(resolve(mobile,'package.json'));
 const mode=process.argv[2]??'go';
 if(!['web','go','android'].includes(mode)) throw new Error('Modo desconocido');
 try { for(const name of ['expo/package.json', ...(mode==='web'?['react-dom/package.json','react-native-web/package.json','@expo/metro-runtime/package.json']:[])]) require.resolve(name); }
-catch { console.error('Faltan dependencias. Ejecuta npm ci desde la raíz de FlowSaldo.'); process.exit(1); }
+catch { console.error('Faltan dependencias. Ejecuta pnpm install --frozen-lockfile desde la raíz de FlowSaldo.'); process.exit(1); }
 const cli=resolve(dirname(require.resolve('expo/package.json')),'bin/cli');
 const args=['start',...(mode==='web'?['--web']:['--go',...(mode==='android'?['--android']:[])]),'--clear',...process.argv.slice(3)];
 const child=spawn(process.execPath,[cli,...args],{cwd:mobile,stdio:'inherit',env:process.env});

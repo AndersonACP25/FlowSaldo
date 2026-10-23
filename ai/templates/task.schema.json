@@ -29,7 +29,9 @@
         "qa",
         "security",
         "reviewer",
-        "docs"
+        "docs",
+        "language-editor",
+        "export-guardian"
       ]
     },
     "objective": {

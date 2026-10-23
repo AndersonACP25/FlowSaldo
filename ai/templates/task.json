@@ -14,8 +14,8 @@
     "Seguir DESIGN.md"
   ],
   "requiredChecks": [
-    "npm run check",
-    "npm run test:web"
+    "pnpm check",
+    "pnpm test:web"
   ],
   "dependsOn": []
 }

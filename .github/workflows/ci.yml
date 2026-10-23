@@ -16,22 +16,23 @@ jobs:
     options: --health-cmd "pg_isready -U flowsaldo" --health-interval 5s --health-timeout 5s --health-retries 10
   steps:
    - uses: actions/checkout@v4
+   - uses: pnpm/action-setup@v4
    - uses: actions/setup-node@v4
      with:
       node-version: 24
-      cache: npm
-   - run: npm ci
+      cache: pnpm
+   - run: pnpm install --frozen-lockfile
    - run: cp .env.example .env
-   - run: npm run db:generate
-   - run: npx prisma migrate deploy --config packages/database/prisma.config.ts
+   - run: pnpm db:generate
+   - run: pnpm exec prisma migrate deploy --config packages/database/prisma.config.ts
      working-directory: .
      env:
       DATABASE_URL: postgresql://flowsaldo:flowsaldo_local@localhost:5432/flowsaldo
-   - run: npm run check
-   - run: npm run db:seed
+   - run: pnpm check
+   - run: pnpm db:seed
    - run: node scripts/smoke.mjs
-   - run: npx playwright install --with-deps chromium
-   - run: npm run test:web
+   - run: pnpm exec playwright install --with-deps chromium
+   - run: pnpm test:web
 
  dev-web:
   timeout-minutes: 10
@@ -42,22 +43,24 @@ jobs:
   runs-on: ${{ matrix.os }}
   steps:
    - uses: actions/checkout@v4
+   - uses: pnpm/action-setup@v4
    - uses: actions/setup-node@v4
      with:
       node-version: 24
-      cache: npm
-   - run: npm ci
-   - run: npx playwright install chromium
-   - run: npm run test:dev
+      cache: pnpm
+   - run: pnpm install --frozen-lockfile
+   - run: pnpm exec playwright install chromium
+   - run: pnpm test:dev
 
  ai-contracts:
   runs-on: ubuntu-latest
   steps:
    - uses: actions/checkout@v4
+   - uses: pnpm/action-setup@v4
    - uses: actions/setup-node@v4
      with:
       node-version: 24
-   - run: npm run ai:validate
-   - run: npm run ai:test
+   - run: pnpm ai:validate
+   - run: pnpm ai:test
    - run: node scripts/ai.mjs plan --task "Validar mejora sintética" --scope fullstack
    - run: node scripts/ai.mjs packet --task "Validar mejora sintética" --scope frontend --agent frontend

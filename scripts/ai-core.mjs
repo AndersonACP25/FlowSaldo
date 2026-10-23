@@ -25,9 +25,9 @@ export function validateManifest(m){
   ids.add(a.id);
  }
  if(!ids.has(m.entrypoint)||!safePath(m.policy)||m.context.some(p=>!safePath(p)))fail('Entrada o contexto inválidos');
- for(const role of ['orchestrator','architect','frontend','backend','data','ingestion','qa','security','reviewer','docs'])if(!ids.has(role))fail('Falta rol '+role);
+ for(const role of ['orchestrator','architect','frontend','backend','data','ingestion','qa','security','reviewer','docs','language-editor','export-guardian'])if(!ids.has(role))fail('Falta rol '+role);
  for(const route of Object.values(m.routes))if(!strings(route)||!route.length||new Set(route).size!==route.length||route.some(id=>!ids.has(id)))fail('Ruta de delegación inválida');
- for(const id of ['security','reviewer'])if(!m.agents.find(a=>a.id===id).readOnly)fail('Revisor con permisos de escritura');
+ for(const id of ['security','reviewer','language-editor','export-guardian'])if(!m.agents.find(a=>a.id===id).readOnly)fail('Revisor con permisos de escritura');
  return m;
 }
 export async function loadManifest(root){return validateManifest(JSON.parse(await readRepo(root,'ai/manifest.json')));}
@@ -49,7 +49,7 @@ export function validateHandoff(h,t,m){
  if(h.status==='done'&&(h.blockers.length||h.checks.some(c=>c.status!=='pass')||h.findings.some(f=>['high','critical'].includes(f.severity))||t.requiredChecks.some(cmd=>!h.checks.some(c=>c.command===cmd&&c.status==='pass'))))fail('done requiere checks aprobados, sin bloqueos ni hallazgos graves');
  return h;
 }
-const checks={frontend:['npm run check','npm run test:web'],backend:['npm run check','node scripts/smoke.mjs'],data:['npm run db:generate','node scripts/smoke.mjs'],ingestion:['npm run check','node scripts/smoke.mjs'],fullstack:['npm run check','node scripts/smoke.mjs','npm run test:web'],tooling:['npm run ai:validate','npm run ai:test']};
+const checks={frontend:['pnpm check','pnpm test:web'],backend:['pnpm check','node scripts/smoke.mjs'],data:['pnpm db:generate','node scripts/smoke.mjs'],ingestion:['pnpm check','node scripts/smoke.mjs'],fullstack:['pnpm check','node scripts/smoke.mjs','pnpm test:web'],tooling:['pnpm ai:validate','pnpm ai:test']};
 export function createPlan(m,objective,scope){
  validateManifest(m);
  if(!string(objective)||objective.length>2000)fail('Objetivo vacío o demasiado largo');
@@ -60,7 +60,9 @@ export function createPlan(m,objective,scope){
  for(const id of m.routes[scope])previous=add('implement-'+id,id,objective,[previous]);
  const qa=add('qa','qa','Validar criterios: '+objective,[previous],checks[scope]);
  const sec=add('security','security','Revisar datos, permisos y seguridad: '+objective,[previous]);
- const docs=add('documentation','docs','Documentar comportamiento y límites: '+objective,[qa,sec]);
+ const language=add('language','language-editor','Revisar ortografía y concordancia: '+objective,[qa,sec],['pnpm text:check']);
+ const guardian=add('exports','export-guardian','Revisar contrato de archivos exportados: '+objective,[language],['pnpm exports:test']);
+ const docs=add('documentation','docs','Documentar comportamiento y límites: '+objective,[guardian]);
  const review=add('review','reviewer','Revisar diff y evidencia de todas las tareas: '+objective,[docs]);
  add('integration','orchestrator','Integrar resultados verificados y preparar PR: '+objective,[review],checks[scope]);
  return {version:1,objective,scope,mode:'plan-only',limits:m.limits,requiredHostControls:['Aplicar concurrencia máxima y permisos','Reservar archivos compartidos','Verificar evidencia de checks','No ejecutar modelos o comandos por leer este plan'],tasks};

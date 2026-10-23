@@ -6,7 +6,7 @@
   "files": [],
   "checks": [
     {
-      "command": "npm run check",
+      "command": "pnpm check",
       "status": "not_run",
       "evidence": "Entorno aún no preparado"
     }

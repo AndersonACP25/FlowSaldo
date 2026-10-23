@@ -84,3 +84,7 @@
 ### 4. Navegación Global (Shell)
 - **Header**: Logo tipográfico FlowSaldo con glifo distintivo cian/esmeralda, indicador de estado de conexión activo y avatar de usuario.
 - **Bottom Navigation Bar**: 4 accesos fijos (`Panel`, `Movimientos`, `Por Revisar` con badge de conteo pendiente en rojo/rosa, y `Conexiones`).
+
+## 6. Extensiones v0.5
+
+Inicio de sesión y registro conservan la paleta y muestran «Vista previa de acceso». Los botones de envío permanecen deshabilitados y la demostración se abre con una acción explícita. Configuración se accede desde el encabezado para conservar los cuatro accesos inferiores. Las preferencias locales se distinguen de las opciones de cuenta pendientes. Textos sujetos a LANGUAGE.md; los contadores usan singular para uno.

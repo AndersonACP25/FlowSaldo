@@ -1,6 +1,6 @@
 # Arquitectura inicial
 
-Monorepo npm workspaces. Una API y un worker comparten dominio y acceso PostgreSQL. TypeScript se ejecuta mediante tsx en desarrollo; la app usa Metro. Los paquetes internos exportan fuente para evitar compilación previa.
+Monorepo ppnpm workspaces. Una API y un worker comparten dominio y acceso PostgreSQL. TypeScript se ejecuta mediante tsx en desarrollo; la app usa Metro. Los paquetes internos exportan fuente para evitar compilación previa.
 
 ```mermaid
 flowchart TD
@@ -39,3 +39,11 @@ DESIGN.md gobierna los tokens Dark Slate/esmeralda/cian y la navegación inferio
 La API confirma bajo SELECT FOR UPDATE en una transacción: crea movimiento y cambia REVIEW -> PARSED. Un segundo intento recibe 409; descartar cambia REVIEW -> DISMISSED sin crear movimientos. Ambas acciones vacían el cuerpo. El endpoint de detalle requiere el mismo Bearer y se consulta bajo acción explícita.
 
 El launcher Expo usa rutas absolutas y cwd apps/mobile, comprueba dependencias y limpia caché. La prueba dev cubre el bundle lazy/hermes y navegación web; CI incluye Windows y Linux. Un HTTP 500 sin cuerpo no basta para atribuir causa.
+
+## v0.5: pnpm, acceso y preferencias
+
+Gestor fijado a pnpm 10.34.7; workspaces con enlaces workspace:* y hoisted para Expo. Solo se permiten builds de instalación declarados. Inicio/registro viven en AuthPreview como rutas visuales, con envío deshabilitado y sin persistencia de campos. Volver a una pantalla de acceso desmonta Home y limpia la caché React Query/sesión en memoria.
+
+AccountSettings conserva solo currency/hideAmounts en flowsaldo.preferences.v1. No cambia la identidad ni autentica. La clave demo v2 permanece compatible. La privacidad es visual, no cifra ni elimina importes en exportaciones/formularios.
+
+CSV ejecuta validadores de nombre/esquema antes de descargar. ExcelJS solo se usa en herramientas Node de desarrollo para inspeccionar .xlsx, nunca en el bundle móvil. LANGUAGE.md y los perfiles language-editor/export-guardian agregan controles al plan IA.
