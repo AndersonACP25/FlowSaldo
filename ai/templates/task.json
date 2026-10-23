@@ -1,0 +1,21 @@
+{
+  "id": "task-example",
+  "agent": "frontend",
+  "objective": "Agregar un filtro de categoría sin cambiar los totales mensuales",
+  "scope": [
+    "apps/mobile/"
+  ],
+  "acceptance": [
+    "Se puede elegir y limpiar una categoría",
+    "DOP y USD permanecen separados"
+  ],
+  "constraints": [
+    "Solo datos sintéticos",
+    "Seguir DESIGN.md"
+  ],
+  "requiredChecks": [
+    "npm run check",
+    "npm run test:web"
+  ],
+  "dependsOn": []
+}

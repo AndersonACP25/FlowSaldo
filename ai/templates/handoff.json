@@ -1,0 +1,18 @@
+{
+  "taskId": "task-example",
+  "agent": "frontend",
+  "status": "blocked",
+  "summary": "Plantilla: completar con el resultado real de la tarea",
+  "files": [],
+  "checks": [
+    {
+      "command": "npm run check",
+      "status": "not_run",
+      "evidence": "Entorno aún no preparado"
+    }
+  ],
+  "findings": [],
+  "blockers": [
+    "Esta es una plantilla, no evidencia de ejecución"
+  ]
+}

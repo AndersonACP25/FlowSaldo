@@ -1,0 +1,78 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "FlowSaldo agent task",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "id",
+    "agent",
+    "objective",
+    "scope",
+    "acceptance",
+    "constraints",
+    "requiredChecks",
+    "dependsOn"
+  ],
+  "properties": {
+    "id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "agent": {
+      "enum": [
+        "orchestrator",
+        "architect",
+        "frontend",
+        "backend",
+        "data",
+        "ingestion",
+        "qa",
+        "security",
+        "reviewer",
+        "docs"
+      ]
+    },
+    "objective": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 2000
+    },
+    "scope": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "minLength": 1
+      }
+    },
+    "acceptance": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "minLength": 1
+      },
+      "minItems": 1
+    },
+    "constraints": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "minLength": 1
+      }
+    },
+    "requiredChecks": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "minLength": 1
+      }
+    },
+    "dependsOn": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "minLength": 1
+      }
+    }
+  },
+  "$comment": "El CLI añade verificación contra el catálogo, rutas seguras y ámbito del agente."
+}

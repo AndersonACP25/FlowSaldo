@@ -1,0 +1,141 @@
+{
+  "version": 1,
+  "project": "FlowSaldo",
+  "kind": "development-agent-coordination",
+  "entrypoint": "orchestrator",
+  "policy": "ai/policies.md",
+  "limits": {
+    "maxDelegationDepth": 1,
+    "maxParallelAgents": 2,
+    "maxRevisionRounds": 2
+  },
+  "context": [
+    "AGENTS.md",
+    "MEMORY.md",
+    "DESIGN.md",
+    "SECURITY.md",
+    "TESTING.md",
+    "docs/architecture.md"
+  ],
+  "agents": [
+    {
+      "id": "orchestrator",
+      "profile": "ai/agents/orchestrator.md",
+      "purpose": "Coordinar el objetivo, asignar tareas acotadas y verificar evidencias antes de integrar.",
+      "writablePaths": [
+        "ai/",
+        "AGENTS.md",
+        "package.json",
+        "package-lock.json",
+        ".github/"
+      ],
+      "readOnly": false
+    },
+    {
+      "id": "architect",
+      "profile": "ai/agents/architect.md",
+      "purpose": "Evaluar contratos, dependencias e impacto antes de implementar.",
+      "writablePaths": [
+        "docs/decisions/"
+      ],
+      "readOnly": false
+    },
+    {
+      "id": "frontend",
+      "profile": "ai/agents/frontend.md",
+      "purpose": "Implementar React Native/Expo manteniendo compatibilidad Android/web.",
+      "writablePaths": [
+        "apps/mobile/"
+      ],
+      "readOnly": false
+    },
+    {
+      "id": "backend",
+      "profile": "ai/agents/backend.md",
+      "purpose": "Implementar API Express y contratos validados con Zod.",
+      "writablePaths": [
+        "apps/api/"
+      ],
+      "readOnly": false
+    },
+    {
+      "id": "data",
+      "profile": "ai/agents/data.md",
+      "purpose": "Mantener Prisma/PostgreSQL y migraciones compatibles.",
+      "writablePaths": [
+        "packages/database/"
+      ],
+      "readOnly": false
+    },
+    {
+      "id": "ingestion",
+      "profile": "ai/agents/ingestion.md",
+      "purpose": "Mantener reglas financieras, parsers y worker.",
+      "writablePaths": [
+        "apps/worker/",
+        "packages/domain/"
+      ],
+      "readOnly": false
+    },
+    {
+      "id": "qa",
+      "profile": "ai/agents/qa.md",
+      "purpose": "Verificar criterios y detectar regresiones con evidencia reproducible.",
+      "writablePaths": [
+        "scripts/",
+        "packages/domain/test/"
+      ],
+      "readOnly": false
+    },
+    {
+      "id": "security",
+      "profile": "ai/agents/security.md",
+      "purpose": "Revisar exposición de datos, autorización y uso de herramientas.",
+      "writablePaths": [],
+      "readOnly": true
+    },
+    {
+      "id": "reviewer",
+      "profile": "ai/agents/reviewer.md",
+      "purpose": "Evaluar diff, criterios, riesgos y evidencia tras implementación.",
+      "writablePaths": [],
+      "readOnly": true
+    },
+    {
+      "id": "docs",
+      "profile": "ai/agents/docs.md",
+      "purpose": "Actualizar documentación y decisiones comprobadas.",
+      "writablePaths": [
+        "docs/",
+        "README.md",
+        "MEMORY.md",
+        "CHANGELOG.md",
+        "TESTING.md"
+      ],
+      "readOnly": false
+    }
+  ],
+  "routes": {
+    "frontend": [
+      "frontend"
+    ],
+    "backend": [
+      "backend"
+    ],
+    "data": [
+      "data"
+    ],
+    "ingestion": [
+      "ingestion"
+    ],
+    "fullstack": [
+      "data",
+      "ingestion",
+      "backend",
+      "frontend"
+    ],
+    "tooling": [
+      "orchestrator"
+    ]
+  }
+}

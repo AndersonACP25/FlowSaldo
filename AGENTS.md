@@ -11,3 +11,9 @@
 - Comandos de interfaz desde raíz: npm start (Expo Go), npm run web (PC), npm run android (emulador).
 - Leer DESIGN.md antes de modificar interfaz; usar sus tokens y cuatro accesos de navegación.
 - Ante cambios del arranque web ejecutar npm run test:dev además de exportar: un bundle de producción no cubre Metro dev.
+
+## Coordinación IA
+
+Leer ai/README.md y ai/policies.md al usar agentes. El catálogo está en ai/manifest.json; entrada orchestrator. Los AGENTS.md anidados agregan instrucciones por área. Los perfiles y entregas no sustituyen permisos del host ni evidencia de ejecución. No delegar recursivamente. Conservar un responsable por archivo. Consultar TESTING.md y SECURITY.md.
+
+Comandos: npm run ai:validate, npm run ai:test y npm run ai:plan -- --task "Objetivo" --scope frontend. Para cambios de contratos o instrucciones actualizar catálogo, documentación y pruebas en el mismo PR.

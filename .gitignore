@@ -9,3 +9,6 @@ coverage/
 *.aab
 apps/mobile/android/
 apps/mobile/ios/
+ai/runs/*
+!ai/runs/.gitkeep
+ai/adapter.local.json
