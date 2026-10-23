@@ -1,6 +1,6 @@
 # FlowSaldo — memoria del proyecto
 
-Última actualización: 2026-10-22. Versión 0.3.0.
+Última actualización: 2026-10-22. Versión del proyecto 0.4.0; app 0.3.0.
 
 ## Objetivo
 
@@ -64,3 +64,9 @@ Un 500 en index.ts.bundle es de Metro. Con instalación limpia la URL dev report
 ## Datos y migración v0.3
 
 Se conserva la clave AsyncStorage v2. Se inicializan revisiones sintéticas si el registro v2 no las contiene. Migración aditiva agrega DISMISSED. Los pendientes no afectan totales hasta confirmación. No hay confirmación automática ni IA. Confirmación manual usa /imports/:id/resolve; descarte usa /dismiss; detalle autorizado /imports/:id devuelve cuerpo.
+
+## Infraestructura IA v0.4
+
+Coordinación de desarrollo en ai/, sin proveedor fijo. Perfiles: orquestador, arquitectura, frontend, backend, datos, ingesta, QA, seguridad, revisor y documentación. CLI genera planes y contexto y valida contratos; no ejecuta modelos ni delega automáticamente. Los permisos, límites y concurrencia deben aplicarse en el host. No se añade IA financiera a la app, que mantiene funciones v0.3. Instrucciones comunes AGENTS.md más instrucciones de área; políticas en ai/policies.md, verificación en TESTING.md.
+
+Validación local de infraestructura v0.4: catálogo de diez perfiles y ejemplos de tarea/entrega válidos; nueve pruebas del planificador/contratos aprobadas; generación de plan y paquete frontend y validación de entrega blocked comprobadas. npm run check pasó (lint, tipos y 14 pruebas de dominio). Estas comprobaciones no son una evaluación de modelos ni de ejecución multiagente real.

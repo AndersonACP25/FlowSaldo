@@ -1,4 +1,4 @@
-# FlowSaldo ↗ · v0.3
+# FlowSaldo ↗ · v0.4 (app v0.3)
 
 Base Android de finanzas personales: React Native + Expo + TypeScript, Express, worker y PostgreSQL con Prisma.
 
@@ -133,3 +133,16 @@ Si vuelve a devolver 500, copia el cuerpo de esa respuesta y el error de la term
 ## Actualización de datos v0.2 -> v0.3
 
 Se conserva la clave local `flowsaldo.demo.v2` para no borrar movimientos ni presupuestos. Si faltan revisiones, se agregan las muestras sintéticas iniciales al leer los datos. Las revisiones confirmadas o descartadas se guardan junto con la demo. Para API aplica `npm run db:migrate` después de actualizar: añade DISMISSED sin borrar tablas.
+
+## v0.4 — Agentes de desarrollo
+
+La app conserva funcionalidad v0.3. Esta entrega añade [coordinación IA neutral](ai/README.md): perfiles, orquestador, contratos, políticas y CLI sin proveedor. No necesita API keys.
+
+```powershell
+npm run ai:validate
+npm run ai:plan -- --task "Agregar filtros de categoría" --scope frontend
+npm run ai:packet -- --task "Agregar filtros de categoría" --scope frontend --agent frontend
+npm run ai:test
+```
+
+El planificador prepara el trabajo; tu editor/CLI ejecuta los roles. No inicia modelos ni agentes por sí solo. Consultar CONTRIBUTING.md, TESTING.md, SECURITY.md y CHANGELOG.md.
