@@ -84,5 +84,5 @@ export function validateExportName(name:string):void {
 }
 export function validateExportTable(headers:readonly string[],rows:readonly (readonly unknown[])[]):void {
  if(headers.length<2||new Set(headers).size!==headers.length||headers.some(h=>!/^\p{Lu}/u.test(h.trim())||/[,;\t\r\n]/.test(h)))throw new Error('Los encabezados deben ser distintos, comenzar con mayúscula y ocupar columnas separadas');
- if(rows.some(row=>row.length!==headers.length))throw new Error('Cada fila debe tener una celda por columna');
+ if(rows.some(row=>row.length!==headers.length||row.filter(value=>value!==null&&value!==undefined&&value!=='').length<2))throw new Error('Cada fila debe tener una celda por columna');
 }

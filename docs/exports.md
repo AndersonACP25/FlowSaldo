@@ -4,7 +4,7 @@
 
 1. Nombre base con mayúscula inicial: FlowSaldo-2026-10.csv, Reporte.xlsx.
 2. Encabezados distintos, con mayúscula inicial y sin separadores incrustados: Fecha, Tipo, Moneda, Monto, Descripción, Categoría.
-3. Al menos dos columnas, una celda por campo y filas de ancho consistente. Los importes y monedas permanecen separados.
+3. Al menos dos columnas, una celda por campo y filas de ancho consistente y al menos dos campos no vacíos por fila de datos. Los importes y monedas permanecen separados.
 4. CSV usa comas, comillas para texto y escape de saltos de línea/comillas. Neutralizar fórmulas en texto no confiable.
 5. Excel .xlsx: primera fila con encabezados, cada dato en su columna, sin celdas combinadas. Cada hoja debe ser tabular. No se acepta guardar «Fecha,Monto» en una celda. Los .xls antiguos deben convertirse antes de validarlos.
 
