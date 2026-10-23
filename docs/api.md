@@ -1,4 +1,4 @@
-# Contrato API v0.2
+# Contrato API v0.3
 
 Base local: http://127.0.0.1:3000. Todo salvo health requiere `Authorization: Bearer <DEV_API_TOKEN>`. Error de autorización: 401; validación: 400; fallo inesperado: 500 sin detalle sensible. CORS admite WEB_ORIGINS, por defecto http://localhost:8081 y http://127.0.0.1:8081. La preflight no requiere token; las operaciones sí.
 
@@ -11,6 +11,9 @@ Base local: http://127.0.0.1:3000. Todo salvo health requiere `Authorization: Be
 | DELETE | /movements/:id | Eliminar, 204; 404 si no existe |
 | GET | /summary?currency=DOP | Totales de todos los movimientos de esa moneda |
 | POST | /imports | Encolar mensaje o devolver existente, 202 |
+| GET | /imports/:id | Detalle y cuerpo sintético de una importación, 404 si no existe |
+| POST | /imports/:id/resolve | Cuerpo igual a POST /movements, confirmación manual, 201; 409 si ya se procesó |
+| POST | /imports/:id/dismiss | Descarta REVIEW sin contabilizar, 204; 409 si no está en revisión |
 | GET | /imports | Últimas 100 importaciones, sin cuerpos |
 
 POST /movements:
@@ -27,4 +30,4 @@ POST /imports:
 {"externalId":"demo-001","body":"FLOWSALDO-DEMO|EXPENSE|DOP|1250.50|2026-10-22|Compra de ejemplo"}
 ```
 
-PATCH permite editar categoría y demás campos del movimiento. DELETE elimina el movimiento; no borra el registro de importación ni lo vuelve a encolar. No hay endpoints aún para corregir REVIEW, exportar CSV, autenticación OAuth o presupuestos. Exportación y presupuestos se resuelven en el cliente en esta versión. Se añadirá OpenAPI junto con esos contratos antes de una integración externa.
+PATCH permite editar categoría y demás campos del movimiento. DELETE elimina el movimiento; no borra el registro de importación ni lo vuelve a encolar. POST /imports/:id/resolve permite corregir y confirmar REVIEW en una transacción con bloqueo de fila. Dos confirmaciones concurrentes generan exactamente un movimiento (201 y 409); no se pueden confirmar descartados. Al resolver/descartar se vacía el cuerpo. No hay endpoints aún para exportar CSV, autenticación OAuth o presupuestos. Exportación y presupuestos se resuelven en el cliente en esta versión. Se añadirá OpenAPI junto con esos contratos antes de una integración externa.

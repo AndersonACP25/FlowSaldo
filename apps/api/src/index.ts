@@ -54,6 +54,30 @@ app.post('/imports', async (req, res) => {
  const item = await db.mailImport.upsert({ where: { externalId: data.externalId }, create: data, update: {} });
  res.status(202).json({ id: item.id, status: item.status });
 });
+app.get('/imports/:id', async (req,res)=>{
+ const item=await db.mailImport.findUnique({where:{id:req.params.id},select:{id:true,body:true,status:true,externalId:true}});
+ if(!item){res.status(404).json({error:'Importación no encontrada'});return;}
+ res.json(item);
+});
+app.post('/imports/:id/resolve',async(req,res)=>{
+ const data=movementSchema.parse(req.body); const id=req.params.id;
+ const result=await db.$transaction(async tx=>{
+  const rows=await tx.$queryRaw<Array<{id:string;status:string}>>`SELECT id,status FROM "MailImport" WHERE id=${id} FOR UPDATE`;
+  if(!rows[0])return {status:404};
+  if(rows[0].status!=='REVIEW')return {status:409};
+  const movement=await tx.movement.create({data:{...data,importId:id}});
+  await tx.mailImport.update({where:{id},data:{status:'PARSED',body:'',reason:'Confirmado manualmente'}});
+  return {status:201,movement};
+ });
+ if(result.status!==201){res.status(result.status).json({error:result.status===404?'Importación no encontrada':'El correo ya no está pendiente de revisión'});return;}
+ res.status(201).json(result.movement);
+});
+app.post('/imports/:id/dismiss',async(req,res)=>{
+ const id=req.params.id;
+ const result=await db.mailImport.updateMany({where:{id,status:'REVIEW'},data:{status:'DISMISSED',body:'',reason:'Descartado manualmente'}});
+ if(!result.count){res.status(409).json({error:'El correo no está pendiente de revisión'});return;}
+ res.status(204).end();
+});
 app.get('/imports', async (_req, res) => res.json(await db.mailImport.findMany({ select: { id: true, externalId: true, status: true, reason: true, parserVersion: true, createdAt: true }, orderBy: { createdAt: 'desc' }, take: 100 })));
 app.use((error: unknown, _req: express.Request, res: express.Response, _next: express.NextFunction) => {
  if (error instanceof SyntaxError) { res.status(400).json({ error: 'JSON inválido' }); return; }

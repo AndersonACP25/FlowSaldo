@@ -31,3 +31,11 @@ OAuth -> conector Gmail/Graph -> jobs persistidos -> parser versionado por banco
 ## Cliente v0.2
 
 Tema centralizado en src/theme.ts. Componentes de controles y formulario separados de la pantalla. AsyncStorage conserva solo datos ficticios de demo y presupuestos locales; la API nunca se copia al almacenamiento local. React Query conserva respuestas API solo en memoria y se limpia al desconectar. Falta un esquema de usuario para presupuestos sincronizados. El CSV neutraliza prefijos de fórmulas y escapa comillas/saltos de línea.
+
+## Cliente y revisión v0.3
+
+DESIGN.md gobierna los tokens Dark Slate/esmeralda/cian y la navegación inferior de cuatro secciones. WeeklyFlow grafica datos reales del conjunto seleccionado sin métricas inventadas. ReviewInbox comparte MovementForm para validar la confirmación manual; los pendientes no se contabilizan. Se conserva la clave de almacenamiento v2 y se inicializa reviews cuando falte en datos anteriores.
+
+La API confirma bajo SELECT FOR UPDATE en una transacción: crea movimiento y cambia REVIEW -> PARSED. Un segundo intento recibe 409; descartar cambia REVIEW -> DISMISSED sin crear movimientos. Ambas acciones vacían el cuerpo. El endpoint de detalle requiere el mismo Bearer y se consulta bajo acción explícita.
+
+El launcher Expo usa rutas absolutas y cwd apps/mobile, comprueba dependencias y limpia caché. La prueba dev cubre el bundle lazy/hermes y navegación web; CI incluye Windows y Linux. Un HTTP 500 sin cuerpo no basta para atribuir causa.

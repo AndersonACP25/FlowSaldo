@@ -8,6 +8,7 @@ enum ImportStatus {
  PENDING
  PARSED
  REVIEW
+ DISMISSED
 }
 enum MovementType {
  INCOME
