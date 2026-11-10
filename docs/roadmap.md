@@ -11,7 +11,7 @@ Diseño Dark Slate según DESIGN.md, navegación inferior, flujo de siete días,
 ## Pendiente
 
 1. Validar en Android físico y generar APK preview. Añadir pruebas Appium y accesibilidad nativa.
-2. Añadir usuarios, sesiones, HTTPS, almacenamiento seguro de tokens, revocación, retención y eliminación.
+2. Cuenta personal/sesiones/revocación/SecureStore y política HTTPS implementadas en v0.8. Pendientes: despliegue TLS real, validación nativa, recuperación, retención/eliminación y diseño multiusuario si se requiere.
 3. Seleccionar Gmail u Outlook y un banco; recopilar muestras anonimizadas. Resolver requisitos de OAuth antes de conectar datos reales.
 4. Implementar conector incremental, cursores y parsers bancarios versionados. Backoff/recuperación de la cola sintética completados en v0.7; integrarlos al futuro conector real. Deduplicar avisos distintos de una misma operación sigue pendiente.
 5. Añadir cuentas, tarjetas/deuda, conciliación; sincronizar presupuestos por usuario.
@@ -30,3 +30,8 @@ IA opcional después de validar parsers deterministas. Ningún dato de correo de
 ## Lote v0.7
 
 Cola sintética recuperable, reintentos limitados, FAILED/reencolado manual y resumen de estado completados en el mismo PR. Siguientes fases: identidad/sesiones/HTTPS, proveedor OAuth y muestras anonimizadas, cuentas/conciliación y validación Android. Los estados de cola no implican que se haya conectado un proveedor de correo real.
+
+
+## Lote v0.8
+
+Acceso personal real para una cuenta por instalación, conservación de datos existentes, sesión/revocación/cambio de contraseña y almacenamiento de credencial por plataforma. No habilita registro multiusuario, proveedor OAuth ni despliegue público. Próximas fases: validación Android, recuperación y política de datos, TLS operativo y selección de proveedor/banco para muestras anonimizadas.

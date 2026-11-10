@@ -1,4 +1,5 @@
 import express from 'express';
+import {createAuth,AuthError} from './auth';
 import {importRoutes,importMetadata} from './imports';
 import { recurringRoutes } from './recurring';
 import { categoryRoutes,assignCategory,CategoryError } from './categories';
@@ -6,7 +7,6 @@ import { history } from './history';
 import helmet from 'helmet';
 import cors from 'cors';
 import { validDate } from '@flowsaldo/domain';
-import { timingSafeEqual } from 'node:crypto';
 import { z } from 'zod';
 import { db } from '@flowsaldo/database';
 import { summarize, type Movement } from '@flowsaldo/domain';
@@ -14,16 +14,16 @@ const token = process.env.DEV_API_TOKEN;
 if (!token || token.length < 24) throw new Error('Configura DEV_API_TOKEN con al menos 24 caracteres');
 const app = express();
 app.use(helmet());
+if(process.env.TRUST_PROXY_LOOPBACK==='1')app.set('trust proxy','loopback');
 const origins = (process.env.WEB_ORIGINS ?? 'http://localhost:8081,http://127.0.0.1:8081').split(',').map(s => s.trim());
 app.use(cors({ origin: origins, methods: ['GET','POST','PATCH','DELETE','OPTIONS'], allowedHeaders: ['Authorization','Content-Type'] }));
 app.use(express.json({ limit: '32kb' }));
 app.get('/health', (_req, res) => res.json({ status: 'ok', mode: 'personal-development' }));
-app.use((req, res, next) => {
- const received = Buffer.from(req.headers.authorization ?? '');
- const expected = Buffer.from('Bearer ' + token);
- if (received.length !== expected.length || !timingSafeEqual(received, expected)) { res.status(401).json({ error: 'No autorizado' }); return; }
- next();
-});
+app.use((req,res,next)=>{if(process.env.NODE_ENV==='production'&&!req.secure){res.status(403).json({error:'Se requiere HTTPS para acceder a esta API.'});return;}next();});
+const auth=createAuth(token);
+app.use(auth.publicRoutes);
+app.use(auth.authorize);
+app.use(auth.sessionRoutes);
 app.use(importRoutes);
 app.use(history);
 app.use(categoryRoutes);
@@ -97,6 +97,7 @@ app.post('/imports/:id/dismiss',async(req,res)=>{
 });
 app.get('/imports', async (_req, res) => res.json(await db.mailImport.findMany({ select: { ...importMetadata,id: true, externalId: true, status: true, reason: true, parserVersion: true, createdAt: true,movement:{select:{id:true}} }, orderBy: { createdAt: 'desc' }, take: 100 })));
 app.use((error: unknown, _req: express.Request, res: express.Response, _next: express.NextFunction) => {
+ if(error instanceof AuthError){res.status(error.status).json({error:error.message});return;}
  if(error instanceof CategoryError){res.status(error.status).json({error:error.message});return;}
  if(typeof error==='object'&&error!==null&&'code' in error&&error.code==='P2002'){res.status(409).json({error:'El registro ya existe; actualiza la lista antes de reintentar.'});return;}
  if (error instanceof SyntaxError) { res.status(400).json({ error: 'JSON inválido' }); return; }

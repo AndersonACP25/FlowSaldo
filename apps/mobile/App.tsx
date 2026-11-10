@@ -15,7 +15,10 @@ import { loadLocal, saveLocal, type LocalData } from './src/storage';
 import { ReviewInbox } from './src/ReviewInbox';
 import { demoReviews, type ReviewItem } from './src/reviews';
 import { WeeklyFlow } from './src/WeeklyFlow';
-import { AuthPreview, type AuthRoute } from './src/AuthPreview';
+import { AuthScreen, type AuthRoute } from './src/AuthScreen';
+import {PersonalAccount} from './src/PersonalAccount';
+import {apiBase,accessRequest,type PersonalSession} from './src/access';
+import {readAccess,writeAccess,clearAccess} from './src/accessVault';
 import { AccountSettings } from './src/AccountSettings';
 import { defaultPreferences, loadPreferences, savePreferences, type Preferences } from './src/preferences';
 import { exportCsv, exportCsvText } from './src/exportCsv';
@@ -25,7 +28,7 @@ const formatMoney=(minor:number,currency:Currency)=>`${currency} ${(minor/100).t
 function currentMonth() { const d=new Date(); return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}`; }
 function shiftMonth(month:string,delta:number) { const [year,m]=month.split('-').map(Number); const d=new Date(year,m-1+delta,1);return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}`; }
 function initialData():LocalData { return {...upgradeCategories(demoMovements.map(m=>({...m,occurredAt:currentMonth()+m.occurredAt.slice(7)}))),recurring:[],receipts:[],categoryBudgets:{},budgets:{},reviews:demoReviews()}; }
-function Home({onAuth}:{onAuth:(route:AuthRoute)=>void}) {
+function Home({onAuth,personal,onLogout,onExpired,accessNotice}:{onAuth:(route:AuthRoute)=>void;personal?:PersonalSession;onLogout:()=>Promise<void>;onExpired:()=>Promise<void>;accessNotice?:string}) {
  const confirming=useRef(new Set<string>());
  const [preferences,setPreferences]=useState<Preferences>(defaultPreferences);
  useEffect(()=>{void loadPreferences().then(value=>{setPreferences(value);setCurrency(value.currency);}).catch(()=>setError('No se pudieron cargar las preferencias locales.'));},[]);
@@ -39,15 +42,16 @@ function Home({onAuth}:{onAuth:(route:AuthRoute)=>void}) {
  const [reviewFrom,setReviewFrom]=useState('');const [reviewTo,setReviewTo]=useState('');
  const [categoryFilter,setCategoryFilter]=useState('');const [duplicate,setDuplicate]=useState<Movement|null>(null);
  const [editor,setEditor]=useState<Movement|'new'|null>(null);const [deleteId,setDeleteId]=useState<string|null>(null);
- const [token,setToken]=useState('');const [session,setSession]=useState('');
+ const [token,setToken]=useState('');const [developmentSession,setSession]=useState('');const session=personal?.token??developmentSession;
  const [notice,setNotice]=useState('');const [error,setError]=useState('');const [busy,setBusy]=useState(false);
  const [budgetInput,setBudgetInput]=useState('');const [resetConfirm,setResetConfirm]=useState(false);
  const [sampleId,setSampleId]=useState('');const [sampleBody,setSampleBody]=useState('Aviso de prueba sin formato reconocido');
- const url=process.env.EXPO_PUBLIC_API_URL?.replace(/\/$/,''); const connected=!!session;
+ let url='';try{url=apiBase();}catch{/* Auth screen explains invalid API configuration. Demo stays available. */} const connected=!!session;
  useEffect(()=>{let active=true; void loadLocal().then(data=>{if(active){if(data){localRef.current=data;setLocal(data);}setReady(true);}}).catch(()=>{if(active)setLoadError('No se pudieron leer los datos locales. No se sobrescribieron. Puedes reintentar recargando o restablecer la demo.');});return()=>{active=false;};},[]);
  async function persist(next:LocalData) { await saveLocal(next);localRef.current=next;setLocal(next); }
  async function request(path:string,options:RequestInit={}) {
   const response=await fetch(`${url}${path}`,{...options,headers:{Authorization:`Bearer ${session}`,'Content-Type':'application/json'}});
+  if(response.status===401&&personal){await onExpired();throw new Error('La sesión ya no está disponible.');}
   if(!response.ok) {const data=await response.json().catch(()=>null);throw new Error(data?.error??'No se pudo conectar con la API.');}
   return response.status===204?null:response.json();
  }
@@ -165,6 +169,7 @@ function Home({onAuth}:{onAuth:(route:AuthRoute)=>void}) {
  function disconnect(){setSession('');setToken('');client.clear();setEditor(null);setDuplicate(null);setCategoryFilter('');setDeleteId(null);setNotice('Sesión cerrada. Volviste a la demo local.');}
  return <SafeAreaView style={s.root}><StatusBar style="light"/><ScrollView keyboardShouldPersistTaps="handled" contentContainerStyle={s.content}>
   <View style={s.between}><View><Text style={s.brand}>FlowSaldo ⤴</Text><Text style={s.muted}>Tus finanzas, en orden.</Text></View><Choice label="Configuración" text="⚙" selected={screen==='Configuración'} onPress={()=>{setEditor(null);setScreen('Configuración');}}/><Button label="+ Nuevo movimiento" text="+ Añadir" disabled={!ready||busy||!!editor||!catalogReady} onPress={()=>{setDuplicate(null);setEditor('new');setScreen('Movimientos');setError('');setNotice('');}}/></View>
+  {!!accessNotice&&<Text style={s.muted}>{accessNotice}</Text>}
   <View style={s.banner}><Text style={s.text}>{connected?'API personal · historial paginado':'Demo · datos ficticios en este dispositivo'}</Text><Text style={s.muted}>Correo bancario sin conectar.</Text></View>
   {!ready&&!loadError&&<ActivityIndicator color={palette.primary}/>}
   {!!loadError&&<View style={s.card}><Text style={s.error}>{loadError}</Text><Button label={resetConfirm?'Confirmar borrado local y restablecer':'Restablecer datos locales'} onPress={()=>resetConfirm?void action(reset):setResetConfirm(true)}/></View>}
@@ -207,8 +212,10 @@ function Home({onAuth}:{onAuth:(route:AuthRoute)=>void}) {
    {screen==='Movimientos'&&catalogReady&&(!connected||recurringQuery.isSuccess)&&<RecurringPanel key={currency} items={recurring.filter(t=>t.currency===currency)} categories={categoryCatalog} currency={currency} month={month} onSave={saveRecurring} onToggle={toggleRecurring} onConfirm={confirmRecurring} money={money}/>}
    {screen==='Movimientos'&&connected&&recurringQuery.error&&<View style={s.card}><Text style={s.error}>No se pudieron cargar las plantillas.</Text><Button label="Reintentar plantillas" onPress={()=>void recurringQuery.refetch()}/></View>}
    {screen==='Movimientos'&&connected&&query.hasNextPage&&<Button label={query.isFetchingNextPage?'Cargando movimientos…':'Cargar más movimientos'} disabled={query.isFetching} onPress={()=>void query.fetchNextPage()}/>}
+   {screen==='Configuración'&&<Text style={s.title}>Configuración</Text>}
+   {screen==='Configuración'&&personal&&<PersonalAccount session={personal} onLogout={onLogout} onPasswordChanged={onExpired}/>}
+   {screen==='Configuración'&&<AccountSettings personal={!!personal} preferences={preferences} onAuth={onAuth} onSave={async value=>{await savePreferences(value);setPreferences(value);setCurrency(value.currency);}}/>}
    {screen==='Configuración'&&catalogReady&&<CategoryManager items={categoryCatalog} onSave={saveCategory} onArchive={archiveCategory}/>}
-   {screen==='Configuración'&&<AccountSettings preferences={preferences} onAuth={onAuth} onSave={async value=>{await savePreferences(value);setPreferences(value);setCurrency(value.currency);}}/>}
    {screen==='Por revisar'&&<>
     <View style={s.card}><Text style={s.title}>Filtros de revisiones</Text><View style={s.row}>{(['REVIEW','PENDING','PROCESSING','FAILED','PARSED','DISMISSED','ALL'] as const).map(status=><Choice key={status} label={{REVIEW:'Por confirmar',PENDING:'En cola',PROCESSING:'Procesando',FAILED:'Con error',PARSED:'Confirmados',DISMISSED:'Descartados',ALL:'Todos los estados'}[status]} selected={reviewStatus===status} onPress={()=>setReviewStatus(status)}/>)}</View>
     <Field label="Recibido desde (AAAA-MM-DD)" value={reviewFrom} onChangeText={setReviewFrom} maxLength={10}/><Field label="Recibido hasta (AAAA-MM-DD)" value={reviewTo} onChangeText={setReviewTo} maxLength={10}/>
@@ -226,13 +233,13 @@ function Home({onAuth}:{onAuth:(route:AuthRoute)=>void}) {
     {connected&&<ImportQueue data={queue.data} loading={queue.isFetching} error={!!queue.error} onRefresh={()=>void queue.refetch()} onErrors={()=>{setReviewStatus('FAILED');setReviewFrom('');setReviewTo('');setScreen('Por revisar');}}/>}
     <View style={s.card}><Text style={s.eyebrow}>PROVEEDORES DE CORREO</Text>{['Gmail Personal','Outlook'].map(provider=><View key={provider} style={s.between}><Text style={s.text}>{provider}</Text><Text style={s.muted}>Próximamente · sin conectar</Text></View>)}<Text style={s.muted}>OAuth aún no está implementado. Esta versión no accede a tu buzón ni utiliza IA para clasificar correos.</Text></View>
 
-    <View style={s.card}><Text style={s.title}>Conexión personal</Text><Text style={s.muted}>La demo se guarda localmente. La API guarda movimientos en PostgreSQL. Los datos de ambos modos se mantienen separados.</Text><Text style={s.text}>{url??'Sin URL configurada. Añade EXPO_PUBLIC_API_URL en apps/mobile/.env.'}</Text>
-     {connected?<Button label="Desconectar y volver a demo" onPress={disconnect}/>:<><Field label="Token de desarrollo" value={token} onChangeText={setToken} secureTextEntry autoCapitalize="none"/><Button label="Conectar API" disabled={!url||token.length<24} onPress={()=>{client.clear();setCategoryFilter('');setDuplicate(null);setSession(token);setToken('');setScreen('Panel');}}/></>}
-     <Text style={s.muted}>El token solo vive en memoria. Usa exclusivamente datos ficticios en esta fase.</Text>
+    <View style={s.card}><Text style={s.title}>Conexión personal</Text><Text style={s.muted}>La demo se guarda localmente. La API guarda movimientos en PostgreSQL. Los datos de ambos modos se mantienen separados.</Text><Text style={s.text}>{url||'Sin URL configurada. Añade EXPO_PUBLIC_API_URL en apps/mobile/.env.'}</Text>
+     {connected?(personal?<Button label="Cerrar sesión y volver al acceso" onPress={()=>void onLogout()}/>:<Button label="Desconectar y volver a demo" onPress={disconnect}/>):<><Field label="Token de desarrollo" value={token} onChangeText={setToken} secureTextEntry autoCapitalize="none"/><Button label="Conectar API" disabled={!url||token.length<24} onPress={()=>{client.clear();setCategoryFilter('');setDuplicate(null);setSession(token);setToken('');setScreen('Panel');}}/></>}
+     <Text style={s.muted}>{personal?'Sesión de la cuenta personal. Usa exclusivamente datos ficticios en esta fase.':'El acceso de desarrollo solo funciona antes de configurar la cuenta inicial. El token queda en memoria.'}</Text>
     </View>
     {connected&&<View style={s.card}><Text style={s.title}>Laboratorio de correo sintético</Text><Text style={s.muted}>Envía un aviso de prueba al worker. Un formato desconocido aparecerá en Por revisar cuando el worker lo procese.</Text><Field label="Identificador del correo de prueba" value={sampleId} onChangeText={setSampleId} maxLength={200}/><Field label="Contenido sintético" value={sampleBody} onChangeText={setSampleBody} maxLength={10000} multiline/><Button label="Encolar correo de prueba" disabled={busy||!sampleId.trim()||!sampleBody.trim()} onPress={()=>void action(async()=>{await request('/imports',{method:'POST',body:JSON.stringify({externalId:sampleId.trim(),body:sampleBody})});await Promise.all([client.invalidateQueries({queryKey:['imports']}),queue.refetch()]);setNotice('Correo encolado. Espera al worker y actualiza revisiones.');})}/></View>}
     <View style={s.card}><Text style={s.title}>Datos de demostración</Text><Text style={s.muted}>Restablece movimientos y presupuestos locales. Los datos de PostgreSQL no se eliminan.</Text><Button label={resetConfirm?'Confirmar restablecimiento local':'Restablecer demo'} disabled={busy||connected} onPress={()=>resetConfirm?void action(reset):setResetConfirm(true)}/>{resetConfirm&&<Button label="Cancelar restablecimiento" onPress={()=>setResetConfirm(false)}/>}</View>
-    <View style={s.card}><Text style={s.title}>FlowSaldo 0.7</Text><Text style={s.muted}>Dark Slate, esmeralda y cian, según DESIGN.md. Una base personal para aprender, registrar y revisar tus movimientos. La sincronización bancaria, OAuth y conciliación siguen pendientes.</Text></View>
+    <View style={s.card}><Text style={s.title}>FlowSaldo 0.8</Text><Text style={s.muted}>Dark Slate, esmeralda y cian, según DESIGN.md. Una base personal para aprender, registrar y revisar tus movimientos. La sincronización bancaria, OAuth y conciliación siguen pendientes.</Text></View>
    </>}
   </>}
  </ScrollView>
@@ -240,7 +247,20 @@ function Home({onAuth}:{onAuth:(route:AuthRoute)=>void}) {
  </SafeAreaView>;
 }
 export default function App(){
- const [route,setRoute]=useState<AuthRoute|'demo'>('login');
+ const [route,setRoute]=useState<AuthRoute|'demo'|'personal'>('login');const [personal,setPersonal]=useState<PersonalSession>();
+ const [restoring,setRestoring]=useState(true);const [notice,setNotice]=useState('');const [canRetry,setCanRetry]=useState(false);
+ async function forget(message:string){let suffix='';try{await clearAccess();}catch{suffix=' No se pudo limpiar la sesión guardada en este dispositivo.';}client.clear();setPersonal(undefined);setRoute('login');setNotice(message+suffix);setCanRetry(false);}
+ async function restore(){setRestoring(true);setCanRetry(false);try{
+  const saved=await readAccess();if(!saved)return;
+  if(saved.apiUrl!==apiBase()){await clearAccess();return;}
+  try{const data=await accessRequest('/auth/me',undefined,saved.token);client.clear();setPersonal({...data,token:saved.token});setRoute('personal');setNotice('');}
+  catch(error){if(error instanceof Error&&'status' in error&&error.status===401)await forget('Tu sesión venció o se revocó. Inicia sesión nuevamente.');else{setNotice('No se pudo validar la sesión guardada. Reintenta o inicia sesión.');setCanRetry(true);}}
+ }catch{setNotice('No se pudo leer la sesión guardada. Puedes iniciar sesión nuevamente.');}finally{setRestoring(false);}}
+ useEffect(()=>{void restore();},[]);
+ async function acceptSession(value:PersonalSession){let warning='';try{await writeAccess({apiUrl:apiBase(),token:value.token});}catch{warning='La sesión solo se conservará en memoria porque no se pudo guardar de forma segura.';}client.clear();setPersonal(value);setNotice(warning);setRoute('personal');setCanRetry(false);}
+ async function logout(){let message='Sesión cerrada.';try{if(personal)await accessRequest('/auth/logout',{},personal.token);}catch{message='Sesión cerrada en este dispositivo. No se pudo confirmar la revocación en el servidor.';}await forget(message);}
  function openAuth(next:AuthRoute){client.clear();setRoute(next);}
- return <QueryClientProvider client={client}>{route==='demo'?<Home onAuth={openAuth}/>:<AuthPreview key={route} route={route} onRoute={setRoute} onDemo={()=>setRoute('demo')}/>}</QueryClientProvider>;
+ return <QueryClientProvider client={client}>{restoring?<SafeAreaView style={s.root}><ActivityIndicator color={palette.primary}/><Text style={s.muted}>Validando sesión guardada…</Text></SafeAreaView>:route==='demo'||route==='personal'?<Home key={personal?.sessionId??'demo'} onAuth={openAuth} personal={route==='personal'?personal:undefined} onLogout={logout} onExpired={()=>forget('Tu sesión terminó. Inicia sesión nuevamente.')} accessNotice={notice}/>:<>
+ {canRetry&&<Button label="Reintentar sesión guardada" onPress={()=>void restore()}/>}
+ <AuthScreen key={route} route={route} onRoute={setRoute} onDemo={()=>{client.clear();setRoute('demo');}} onSession={acceptSession} notice={notice}/></>}</QueryClientProvider>;
 }

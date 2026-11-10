@@ -1,4 +1,5 @@
 import { chromium } from 'playwright';
+import {checkAccessFlow} from './access-web-flow.mjs';
 import {checkCoreFlows} from './web-core-flows.mjs';
 import { createServer } from 'node:http';
 import { readFile } from 'node:fs/promises';
@@ -13,4 +14,4 @@ const server=createServer(async(req,res)=>{
 });
 await new Promise(r=>server.listen(8082,'127.0.0.1',r));
 const browser=await chromium.launch({headless:true,...(process.env.CHROMIUM_EXECUTABLE_PATH?{executablePath:process.env.CHROMIUM_EXECUTABLE_PATH,args:['--no-sandbox','--no-zygote','--single-process','--disable-dev-shm-usage']}: {})});
-try{await checkCoreFlows(browser);}finally{await browser.close();server.close();}
+try{await checkCoreFlows(browser);await checkAccessFlow(browser);}finally{await browser.close();server.close();}

@@ -1,6 +1,6 @@
-# Contrato API — FlowSaldo v0.7
+# Contrato API — FlowSaldo v0.8
 
-Base local: http://127.0.0.1:3000. Todo salvo health requiere `Authorization: Bearer <DEV_API_TOKEN>`. Error de autorización: 401; validación: 400; fallo inesperado: 500 sin detalle sensible. CORS admite WEB_ORIGINS, por defecto http://localhost:8081 y http://127.0.0.1:8081. La preflight no requiere token; las operaciones sí.
+Base local: http://127.0.0.1:3000. Salvo health/preflight y las rutas públicas acotadas de acceso, se requiere Authorization Bearer. Antes de configurar la cuenta se admite DEV_API_TOKEN; después solo sesiones personales. Error de autorización: 401; validación: 400; fallo inesperado: 500 sin detalle sensible. CORS admite WEB_ORIGINS, por defecto http://localhost:8081 y http://127.0.0.1:8081. La preflight no requiere token; las operaciones sí.
 
 | Método | Ruta | Resultado |
 |---|---|---|
@@ -106,3 +106,27 @@ El listado paginado permite PROCESSING y FAILED. Listados y detalle exponen atte
 Reencolar requiere acción explícita; repetir POST /imports con el mismo externalId conserva su estado y no inicia otro ciclo. Una importación ya PARSED no puede reintentarse aunque se elimine su movimiento. La confirmación manual sigue limitada a REVIEW y conserva 201/409.
 
 Conexiones muestra estado de importaciones sin afirmar que el worker esté conectado. Actualización cada 5 segundos solo al consultar Conexiones; Por revisar actualiza su listado cada 5 segundos mientras esa sección está abierta. Los tiempos se muestran en UTC. No se añade OAuth, ingesta de correo real ni actividad simulada.
+
+
+## v0.8 — Cuenta personal y sesiones
+
+Aplicar `20261110030000_personal_access`: crea AppOwner singleton (id=1), AccessSession y AuthThrottle. No asigna un usuario a filas individuales ni convierte el proyecto en multiusuario: toda la instalación pertenece a una sola cuenta. No borra, reinicia ni cambia los movimientos, categorías, importaciones o presupuestos anteriores. La cuenta inicial se crea explícitamente y queda asociada a esos datos.
+
+| Método | Ruta | Autorización / resultado |
+|---|---|---|
+| GET | /auth/status | Público, solo configured boolean; no devuelve identidad |
+| POST | /auth/setup | Authorization Bearer DEV_API_TOKEN, cuerpo name/email/password; 201 con owner; 409 si ya existe; singleton protegido también contra creación concurrente |
+| POST | /auth/login | Público, email/password; 200 con token, expiresAt, sessionId y owner; error genérico 401; rate limit 429 |
+| GET | /auth/me | Sesión vigente; owner, expiresAt, sessionId |
+| POST | /auth/logout | Sesión vigente; revoca la actual, 204 |
+| GET | /auth/sessions | Sesión vigente; solo id/createdAt/expiresAt/current, nunca token ni hash |
+| POST | /auth/sessions/revoke-others | Sesión vigente; revoca otras, devuelve revoked |
+| POST | /auth/password | Sesión vigente, currentPassword/newPassword; 204 y revocación de todas las sesiones |
+
+La nueva contraseña tiene 15–128 caracteres, no se recorta y debe diferir de la actual. El correo se recorta/normaliza a minúsculas; nombre 1–60. Scrypt y tokens opacos según SECURITY.md. Sesión fija de 24 h, sin refresh automático. Máximo diez activas: una sesión nueva desplaza la más antigua. Sesiones revocadas/expiradas se eliminan al emitir otra. Password change serializa con login mediante bloqueo de AppOwner.
+
+El token inicial solo autoriza datos mientras AppOwner no existe. Después devuelve 401, incluso si se mantiene una conexión de desarrollo anterior. No crea una segunda cuenta ni permite recuperar una contraseña olvidada. /auth/setup no inicia sesión automáticamente: el cliente pide entrar con la cuenta recién creada. /auth/me y operaciones de cuenta no admiten el token inicial, ni siquiera antes de setup.
+
+Throttling por IP/acción persistido, 15 min: setup/cambio 5 solicitudes, login 10; inválidas también cuentan. 429 incluye Retry-After. Se evita registrar contraseñas, hashes o sesiones en logs. La respuesta de error no distingue cuenta inexistente/contraseña equivocada. Validación 400, credencial inválida 401, instalación ya configurada o cambio concurrente 409, límite 429, cómputo de hash ocupado 503.
+
+NODE_ENV=production exige req.secure en acceso/datos y no acepta X-Forwarded-Proto por defecto. Un proxy TLS local requiere TRUST_PROXY_LOOPBACK=1 y configuración que sobrescriba encabezados; este PR no despliega certificados ni un proxy. HTTP privado de desarrollo sigue solo para datos ficticios.

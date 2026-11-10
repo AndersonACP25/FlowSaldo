@@ -53,3 +53,12 @@ Diseño Dark Slate, revisión manual, flujo semanal y launcher Expo con prueba M
 - Cinco intentos por ciclo con espera creciente; FAILED y reintento manual confirmado, conservando idempotencia.
 - Estado real de importaciones en Conexiones, filtros Procesando/Con error y metadatos de intentos sin detalles sensibles.
 - Migración aditiva sin reset; se mantienen 9 unitarias CORE y 3 recorridos críticos, con integración enfocada en recuperación/concurrencia.
+
+
+## v0.8.0 — Acceso personal
+
+- Setup de cuenta única asociado a datos existentes; el token inicial deja de autorizar datos una vez configurada.
+- Login/logout, contraseña con scrypt, sesiones opacas expirables/revocables y cambio que cierra todas las sesiones.
+- SecureStore nativo y sesión web solo en memoria; limpieza de caché al salir/expirar y URL/API de transporte restringida.
+- Migración aditiva sin reset, rate limit persistido y protección contra login concurrente con cambio de contraseña.
+- 9 unitarias CORE y 4 recorridos Playwright, añadiendo únicamente el riesgo crítico de acceso/cierre.

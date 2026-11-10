@@ -1,4 +1,4 @@
-# FlowSaldo ↗ · v0.7
+# FlowSaldo ↗ · v0.8
 
 Base Android de finanzas personales: React Native + Expo + TypeScript, Express, worker y PostgreSQL con Prisma.
 
@@ -28,7 +28,7 @@ Para abrir en la PC: `pnpm web`. Para Expo Go: `pnpm start`. Para un emulador An
 
 La navegación sigue DESIGN.md: Panel, Movimientos, Por revisar y Conexiones, con una paleta Dark Slate/esmeralda/cian. Panel muestra el flujo de los últimos siete días. Por revisar permite confirmar datos manualmente o descartar correos sintéticos; solo los confirmados generan movimientos. Conexiones muestra el estado real del prototipo y permite encolar avisos sintéticos al worker cuando conectas la API. Gmail y Outlook están marcados como próximos, sin conexión ni IA activa.
 
-La pantalla inicial es una vista previa de inicio de sesión; permite pasar a registro o pulsar «Explorar demostración». No hay autenticación, creación de cuentas ni envío/persistencia de credenciales. Configuración se abre desde el botón del encabezado y permite guardar moneda predeterminada y ocultación visual de importes. No modifica los archivos exportados.
+La pantalla inicial permite iniciar sesión en la cuenta personal, configurar la cuenta inicial o pulsar «Explorar demostración». La demo sigue funcionando sin API. Configuración se abre desde el botón del encabezado y permite guardar moneda predeterminada y ocultación visual de importes. No modifica los archivos exportados.
 
 La demo permite crear, editar y eliminar movimientos con confirmación, buscar por descripción/categoría, filtrar mes/moneda/tipo, ver gastos por categoría, guardar presupuesto por mes/moneda y exportar el conjunto filtrado. En web se descarga CSV; Android crea un archivo CSV en caché y abre el menú nativo para compartirlo. Los movimientos demo y presupuestos persisten con AsyncStorage (almacenamiento sin cifrar, solo datos ficticios), separados de la API. La sesión y token API nunca se guardan. Conexiones permite restablecer la demo con confirmación. Las muestras iniciales se ubican en el mes actual al iniciar una demo nueva.
 
@@ -57,7 +57,7 @@ Para conectar el teléfono:
 3. Cambia HOST a `0.0.0.0` en `.env` y reinicia API; permite el puerto 3000 solo en tu red privada si Windows lo requiere.
 4. Reinicia Expo. En Conexiones escribe el mismo DEV_API_TOKEN y pulsa Conectar.
 
-El token queda solo en memoria. EXPO_PUBLIC_* es público: nunca pongas secretos allí. HTTP LAN y token compartido son únicamente para datos sintéticos en una red confiable. El APK definitivo requiere HTTPS y autenticación individual. Esta base no incluye login multiusuario. Para web usa `http://localhost:3000` en EXPO_PUBLIC_API_URL y el puerto Expo predeterminado 8081. La API permite CORS exclusivamente desde WEB_ORIGINS (localhost:8081 por defecto). Si cambias puerto u origen, actualiza esa variable. El permiso CORS no sustituye el token.
+El token queda solo en memoria. EXPO_PUBLIC_* es público: nunca pongas secretos allí. HTTP LAN y token compartido son únicamente para datos sintéticos en una red confiable. El APK definitivo requiere HTTPS y autenticación individual. Esta base admite una cuenta personal por instalación; no incluye login multiusuario. Para web usa `http://localhost:3000` en EXPO_PUBLIC_API_URL y el puerto Expo predeterminado 8081. La API permite CORS exclusivamente desde WEB_ORIGINS (localhost:8081 por defecto). Si cambias puerto u origen, actualiza esa variable. El permiso CORS no sustituye el token.
 
 ## Probar una importación (PowerShell)
 
@@ -219,3 +219,17 @@ El worker intenta procesar cada aviso hasta cinco veces, con espera creciente an
 Para actualizar, detén API/worker y ejecuta `pnpm install --frozen-lockfile`, `pnpm db:generate` y `pnpm db:migrate`. Luego reinicia ambos. La migración agrega estados/metadatos sin restablecer registros. Los contadores nuevos empiezan desde la actualización y no inventan actividad anterior.
 
 Se mantienen 9 unitarias CORE y 3 recorridos Playwright; el recorrido API existente también comprueba el reintento manual. Recuperación, espera, concurrencia y duplicados se verifican en integración PostgreSQL, sin una matriz nueva de pruebas de pantallas.
+
+
+## v0.8 — Acceso personal
+
+1. Detén API/worker anteriores y actualiza: `pnpm install --frozen-lockfile`, `pnpm db:generate`, `pnpm db:migrate`. Reinicia ambos y configura EXPO_PUBLIC_API_URL como antes.
+2. En la pantalla de acceso, pulsa Configurar cuenta inicial. Usa nombre/correo ficticios, contraseña de al menos 15 caracteres y el DEV_API_TOKEN de tu instalación como Token de configuración inicial. No se restablecen datos; la cuenta se asocia a la instalación existente.
+3. Pulsa Ir a iniciar sesión y entra con la nueva cuenta. Desde ese momento el token de desarrollo deja de autorizar datos: no es una contraseña alternativa ni de recuperación.
+4. Configuración → Cuenta personal permite cerrar sesión, consultar/cerrar otras sesiones y cambiar contraseña. Cambiarla cierra todas las sesiones y exige entrar de nuevo. La recuperación por correo y eliminación de cuenta aún no están disponibles; conserva tu contraseña de prueba.
+
+Una cuenta por instalación. Los movimientos/importaciones/categorías anteriores se mantienen; la demo continúa separada. No existe registro abierto multiusuario. Las sesiones duran 24 horas y se pueden revocar. Web conserva el token solo en memoria, así que recargar exige iniciar sesión. Android/iOS usa SecureStore y valida la sesión antes de restaurarla; su comportamiento en dispositivo físico sigue pendiente de validación.
+
+El cliente bloquea HTTP público; permite localhost/IPv4 privada para desarrollo. En modo producción la API exige HTTPS; el despliegue TLS real y la preparación para datos financieros reales continúan pendientes. No reutilices contraseñas reales en esta fase. Ver SECURITY.md para los límites y la configuración de proxy confiable.
+
+Las unitarias siguen en 9 casos CORE. Se añade solo un cuarto recorrido Playwright de acceso/cambio/cierre, justificado por el nuevo riesgo de credenciales y revocación; el resto de combinaciones de seguridad se valida en API/PostgreSQL.

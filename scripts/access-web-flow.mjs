@@ -1,0 +1,39 @@
+/* global localStorage,sessionStorage */
+import assert from 'node:assert/strict';
+import {URL} from 'node:url';
+import {demoCategoryCatalog} from '../packages/domain/src/index.ts';
+export async function checkAccessFlow(browser){
+ const context=await browser.newContext({viewport:{width:390,height:844}});const page=await context.newPage();page.setDefaultTimeout(10000);
+ const owner={id:1,name:'Cuenta CORE',email:'owner@correo.test'};const token='fs_'+'a'.repeat(43);const nextToken='fs_'+'b'.repeat(43);
+ const password='Synthetic-Passphrase-Initial-2026';const updated='Synthetic-Passphrase-Updated-2026';let changed=false;let loggedOut=false;
+ const button=name=>page.getByRole('button',{name,exact:true});
+ const errors=[];page.on('pageerror',e=>errors.push(e.message));
+ await page.route(process.env.EXPO_PUBLIC_API_URL+'/**',async route=>{
+  const url=new URL(route.request().url());const headers={'Access-Control-Allow-Origin':'*','Access-Control-Allow-Headers':'authorization,content-type'};
+  if(route.request().method()==='OPTIONS'){await route.fulfill({headers,status:204});return;}
+  let data;
+  if(url.pathname==='/auth/login'){
+   const body=route.request().postDataJSON();if(body.password!==(changed?updated:password)){await route.fulfill({headers,status:401,json:{error:'Correo o contraseña incorrectos.'}});return;}
+   data={token:changed?nextToken:token,owner,sessionId:changed?'session-b':'session-a',expiresAt:new Date(Date.now()+86400000).toISOString()};
+  }else if(url.pathname==='/auth/password'){assert.equal(route.request().postDataJSON().newPassword,updated);changed=true;await route.fulfill({headers,status:204});return;}
+  else if(url.pathname==='/auth/logout'){assert.equal(route.request().headers().authorization,'Bearer '+nextToken);loggedOut=true;await route.fulfill({headers,status:204});return;}
+  else if(url.pathname==='/categories')data=demoCategoryCatalog([]);
+  else if(url.pathname==='/recurring')data=[];
+  else if(url.pathname==='/imports')data={items:[],total:0,nextCursor:null,pendingTotal:0};
+  else if(url.pathname==='/imports/stats')data={counts:{PENDING:0,PROCESSING:0,FAILED:0,REVIEW:0,PARSED:0,DISMISSED:0},scheduledRetries:0,expiredLeases:0,nextRetryAt:null,lastProcessedAt:null};
+  else if(url.pathname==='/movements')data={items:[],total:0,nextCursor:null};
+  else if(url.pathname==='/summary')data={incomeMinor:0,expenseMinor:0,differenceMinor:0,total:0,categories:[],categoryTotals:[],days:Array.from({length:7},(_,i)=>({day:'2026-01-0'+(i+1),incomeMinor:0,expenseMinor:0,netMinor:0}))};
+  else throw new Error('Unexpected access path '+url.pathname);
+  await route.fulfill({headers,json:data});
+ });
+ try{
+  await page.goto('http://127.0.0.1:8082',{waitUntil:'networkidle'});
+  await page.getByLabel('Correo electrónico',{exact:true}).fill(owner.email);await page.getByLabel('Contraseña',{exact:true}).fill('Incorrect-Synthetic-Passphrase');await button('Entrar').click();await page.getByText('Correo o contraseña incorrectos.',{exact:true}).waitFor();
+  await page.getByLabel('Contraseña',{exact:true}).fill(password);await button('Entrar').click();await page.getByText('Tu presupuesto mensual',{exact:true}).waitFor();
+  const persisted=await page.evaluate(()=>JSON.stringify({local:{...localStorage},session:{...sessionStorage}}));assert.ok(!persisted.includes(token)&&!persisted.includes(password),'Browser credentials stay out of web storage');
+  await button('Configuración').click();await page.getByText('Cuenta personal',{exact:true}).waitFor();
+  await page.getByLabel('Contraseña actual',{exact:true}).fill(password);await page.getByLabel('Nueva contraseña',{exact:true}).fill(updated);await page.getByLabel('Confirmar nueva contraseña',{exact:true}).fill(updated);await button('Guardar nueva contraseña').click();await page.getByText('Tu sesión terminó. Inicia sesión nuevamente.',{exact:true}).waitFor();assert.equal(changed,true);
+  await page.getByLabel('Correo electrónico',{exact:true}).fill(owner.email);await page.getByLabel('Contraseña',{exact:true}).fill(updated);await button('Entrar').click();await button('Configuración').click();await button('Cerrar sesión').click();await page.getByText('Sesión cerrada.',{exact:true}).waitFor();assert.equal(loggedOut,true);assert.equal(await page.getByLabel('Contraseña',{exact:true}).inputValue(),'');
+  assert.deepEqual(errors,[]);console.info('PASS CORE ACCESS UI: rejected/accepted login, no web credential persistence, password change ends session, login again and logout');
+ }finally{await context.close();}
+}

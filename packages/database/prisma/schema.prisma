@@ -95,3 +95,27 @@ model RecurringOccurrence {
  confirmedAt DateTime @default(now())
  @@unique([templateId,scheduledFor])
 }
+
+model AppOwner {
+ id Int @id @default(1)
+ name String
+ email String @unique
+ passwordHash String
+ createdAt DateTime @default(now())
+ sessions AccessSession[]
+}
+model AccessSession {
+ id String @id @default(cuid())
+ ownerId Int
+ owner AppOwner @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+ tokenHash String @unique
+ createdAt DateTime @default(now())
+ expiresAt DateTime
+ revokedAt DateTime?
+ @@index([ownerId, expiresAt])
+}
+model AuthThrottle {
+ key String @id
+ startedAt DateTime
+ attempts Int
+}

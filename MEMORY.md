@@ -1,6 +1,6 @@
 # FlowSaldo — memoria del proyecto
 
-Última actualización: 2026-11-10. Versión del proyecto y app 0.7.0.
+Última actualización: 2026-11-10. Versión del proyecto y app 0.8.0.
 
 ## Objetivo
 
@@ -116,3 +116,12 @@ Siguiente lote elegido del roadmap después de completar v0.6: robustecer worker
 POST /imports/:id/retry solo FAILED sin movimiento, bajo bloqueo de fila; attempts vuelve a cero, manualRetries sube y el ciclo continúa en PENDING. No reabre PARSED al borrar su movimiento. GET /imports/stats da instantánea real, sin afirmar conectividad del worker. UI en Conexiones y filtro Con error con confirmación de reintento; polling solo en secciones relevantes. Migración aditiva 20261110020000_import_recovery; detener API/worker, aplicar Prisma y reiniciar versión nueva juntos. No cambia claves locales ni datos demo.
 
 Regla de pruebas conservada: 9 casos CORE, 3 recorridos Playwright (se extiende el recorrido API crítico, sin nueva matriz). Integración PostgreSQL cubre backoff, intentos/reserva durables, recuperación de proceso interrumpido, propietario obsoleto, agotamiento y reintento manual concurrente. Evidencia y CI en PR #6. Identidad/OAuth, política de retención, conciliación y Android físico siguen pendientes.
+
+
+## v0.8 — Acceso personal (2026-11-10)
+
+Cuenta única AppOwner id=1 con constraint; setup requiere DEV_API_TOKEN, conserva datos y desactiva el acceso legacy con ese token al crear owner. Inicio/logout, 24 h de sesión, otras sesiones, cambio de contraseña y revocación global. Scrypt-v1 (N2^17,r8,p1, sal16, clave64), tokens aleatorios256bits guardados comoSHA256. Throttle persistido por IP/acción; dos hashes concurrentes máximo. Password change y login se serializan en owner para impedir emitir sesiones con contraseña obsoleta. No hay multiusuario, recuperación por correo ni eliminación de cuenta.
+
+Cliente AuthScreen funcional: web token en memoria; nativo SecureStore ligado a API URL con validación previa a restaurar. Logout/401 elimina credencial y caché, sin simular revocación remota si falla red. HTTP público bloqueado; production API requiere HTTPS, con trust proxy solo loopback explícito. No se despliega TLS ni se certifican datos reales. Migración personal_access aditiva, sin reset. La demo y presupuestos locales permanecen separados y sin cifrar.
+
+QA sigue acotado: 9 unitarias CORE, 4 recorridos web al añadir solo el flujo crítico de acceso/cambio/cierre. Integración valida singleton concurrente, bloqueo bootstrap después de setup, hashes/sesiones, expiración/revocación, throttle, límite de URL/proxy. Android físico/SecureStore y recuperación de contraseña siguen pendientes. Evidencia de ejecución y CI en PR #6.

@@ -1,3 +1,5 @@
+import {checkAccessTransport} from './access-transport-smoke.mjs';
+import {checkPersonalAccess} from './access-smoke.mjs';
 import {once} from 'node:events';
 import {checkImportRecovery} from './import-recovery-smoke.mjs';
 import { spawn } from 'node:child_process';
@@ -66,5 +68,7 @@ try {
  await checkHistory(request,/^DATABASE_URL=(.+)$/m.exec(env)?.[1]);
  const workerExit=once(worker,'exit');worker.kill('SIGTERM');await workerExit;
  await checkImportRecovery(request,/^DATABASE_URL=(.+)$/m.exec(env)?.[1]);
+ await checkPersonalAccess(token,/^DATABASE_URL=(.+)$/m.exec(env)?.[1]);
+ await checkAccessTransport();
  console.info('Smoke: auth, validation, persistence, idempotency and review passed');
 } finally { api.kill('SIGTERM'); worker.kill('SIGTERM'); }

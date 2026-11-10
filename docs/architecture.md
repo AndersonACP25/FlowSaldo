@@ -20,9 +20,9 @@ flowchart TD
 - externalId único evita reimportar el mismo mensaje. No deduplica mensajes distintos sobre una misma operación: esa capacidad está pendiente.
 - SELECT FOR UPDATE SKIP LOCKED mantiene un mensaje bloqueado mientras se procesa. Crear movimiento y actualizar importación ocurre en una sola transacción; un fallo revierte ambas acciones. importId único añade protección.
 - Desde v0.7 hay reservas durables, backoff e intentos limitados; FAILED permite reintento manual. Ver el contrato de recuperación al final.
-- API de desarrollo para una sola persona con token compartido. No hay usuarios ni aislamiento multiusuario. Health es público; los demás endpoints exigen Bearer.
-- La app limita la lista remota a 200 registros del mes y moneda seleccionados e identifica ese alcance. El endpoint summary usa todos los registros; no tiene filtros mensuales todavía; la app filtra por mes mediante GET /movements y calcula sus propios indicadores sobre ese subconjunto.
-- No se almacena token en disco ni en EXPO_PUBLIC_*. La sesión del móvil vive en memoria.
+- API personal: desde v0.8 hay un único propietario y sesiones revocables, sin aislamiento multiusuario. El token inicial solo funciona antes de configurar la cuenta. Health y las rutas acotadas de acceso tienen la política descrita en SECURITY.md.
+- Desde v0.6 el historial remoto es paginado y summary calcula todos los registros por mes/moneda, con comparación mensual. Las rutas legacy conservan sus límites solo para compatibilidad.
+- No se guarda token en AsyncStorage ni EXPO_PUBLIC_*. Desde v0.8 web lo mantiene en memoria y nativo usa SecureStore con validación al restaurar.
 
 ## Próxima arquitectura de correo
 
@@ -61,3 +61,14 @@ La exportación nativa usa implementación .native.ts con File/Directory/Paths y
 La reclamación es una transacción corta: selecciona PENDING elegible o PROCESSING vencido con SKIP LOCKED, incrementa intentos y persiste token/expiración. La finalización verifica el token bajo bloqueo y crea movimiento/cambia estado en una transacción. Un dueño antiguo no puede finalizar una reserva recuperada. Ante fallo se agenda otro intento o FAILED; al recuperar un quinto intento interrumpido se detiene el ciclo. La idempotencia mantiene externalId e importId únicos.
 
 Los códigos de resultado son públicos y acotados; el token de propietario solo vive en PostgreSQL/worker. Stats usa snapshot consistente y la UI lo describe como estado de importaciones, sin simular conectividad. El reencolado manual es explícito, limitado a FAILED sin movimiento y con protección concurrente. No se añade un scheduler externo ni servicios adicionales.
+
+
+## v0.8: propietario único y sesiones
+
+AppOwner id=1 conserva la instalación personal sin reescribir filas financieras. La creación inicial exige el secreto de configuración y el constraint impide un segundo propietario aun con solicitudes concurrentes. Crear AppOwner desactiva el acceso a datos con DEV_API_TOKEN. No se añade un ownerId ficticio a cada tabla ni se anuncia soporte multiusuario.
+
+AuthThrottle persiste ventanas por IP/acción. Contraseñas usan scrypt y la emisión de sesión se serializa con cambios de contraseña; AccessSession guarda hashes de tokens opacos y permite expirar/revocar. Cambiar la contraseña revoca todas las sesiones. Los endpoints solo retornan DTOs públicos. El middleware vuelve a validar sesión en cada solicitud y marca respuestas no-store.
+
+AuthScreen reemplaza la vista previa. Web mantiene credenciales solo en memoria; la implementación nativa de accessVault usa SecureStore con URL ligada y /auth/me antes de restaurar. Un 401 de datos en sesión personal limpia credenciales/caché y vuelve al acceso. La demo sigue abriendo sin API. No se cifran los datos demo/presupuestos ni se implementa recuperación por correo.
+
+Production rechaza HTTP; un proxy TLS local requiere confianza loopback explícita. El despliegue TLS real y la validación física de SecureStore siguen pendientes. QA agrega solo un cuarto recorrido crítico de acceso/cambio/salida; las combinaciones de seguridad quedan en integración.
