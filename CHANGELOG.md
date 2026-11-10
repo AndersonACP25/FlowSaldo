@@ -20,3 +20,11 @@ Esta versión cambia herramientas de desarrollo. La interfaz y funciones de la a
 ## 0.3.0
 
 Diseño Dark Slate, revisión manual, flujo semanal y launcher Expo con prueba Metro dev en Windows/Linux.
+
+
+## En desarrollo — v0.6, entrega 1
+
+- Historial API paginado por cursor y Cargar más, conservando rutas legacy.
+- Totales mensuales, categorías y flujo semanal completos calculados en servidor.
+- CSV del conjunto filtrado completo y revisiones por estado/fecha con contador global.
+- Integración de regresión con 205 movimientos y 105 revisiones; sin migración de datos.

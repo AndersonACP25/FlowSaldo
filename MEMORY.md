@@ -45,7 +45,7 @@ Monorepo pnpm: apps/mobile (Expo, React Native, React Query), apps/api (Express,
 
 ## Límites y pendientes
 
-No hay OAuth Gmail/Outlook, parsers bancarios reales, usuarios ni autenticación de producción. No conectar información bancaria real. Los listados API devuelven como máximo 200 movimientos por mes/moneda; los indicadores de la app usan ese conjunto. Los presupuestos no se sincronizan entre dispositivos. No hay gestión de deuda, devoluciones ni conciliación. No hay paginación completa. Restablecer demo no borra PostgreSQL.
+No hay OAuth Gmail/Outlook, parsers bancarios reales, usuarios ni autenticación de producción. No conectar información bancaria real. Los listados de compatibilidad conservan 200/100 filas; la app utiliza los endpoints paginados y el resumen mensual completo. Los presupuestos no se sincronizan entre dispositivos. No hay gestión de deuda, devoluciones ni conciliación. Restablecer demo no borra PostgreSQL.
 
 La exportación nativa comparte texto CSV; adjuntar un archivo CSV nativo queda pendiente. Confirmar comportamiento en Android físico y generar APK en EAS sigue pendiente.
 
@@ -80,3 +80,10 @@ Inicio de sesión y registro son vistas previas no funcionales: botones de enví
 Revisión lingüística language-editor y guardián export-guardian agregados al catálogo y plan. countLabel cubre 0/1/N y pendingMailMessage la concordancia. text:check detecta patrones conocidos, no toda la gramática. CSV web tiene nombre FlowSaldo y encabezados con mayúscula. Guardián CLI valida nombre y estructura de CSV/.xlsx, incluidas columnas separadas; para otros formatos solo nombre y existencia. No se incorpora exportador Excel a la UI.
 
 Validación local v0.5: instalación pnpm congelada aprobada, Prisma generado, lint/tipos, 16 pruebas de dominio, 3 de exportación con CSV/.xlsx reales y 10 de coordinación aprobadas. Flujo web aprobado para acceso/registro sin POST, configuración persistente, pluralización singular, nombre/columnas del CSV, CRUD y revisión. Metro dev respondió 200 y se generó bundle Android; no se probó en Android físico.
+
+
+## v0.6 — Entrega 1 (2026-11-10)
+
+Historial paginado con cursor compuesto fecha/ID, resumen mensual completo agregado en PostgreSQL, CSV con todos los resultados filtrados y revisiones por estado/fecha de recepción. Se preservan rutas legacy sin page=true; contratos en docs/api.md. Totales/categorías/flujo semanal independientes de páginas cargadas. Snapshot RepeatableRead por respuesta, sin snapshot entre páginas: cambios concurrentes requieren actualizar. CSV se genera desde una consulta completa en memoria. No hay migración ni cambios de autenticación; la clave local v2 se conserva. Revisiones demo nuevas tienen createdAt; antiguas sin fecha no se inventan ni eliminan, y quedan fuera de filtros de fecha.
+
+Entrega 1 del lote: las próximas entregas abarcan categorías, presupuestos por categoría, registro rápido, comparativas, recurrencias y archivo CSV nativo. La versión de paquete sigue 0.5.0 hasta completar el lote. Registrar evidencia real de validación en el PR.

@@ -1,8 +1,8 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { StatusBar } from 'expo-status-bar';
 import { SafeAreaView, ScrollView, View, Text, ActivityIndicator, Pressable } from 'react-native';
-import { QueryClient, QueryClientProvider, useQuery } from '@tanstack/react-query';
-import { countLabel, pendingMailMessage, categoryExpenses, demoMovements, filterMovements, parseAmount, summarize, type Movement, type Currency, type MovementType } from '@flowsaldo/domain';
+import { QueryClient, QueryClientProvider, useQuery, useInfiniteQuery } from '@tanstack/react-query';
+import { validDate, countLabel, pendingMailMessage, categoryExpenses, demoMovements, filterMovements, parseAmount, summarize, type Movement, type Currency, type MovementType } from '@flowsaldo/domain';
 import { styles as s, palette } from './src/theme';
 import { Button, Choice, Field } from './src/ui';
 import { MovementForm, type Draft, typeLabels } from './src/MovementForm';
@@ -13,7 +13,8 @@ import { WeeklyFlow } from './src/WeeklyFlow';
 import { AuthPreview, type AuthRoute } from './src/AuthPreview';
 import { AccountSettings } from './src/AccountSettings';
 import { defaultPreferences, loadPreferences, savePreferences, type Preferences } from './src/preferences';
-import { exportCsv } from './src/exportCsv';
+import { exportCsv, exportCsvText } from './src/exportCsv';
+import { movementParams, type Page, type MonthlySummary } from './src/history';
 const client=new QueryClient();
 const formatMoney=(minor:number,currency:Currency)=>`${currency} ${(minor/100).toLocaleString('es-DO',{minimumFractionDigits:2,maximumFractionDigits:2})}`;
 function currentMonth() { const d=new Date(); return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}`; }
@@ -28,6 +29,8 @@ function Home({onAuth}:{onAuth:(route:AuthRoute)=>void}) {
  const [currency,setCurrency]=useState<Currency>('DOP'); const [month,setMonth]=useState(currentMonth);
  const [screen,setScreen]=useState<'Panel'|'Movimientos'|'Por revisar'|'Conexiones'|'Configuración'>('Panel');
  const [search,setSearch]=useState('');const [type,setType]=useState<MovementType|'ALL'>('ALL');
+ const [reviewStatus,setReviewStatus]=useState<ReviewItem['status']|'ALL'>('REVIEW');
+ const [reviewFrom,setReviewFrom]=useState('');const [reviewTo,setReviewTo]=useState('');
  const [editor,setEditor]=useState<Movement|'new'|null>(null);const [deleteId,setDeleteId]=useState<string|null>(null);
  const [token,setToken]=useState('');const [session,setSession]=useState('');
  const [notice,setNotice]=useState('');const [error,setError]=useState('');const [busy,setBusy]=useState(false);
@@ -41,30 +44,45 @@ function Home({onAuth}:{onAuth:(route:AuthRoute)=>void}) {
   if(!response.ok) {const data=await response.json().catch(()=>null);throw new Error(data?.error??'No se pudo conectar con la API.');}
   return response.status===204?null:response.json();
  }
- const query=useQuery({queryKey:['movements',connected,month,currency],enabled:connected,retry:false,queryFn:async():Promise<Movement[]>=>request(`/movements?month=${month}&currency=${currency}`)});
- const imports=useQuery({queryKey:['imports',connected],enabled:connected,retry:false,queryFn:async():Promise<ReviewItem[]>=>request('/imports')});
- const reviews=connected?(imports.data??[]):local.reviews;
- const pending=reviews.filter(i=>i.status==='REVIEW').length;
- const source=connected?(query.data??[]):local.movements;
- const period=filterMovements(source,{currency,month});
- const visible=filterMovements(source,{currency,month,type,search});
- const summary=summarize(period,currency);const categories=categoryExpenses(period);
+ const params=movementParams(month,currency,type,search);
+ const query=useInfiniteQuery({queryKey:['movements',connected,params],enabled:connected,retry:false,initialPageParam:null as string|null,
+  queryFn:async({pageParam}):Promise<Page<Movement>>=>request(`/movements?page=true&${params}${pageParam?`&cursor=${encodeURIComponent(pageParam)}`:''}`),
+  getNextPageParam:last=>last.nextCursor??undefined});
+ const totals=useQuery({queryKey:['summary',connected,month,currency],enabled:connected,retry:false,queryFn:async():Promise<MonthlySummary>=>request(`/summary?month=${month}&currency=${currency}`)});
+ const reviewParams=`${reviewStatus==='ALL'?'':`&status=${reviewStatus}`}${reviewFrom?`&from=${encodeURIComponent(reviewFrom)}`:''}${reviewTo?`&to=${encodeURIComponent(reviewTo)}`:''}`;
+ const reviewDateError=(reviewFrom&&!validDate(reviewFrom))||(reviewTo&&!validDate(reviewTo))||(reviewFrom&&reviewTo&&reviewFrom>reviewTo);
+ const imports=useInfiniteQuery({queryKey:['imports',connected,reviewParams],enabled:connected&&!reviewDateError,retry:false,initialPageParam:null as string|null,
+  queryFn:async({pageParam}):Promise<Page<ReviewItem>>=>request(`/imports?page=true${reviewParams}${pageParam?`&cursor=${encodeURIComponent(pageParam)}`:''}`),
+  getNextPageParam:last=>last.nextCursor??undefined});
+ const reviews=connected?(imports.data?.pages.flatMap(p=>p.items)??[]):local.reviews.filter(i=>(reviewStatus==='ALL'||i.status===reviewStatus)&&(!reviewFrom||!!i.createdAt&&i.createdAt.slice(0,10)>=reviewFrom)&&(!reviewTo||!!i.createdAt&&i.createdAt.slice(0,10)<=reviewTo));
+ const pending=connected?(imports.data?.pages[0]?.pendingTotal??0):local.reviews.filter(i=>i.status==='REVIEW').length;
+ const period=filterMovements(local.movements,{currency,month});
+ const visible=connected?(query.data?.pages.flatMap(p=>p.items)??[]):filterMovements(local.movements,{currency,month,type,search});
+ const summary=connected?(totals.data??{incomeMinor:0,expenseMinor:0,differenceMinor:0}):summarize(period,currency);
+ const categories=connected?(totals.data?.categories??[]):categoryExpenses(period);
+ async function refreshMovements(){await Promise.all([client.invalidateQueries({queryKey:['movements']}),client.invalidateQueries({queryKey:['summary']})]);}
+ async function exportAll(){
+  if(!connected){await exportCsv(visible,month);return;}
+  const response=await fetch(`${url}/movements/export?${params}`,{headers:{Authorization:`Bearer ${session}`}});
+  if(!response.ok)throw new Error('No se pudo exportar. Reintenta la descarga.');
+  await exportCsvText(await response.text(),`FlowSaldo-${month}.csv`);
+ }
  const budgetKey=`${connected?'api':'demo'}:${month}:${currency}`;const budget=local.budgets[budgetKey]??0;
  const percentage=budget?Math.round(summary.expenseMinor/budget*100):0;
  async function action(work:()=>Promise<void>) {setBusy(true);setError('');setNotice('');try{await work();}catch(e){setError(e instanceof Error?e.message:'No se pudo completar la acción.');}finally{setBusy(false);}}
  async function saveMovement(draft:Draft) {
   const edit=editor&&editor!=='new'?editor:null;
-  if(connected){await request(edit?`/movements/${edit.id}`:'/movements',{method:edit?'PATCH':'POST',body:JSON.stringify(draft)});await client.invalidateQueries({queryKey:['movements']});}
+  if(connected){await request(edit?`/movements/${edit.id}`:'/movements',{method:edit?'PATCH':'POST',body:JSON.stringify(draft)});await refreshMovements();}
   else {const item:Movement={...draft,id:edit?.id??`local-${Date.now()}-${Math.random().toString(36).slice(2)}`};await persist({...localRef.current,movements:edit?localRef.current.movements.map(m=>m.id===item.id?item:m):[item,...localRef.current.movements]});}
   setMonth(draft.occurredAt.slice(0,7));setCurrency(draft.currency);setSearch('');setType('ALL');setEditor(null);setScreen('Movimientos');setNotice('Movimiento guardado.');
  }
  async function remove(id:string) {
-  if(connected){await request(`/movements/${id}`,{method:'DELETE'});await client.invalidateQueries({queryKey:['movements']});}
+  if(connected){await request(`/movements/${id}`,{method:'DELETE'});await refreshMovements();}
   else await persist({...localRef.current,movements:localRef.current.movements.filter(m=>m.id!==id)});
   setDeleteId(null);setNotice('Movimiento eliminado.');
  }
  async function resolveReview(id:string,draft:Draft) {
-  if(connected) {await request(`/imports/${id}/resolve`,{method:'POST',body:JSON.stringify(draft)});await Promise.all([client.invalidateQueries({queryKey:['imports']}),client.invalidateQueries({queryKey:['movements']})]);}
+  if(connected) {await request(`/imports/${id}/resolve`,{method:'POST',body:JSON.stringify(draft)});await Promise.all([client.invalidateQueries({queryKey:['imports']}),refreshMovements()]);}
   else {
    const review=localRef.current.reviews.find(i=>i.id===id);
    if(review?.status!=='REVIEW') throw new Error('Este correo ya fue revisado.');
@@ -81,7 +99,7 @@ function Home({onAuth}:{onAuth:(route:AuthRoute)=>void}) {
  function disconnect(){setSession('');setToken('');client.clear();setEditor(null);setDeleteId(null);setNotice('Sesión cerrada. Volviste a la demo local.');}
  return <SafeAreaView style={s.root}><StatusBar style="light"/><ScrollView keyboardShouldPersistTaps="handled" contentContainerStyle={s.content}>
   <View style={s.between}><View><Text style={s.brand}>FlowSaldo ⤴</Text><Text style={s.muted}>Tus finanzas, en orden.</Text></View><Choice label="Configuración" text="⚙" selected={screen==='Configuración'} onPress={()=>{setEditor(null);setScreen('Configuración');}}/><Button label="+ Nuevo movimiento" text="+ Añadir" disabled={!ready||busy||!!editor} onPress={()=>{setEditor('new');setScreen('Movimientos');setError('');setNotice('');}}/></View>
-  <View style={s.banner}><Text style={s.text}>{connected?'API personal · máximo 200 movimientos del mes':'Demo · datos ficticios en este dispositivo'}</Text><Text style={s.muted}>Correo bancario sin conectar.</Text></View>
+  <View style={s.banner}><Text style={s.text}>{connected?'API personal · historial paginado':'Demo · datos ficticios en este dispositivo'}</Text><Text style={s.muted}>Correo bancario sin conectar.</Text></View>
   {!ready&&!loadError&&<ActivityIndicator color={palette.primary}/>}
   {!!loadError&&<View style={s.card}><Text style={s.error}>{loadError}</Text><Button label={resetConfirm?'Confirmar borrado local y restablecer':'Restablecer datos locales'} onPress={()=>resetConfirm?void action(reset):setResetConfirm(true)}/></View>}
   {ready&&<>
@@ -89,39 +107,47 @@ function Home({onAuth}:{onAuth:(route:AuthRoute)=>void}) {
    {!!notice&&<Text accessibilityLiveRegion="polite" style={s.success}>{notice}</Text>}{!!error&&<Text accessibilityRole="alert" style={s.error}>{error}</Text>}
    {(screen==='Panel'||screen==='Movimientos')&&<View style={s.between}><View style={s.row}><Choice label="‹ Mes anterior" text="‹" selected={false} onPress={()=>setMonth(shiftMonth(month,-1))}/><Text style={s.title}>{month}</Text><Choice label="Mes siguiente ›" text="›" selected={false} onPress={()=>setMonth(shiftMonth(month,1))}/></View><View style={s.row}>{(['DOP','USD'] as const).map(c=><Choice key={c} label={c} selected={currency===c} onPress={()=>setCurrency(c)}/>)}</View></View>}
    {connected&&query.isFetching&&<ActivityIndicator color={palette.primary}/>}
-   {connected&&query.error&&<View style={s.card}><Text accessibilityRole="alert" style={s.error}>{query.error.message}</Text><Button label="Reintentar" onPress={()=>void query.refetch()}/></View>}
-   {screen==='Panel'&&<>
+   {connected&&query.error&&<View style={s.card}><Text accessibilityRole="alert" style={s.error}>{query.error.message}</Text><Button label="Reintentar" onPress={()=>void refreshMovements()}/></View>}
+   {screen==='Panel'&&connected&&(totals.isPending||totals.error)&&<View style={s.card}><Text style={s.muted}>{totals.error?'No se pudo cargar el resumen mensual.':'Cargando resumen mensual…'}</Text>{!!totals.error&&<Button label="Reintentar resumen" onPress={()=>void totals.refetch()}/>}</View>}
+   {screen==='Panel'&&(!connected||totals.isSuccess)&&<>
 
     <View style={s.hero}><Text style={s.white}>Diferencia registrada · {month}</Text><Text style={s.heroValue}>{money(summary.differenceMinor,currency)}</Text><Text style={s.white}>Ingresos menos gastos. No equivale al saldo del banco.</Text></View>
-    <View style={s.metrics}><View style={s.metric}><Text style={s.muted}>Ingresos</Text><Text style={s.income}>{money(summary.incomeMinor,currency)}</Text></View><View style={s.metric}><Text style={s.muted}>Gastos</Text><Text style={s.expense}>{money(summary.expenseMinor,currency)}</Text></View><View style={s.metric}><Text style={s.muted}>Movimientos</Text><Text style={s.amount}>{period.length}</Text></View></View>
+    <View style={s.metrics}><View style={s.metric}><Text style={s.muted}>Ingresos</Text><Text style={s.income}>{money(summary.incomeMinor,currency)}</Text></View><View style={s.metric}><Text style={s.muted}>Gastos</Text><Text style={s.expense}>{money(summary.expenseMinor,currency)}</Text></View><View style={s.metric}><Text style={s.muted}>Movimientos</Text><Text style={s.amount}>{connected?totals.data?.total:period.length}</Text></View></View>
     {pending>0&&<View style={[s.card,{borderColor:'#53412b'}]}><View style={s.between}><Text style={s.text}>{pendingMailMessage(pending)}</Text><Button label="Ir a revisiones" onPress={()=>setScreen('Por revisar')}/></View><Text style={s.muted}>Revisa los datos antes de incorporarlos a tus movimientos.</Text></View>}
-    {preferences.hideAmounts?<View style={s.card}><Text style={s.muted}>Flujo semanal oculto por tu preferencia de privacidad.</Text></View>:<WeeklyFlow rows={period} month={month} currency={currency}/>}
+    {preferences.hideAmounts?<View style={s.card}><Text style={s.muted}>Flujo semanal oculto por tu preferencia de privacidad.</Text></View>:<WeeklyFlow rows={period} month={month} currency={currency} days={connected?totals.data?.days:undefined}/>}
     <View style={s.card}><Text style={s.title}>Tu presupuesto mensual</Text><Text style={s.muted}>Límite de gastos para {month} en {currency}. Guardado en este dispositivo para el modo actual.</Text>
      {budget>0&&<><Text style={percentage>=100?s.expense:s.amount}>{percentage}% utilizado · {money(budget,currency)}</Text><View accessibilityLabel={`${percentage}% del presupuesto utilizado`} style={s.track}><View style={[s.fill,{width:`${Math.min(100,percentage)}%`,backgroundColor:percentage>=100?palette.expense:palette.primary}]}/></View><Text style={s.muted}>{summary.expenseMinor>budget?'Exceso: '+money(summary.expenseMinor-budget,currency):'Disponible: '+money(budget-summary.expenseMinor,currency)}</Text></>}
      <Field label="Nuevo límite mensual" value={budgetInput} onChangeText={setBudgetInput} keyboardType="decimal-pad" placeholder="Ejemplo: 20000"/>
      <View style={s.row}><Button label="Guardar presupuesto" disabled={busy} onPress={()=>void action(async()=>{const value=parseAmount(budgetInput);await persist({...localRef.current,budgets:{...localRef.current.budgets,[budgetKey]:value}});setBudgetInput('');setNotice('Presupuesto guardado.');})}/>{budget>0&&<Button label="Quitar límite" disabled={busy} onPress={()=>void action(async()=>{const budgets={...localRef.current.budgets};delete budgets[budgetKey];await persist({...localRef.current,budgets});})}/>}</View>
     </View>
     <View style={s.card}><Text style={s.title}>¿En qué estás gastando?</Text>{!categories.length&&<Text style={s.muted}>Todavía no hay gastos este mes en esta moneda.</Text>}{categories.map(c=><View key={c.category} style={{gap:8}}><View style={s.between}><Text style={s.text}>{c.category}</Text><Text style={s.text}>{money(c.amountMinor,currency)}</Text></View><View style={s.track}><View style={[s.fill,{width:`${Math.round(c.amountMinor/summary.expenseMinor*100)}%`}]}/></View></View>)}</View>
-    <Text style={s.muted}>Las transferencias propias se excluyen de ingresos y gastos. En modo API los indicadores se calculan sobre los últimos 200 movimientos del mes.</Text>
+    <Text style={s.muted}>Las transferencias propias se excluyen de ingresos y gastos. Los indicadores incluyen todos los movimientos del mes y la moneda seleccionados.</Text>
    </>}
    {screen==='Movimientos'&&<>
     {editor&&<MovementForm key={editor==='new'?'new':editor.id} movement={editor==='new'?undefined:editor} currency={currency} month={month} onSave={saveMovement} onCancel={()=>setEditor(null)}/>}
-    <Field label="Buscar descripción o categoría" value={search} onChangeText={setSearch} placeholder="Supermercado, transporte…"/>
+    <Field label="Buscar descripción o categoría" value={search} onChangeText={setSearch} maxLength={100} placeholder="Supermercado, transporte…"/>
     <View style={s.row}><Choice label="Todos" selected={type==='ALL'} onPress={()=>setType('ALL')}/>{(['INCOME','EXPENSE','TRANSFER'] as const).map(t=><Choice key={t} label={typeLabels[t]} selected={type===t} onPress={()=>setType(t)}/>)}</View>
-    <View style={s.between}><Text style={s.title}>{countLabel(visible.length,'movimiento','movimientos')}</Text><View style={s.row}>{connected&&<Button label="Actualizar" onPress={()=>void query.refetch()}/>}<Button label="Exportar CSV" disabled={!visible.length||busy} onPress={()=>void action(()=>exportCsv(visible,month))}/></View></View>
-    {!visible.length&&<View style={s.card}><Text style={s.title}>No hay movimientos con estos filtros</Text><Text style={s.muted}>Cambia el mes, la moneda o añade tu primer movimiento.</Text></View>}
+    <View style={s.between}><Text style={s.title}>{countLabel(connected?(query.data?.pages[0]?.total??0):visible.length,'movimiento','movimientos')}</Text><View style={s.row}>{connected&&<Button label="Actualizar" onPress={()=>void refreshMovements()}/>}<Button label="Exportar CSV" disabled={!visible.length||busy} onPress={()=>void action(exportAll)}/></View></View>
+    {!visible.length&&(!connected||query.isSuccess)&&<View style={s.card}><Text style={s.title}>No hay movimientos con estos filtros</Text><Text style={s.muted}>Cambia el mes, la moneda o añade tu primer movimiento.</Text></View>}
     {visible.map(m=><View key={m.id} style={s.card}><View style={s.between}><View><Text style={s.text}>{m.description}</Text><Text style={s.muted}>{m.category} · {m.occurredAt.slice(0,10)} · {typeLabels[m.type]}</Text></View><Text style={m.type==='INCOME'?s.income:m.type==='EXPENSE'?s.expense:s.amount}>{m.type==='EXPENSE'?'−':m.type==='INCOME'?'+':'↔'} {money(m.amountMinor,m.currency)}</Text></View>
      <View style={s.row}><Choice label={`Editar ${m.description}`} selected={false} onPress={()=>{setEditor(m);setDeleteId(null);}}/><Choice label="Eliminar" selected={false} onPress={()=>setDeleteId(m.id)}/></View>
      {deleteId===m.id&&<><Text style={s.error}>¿Eliminar este movimiento? Esta acción no se puede deshacer.</Text><View style={s.row}><Button label="Confirmar eliminación" disabled={busy} onPress={()=>void action(()=>remove(m.id))}/><Button label="Cancelar eliminación" disabled={busy} onPress={()=>setDeleteId(null)}/></View></>}
     </View>)}
    </>}
+   {screen==='Movimientos'&&connected&&query.hasNextPage&&<Button label={query.isFetchingNextPage?'Cargando movimientos…':'Cargar más movimientos'} disabled={query.isFetching} onPress={()=>void query.fetchNextPage()}/>}
    {screen==='Configuración'&&<AccountSettings preferences={preferences} onAuth={onAuth} onSave={async value=>{await savePreferences(value);setPreferences(value);setCurrency(value.currency);}}/>}
    {screen==='Por revisar'&&<>
+    <View style={s.card}><Text style={s.title}>Filtros de revisiones</Text><View style={s.row}>{(['REVIEW','PENDING','PARSED','DISMISSED','ALL'] as const).map(status=><Choice key={status} label={{REVIEW:'Por confirmar',PENDING:'En proceso',PARSED:'Confirmados',DISMISSED:'Descartados',ALL:'Todos los estados'}[status]} selected={reviewStatus===status} onPress={()=>setReviewStatus(status)}/>)}</View>
+    <Field label="Recibido desde (AAAA-MM-DD)" value={reviewFrom} onChangeText={setReviewFrom} maxLength={10}/><Field label="Recibido hasta (AAAA-MM-DD)" value={reviewTo} onChangeText={setReviewTo} maxLength={10}/>
+    {!!reviewDateError&&<Text accessibilityRole="alert" style={s.error}>Escribe fechas válidas en orden: desde debe ser anterior o igual a hasta.</Text>}
+    <Button label="Limpiar filtros de revisiones" onPress={()=>{setReviewStatus('REVIEW');setReviewFrom('');setReviewTo('');}}/>
+    <Text style={s.muted}>Las fechas filtran la recepción del correo. Los avisos demo antiguos sin fecha solo aparecen sin filtro de fechas.</Text></View>
     {connected&&imports.isFetching&&<ActivityIndicator color={palette.primary}/>}
     {connected&&imports.error&&<Text style={s.error}>{imports.error.message}</Text>}
     {connected&&<Button label="Actualizar revisiones" onPress={()=>void imports.refetch()}/>}
-    {(!connected||!imports.error)&&<ReviewInbox items={reviews} month={month} currency={currency} onResolve={resolveReview} onDiscard={discardReview} onOriginal={async id=>(await request(`/imports/${id}`)).body}/>}
+    {!reviewDateError&&(!connected||imports.isSuccess)&&<ReviewInbox key={reviewParams} total={connected?imports.data?.pages[0]?.total:reviews.length} showHistory={reviewStatus!=='REVIEW'} items={reviews} month={month} currency={currency} onResolve={resolveReview} onDiscard={discardReview} onOriginal={async id=>(await request(`/imports/${id}`)).body}/>}
    </>}
+   {screen==='Por revisar'&&connected&&imports.hasNextPage&&<Button label={imports.isFetchingNextPage?'Cargando revisiones…':'Cargar más revisiones'} disabled={imports.isFetching} onPress={()=>void imports.fetchNextPage()}/>}
    {screen==='Conexiones'&&<>
     <Text style={s.title}>Centro de conexiones</Text>
     <View style={s.card}><Text style={s.eyebrow}>PROVEEDORES DE CORREO</Text>{['Gmail Personal','Outlook'].map(provider=><View key={provider} style={s.between}><Text style={s.text}>{provider}</Text><Text style={s.muted}>Próximamente · sin conectar</Text></View>)}<Text style={s.muted}>OAuth aún no está implementado. Esta versión no accede a tu buzón ni utiliza IA para clasificar correos.</Text></View>

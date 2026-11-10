@@ -1,5 +1,6 @@
 import { spawn } from 'node:child_process';
 import assert from 'node:assert/strict';
+import { checkHistory } from './history-smoke.mjs';
 const api = spawn('node', ['--import', 'tsx', '--env-file=.env', 'apps/api/src/index.ts'], { stdio: 'inherit' });
 const worker = spawn('node', ['--import', 'tsx', '--env-file=.env', 'apps/worker/src/index.ts'], { stdio: 'inherit' });
 const { readFile } = await import('node:fs/promises');
@@ -53,5 +54,6 @@ try {
  assert.equal((await request('/imports/'+discard.id+'/dismiss',{method:'POST'})).status,204);
  assert.equal((await request('/imports/'+discard.id+'/resolve',{method:'POST',body:JSON.stringify(confirmed)})).status,409);
  assert.equal((await (await request('/imports/'+discard.id)).json()).status,'DISMISSED');
+ await checkHistory(request,/^DATABASE_URL=(.+)$/m.exec(env)?.[1]);
  console.info('Smoke: auth, validation, persistence, idempotency and review passed');
 } finally { api.kill('SIGTERM'); worker.kill('SIGTERM'); }

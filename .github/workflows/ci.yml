@@ -33,6 +33,8 @@ jobs:
    - run: node scripts/smoke.mjs
    - run: pnpm exec playwright install --with-deps chromium
    - run: pnpm test:web
+     env:
+      EXPO_PUBLIC_API_URL: http://127.0.0.1:3000
 
  dev-web:
   timeout-minutes: 10

@@ -34,7 +34,7 @@ La pantalla inicial es una vista previa de inicio de sesión; permite pasar a re
 
 La demo permite crear, editar y eliminar movimientos con confirmación, buscar por descripción/categoría, filtrar mes/moneda/tipo, ver gastos por categoría, guardar presupuesto por mes/moneda y exportar el conjunto filtrado. En web se descarga CSV; Android comparte el texto CSV mediante el menú nativo. Los movimientos demo y presupuestos persisten con AsyncStorage (almacenamiento sin cifrar, solo datos ficticios), separados de la API. La sesión y token API nunca se guardan. Conexiones permite restablecer la demo con confirmación. Las muestras iniciales se ubican en el mes actual al iniciar una demo nueva.
 
-Los indicadores se calculan por mes y moneda. En modo API el alcance es hasta 200 registros del mes seleccionado. Los presupuestos son locales al dispositivo y se separan por modo demo/API, mes y moneda; no se sincronizan con el servidor. Los totales corresponden al conjunto del mes mostrado; no son saldos bancarios. Si Expo Go no soporta este SDK, instala una versión compatible desde https://expo.dev/go o crea un development build. No uses credenciales reales en el prototipo.
+Los indicadores se calculan por mes y moneda. En modo API el historial se carga por páginas y los indicadores mensuales se calculan sobre todos los registros del mes seleccionado. Los presupuestos son locales al dispositivo y se separan por modo demo/API, mes y moneda; no se sincronizan con el servidor. La exportación incluye todos los resultados filtrados aunque aún no hayas cargado todas las páginas. Los totales corresponden al mes y moneda seleccionados; no son saldos bancarios. Si Expo Go no soporta este SDK, instala una versión compatible desde https://expo.dev/go o crea un development build. No uses credenciales reales en el prototipo.
 
 ## API, base de datos y worker
 
@@ -170,3 +170,10 @@ pnpm exports:check FlowSaldo-2026-10.csv Reporte.xlsx
 ```
 
 La preferencia local de privacidad no cifra datos ni autentica usuarios. No introducir credenciales reales en las pantallas de vista previa. La confirmación de registro e inicio de sesión está deshabilitada explícitamente.
+
+
+## v0.6 — Entrega 1 del lote: historial completo
+
+La API conserva los endpoints anteriores para compatibilidad e incorpora paginación por cursor con `page=true`, resumen mensual agregado y CSV completo por mes/moneda/tipo/búsqueda. Movimientos y revisiones ofrecen Cargar más. Por revisar añade estados y fechas de recepción; el contador pendiente no depende del filtro. Los avisos demo antiguos sin fecha permanecen visibles sin filtro de fechas. No cambia la clave local ni se borran datos. API y app deben actualizarse juntas; no hay nueva migración Prisma. Se mantienen acceso demo, proveedores de correo pendientes y presupuestos locales.
+
+Las pruebas de integración incluyen más de 200 movimientos y 100 revisiones, fechas repetidas, monedas, transferencias, CSV completo, cursor cuya fila fue eliminada y validación. Las categorías administrables, presupuestos por categoría y recurrencias quedan para las próximas entregas.

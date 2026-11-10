@@ -1,4 +1,5 @@
 import express from 'express';
+import { history } from './history';
 import helmet from 'helmet';
 import cors from 'cors';
 import { validDate } from '@flowsaldo/domain';
@@ -20,6 +21,7 @@ app.use((req, res, next) => {
  if (received.length !== expected.length || !timingSafeEqual(received, expected)) { res.status(401).json({ error: 'No autorizado' }); return; }
  next();
 });
+app.use(history);
 const movementSchema = z.object({ amountMinor: z.number().int().positive().max(2147483647), currency: z.enum(['DOP','USD']), type: z.enum(['INCOME','EXPENSE','TRANSFER']), description: z.string().trim().min(1).max(100), category: z.string().trim().min(1).max(60).default('Sin categorizar'), occurredAt: z.iso.datetime() });
 app.get('/movements', async (req, res) => {
  const filter = z.object({ currency: z.enum(['DOP','USD']).optional(), month: z.string().regex(/^\d{4}-\d{2}$/).refine(v => validDate(v+'-01')).optional() }).parse(req.query);

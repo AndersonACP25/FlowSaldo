@@ -14,7 +14,14 @@ Diseño Dark Slate según DESIGN.md, navegación inferior, flujo de siete días,
 2. Añadir usuarios, sesiones, HTTPS, almacenamiento seguro de tokens, revocación, retención y eliminación.
 3. Seleccionar Gmail u Outlook y un banco; recopilar muestras anonimizadas. Resolver requisitos de OAuth antes de conectar datos reales.
 4. Implementar conector incremental, cursores, reintentos con backoff y parsers versionados. Deduplicar avisos distintos de una misma operación.
-5. Añadir cuentas, tarjetas/deuda, conciliación, paginación completa; sincronizar presupuestos por usuario.
+5. Añadir cuentas, tarjetas/deuda, conciliación; sincronizar presupuestos por usuario.
 6. Añadir exportación de archivo CSV nativo y pruebas del piloto personal.
 
 IA opcional después de validar parsers deterministas. Ningún dato de correo debe ejecutar instrucciones ni acciones. Casos inciertos pasan por revisión humana.
+
+
+## Lote v0.6
+
+1. Entrega 1: historial paginado, agregaciones mensuales, exportación completa y filtros de revisiones. Implementado en este PR; ver validación y límites en su descripción.
+2. Categorías administrables, presupuestos por categoría y registro rápido.
+3. Comparación mensual, recurrencias, trazabilidad revisión → movimiento y archivo CSV nativo.
