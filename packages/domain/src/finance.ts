@@ -1,7 +1,9 @@
-import {parseAmount} from './index.ts';
-export function parseSignedAmount(value:string):number {
- const text=value.trim();if(/^[-+]?0([.,]0{1,2})?$/.test(text))return 0;
- return text.startsWith('-')?-parseAmount(text.slice(1)):parseAmount(text);
+export function parseSignedAmount(value:string,maxMinor=2147483647):number {
+ const match=/^(-?)([0-9]+)(?:[.,]([0-9]{1,2}))?$/.exec(value.trim());
+ if(!match)throw new Error('Usa un monto sin separadores de miles; ejemplo: -1250.50');
+ const magnitude=BigInt(match[2])*100n+BigInt((match[3]??'').padEnd(2,'0'));
+ if(magnitude>BigInt(maxMinor))throw new Error('Monto fuera de rango.');
+ return Number(magnitude)*(match[1]&&magnitude!==0n?-1:1);
 }
 export function ledgerBalance(opening:number,income:number,outgoing:number,incomingTransfers:number):number {
  for(const n of [opening,income,outgoing,incomingTransfers])if(!Number.isSafeInteger(n))throw new Error('Saldo fuera de rango.');

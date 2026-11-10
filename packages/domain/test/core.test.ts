@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import {ledgerBalance,parseSignedAmount,parseAmount,summarize,filterMovements,demoMovements,parseDemoMail,upgradeCategories,selectedCategory,budgetStatus,nextMonthlyDate,prepareOccurrence,changeSince,previousMonth,movementsCsv,validateExportTable,movementExportHeaders,type RecurringTemplate} from '../src/index.ts';
 
 test('CORE: monetary precision and input bounds',()=>{
- assert.equal(parseSignedAmount('-100.29'),-10029);assert.equal(parseSignedAmount('0.00'),0);assert.throws(()=>parseSignedAmount('-21474836.48'));
+ assert.equal(parseSignedAmount('-100.29'),-10029);assert.equal(parseSignedAmount('0.00'),0);assert.throws(()=>parseSignedAmount('-21474836.48'));assert.equal(parseSignedAmount('90071992547409.91',Number.MAX_SAFE_INTEGER),Number.MAX_SAFE_INTEGER);assert.throws(()=>parseSignedAmount('90071992547409.92',Number.MAX_SAFE_INTEGER));
  assert.equal(parseAmount('100.29'),10029);assert.equal(parseAmount('200,50'),20050);
  for(const value of ['-1','0','1.001','1,000.50','21474836.48'])assert.throws(()=>parseAmount(value));
 });
