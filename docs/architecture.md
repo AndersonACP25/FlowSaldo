@@ -72,3 +72,8 @@ AuthThrottle persiste ventanas por IP/acción. Contraseñas usan scrypt y la emi
 AuthScreen reemplaza la vista previa. Web mantiene credenciales solo en memoria; la implementación nativa de accessVault usa SecureStore con URL ligada y /auth/me antes de restaurar. Un 401 de datos en sesión personal limpia credenciales/caché y vuelve al acceso. La demo sigue abriendo sin API. No se cifran los datos demo/presupuestos ni se implementa recuperación por correo.
 
 Production rechaza HTTP; un proxy TLS local requiere confianza loopback explícita. El despliegue TLS real y la validación física de SecureStore siguen pendientes. QA agrega solo un cuarto recorrido crítico de acceso/cambio/salida; las combinaciones de seguridad quedan en integración.
+
+
+## v0.9: recuperación y limpieza manual
+
+RecoveryCode guarda hashes de códigos offline; AppOwner serializa generación/consumo/cambio de contraseña. Recuperar elimina el lote completo y revoca sesiones. CleanupPreview conserva un conjunto limitado de IDs con cutoff y expiración; DataCleanup guarda auditoría de cantidades. Aplicar exige reautenticación/confirmación y revalida elegibilidad dentro de la transacción, sin borrar movimientos ni ampliar el conjunto previsualizado. No incorpora correo de recuperación, borrado total ni tareas automáticas de retención.

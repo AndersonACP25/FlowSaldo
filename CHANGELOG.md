@@ -62,3 +62,11 @@ Diseño Dark Slate, revisión manual, flujo semanal y launcher Expo con prueba M
 - SecureStore nativo y sesión web solo en memoria; limpieza de caché al salir/expirar y URL/API de transporte restringida.
 - Migración aditiva sin reset, rate limit persistido y protección contra login concurrente con cambio de contraseña.
 - 9 unitarias CORE y 4 recorridos Playwright, añadiendo únicamente el riesgo crítico de acceso/cierre.
+
+
+## v0.9.0 — Recuperación y privacidad
+
+- Códigos de recuperación offline, guardados como hash, con caducidad y consumo único; recuperación revoca sesiones y lote anterior.
+- Limpieza manual de contenido antiguo con vista previa limitada, contraseña y confirmación; conserva movimientos y trabajos activos.
+- Migración aditiva recovery_retention y estado del plan actualizado.
+- Se conservan 9 unitarias CORE y 4 recorridos críticos Playwright; integración PostgreSQL cubre recuperación concurrente y conservación de datos.

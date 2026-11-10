@@ -1,6 +1,6 @@
 # Seguridad y privacidad
 
-FlowSaldo v0.9 incluye autenticación y recuperación personal a un prototipo con datos sintéticos. Una cuenta por instalación; no es un sistema multiusuario ni se ha certificado para exponerlo a Internet o conectar correo financiero real. OAuth, recuperación por correo, eliminación de cuenta/datos y política completa de retención siguen pendientes.
+FlowSaldo v0.9 incluye autenticación y recuperación personal en un prototipo con datos sintéticos. Una cuenta por instalación; no es un sistema multiusuario ni se ha certificado para exponerlo a Internet o conectar correo financiero real. OAuth, recuperación por correo, eliminación de cuenta/datos y política completa de retención siguen pendientes.
 
 ## Cuenta inicial y acceso
 
