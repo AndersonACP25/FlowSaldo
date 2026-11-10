@@ -1,8 +1,9 @@
 export * from './recurring.ts';
 export * from './planning.ts';
+export * from './finance.ts';
 export type Currency = 'DOP' | 'USD';
 export type MovementType = 'INCOME' | 'EXPENSE' | 'TRANSFER';
-export interface Movement { id: string; amountMinor: number; currency: Currency; type: MovementType; description: string; occurredAt: string; category: string; categoryId?:string|null }
+export interface Movement { id: string; amountMinor: number; currency: Currency; type: MovementType; description: string; occurredAt: string; category: string; categoryId?:string|null; accountId?:string|null; targetAccountId?:string|null; requestKey?:string|null }
 export interface MailInput { externalId: string; body: string }
 export type ParseResult = { status: 'PARSED'; movement: Omit<Movement, 'id'> } | { status: 'REVIEW'; reason: string };
 // Only a synthetic, strict fixture format. Real banks need separate versioned parsers.

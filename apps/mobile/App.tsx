@@ -17,6 +17,7 @@ import { demoReviews, type ReviewItem } from './src/reviews';
 import { WeeklyFlow } from './src/WeeklyFlow';
 import { AuthScreen, type AuthRoute } from './src/AuthScreen';
 import {RecoverySettings} from './src/RecoverySettings';
+import {FinancePanel,type FinancialAccount,type ServerBudget} from './src/FinancePanel';
 import {DataRetention} from './src/DataRetention';
 import {PersonalAccount} from './src/PersonalAccount';
 import {apiBase,accessRequest,type PersonalSession} from './src/access';
@@ -39,6 +40,8 @@ function Home({onAuth,personal,onLogout,onExpired,accessNotice}:{onAuth:(route:A
  const [ready,setReady]=useState(false); const [loadError,setLoadError]=useState('');
  const [currency,setCurrency]=useState<Currency>('DOP'); const [month,setMonth]=useState(currentMonth);
  const [screen,setScreen]=useState<'Panel'|'Movimientos'|'Por revisar'|'Conexiones'|'Configuración'>('Panel');
+ const [accountFilter,setAccountFilter]=useState('');
+ const [showFinance,setShowFinance]=useState(false);
  const [search,setSearch]=useState('');const [type,setType]=useState<MovementType|'ALL'>('ALL');
  const [reviewStatus,setReviewStatus]=useState<ReviewItem['status']|'ALL'>('REVIEW');
  const [reviewFrom,setReviewFrom]=useState('');const [reviewTo,setReviewTo]=useState('');
@@ -57,13 +60,15 @@ function Home({onAuth,personal,onLogout,onExpired,accessNotice}:{onAuth:(route:A
   if(!response.ok) {const data=await response.json().catch(()=>null);throw new Error(data?.error??'No se pudo conectar con la API.');}
   return response.status===204?null:response.json();
  }
+ const accountsQuery=useQuery({queryKey:['accounts',connected],enabled:connected&&(showFinance||!!editor||screen==='Por revisar'||screen==='Movimientos'),retry:false,queryFn:async():Promise<FinancialAccount[]>=>request('/accounts')});
+ const serverBudget=useQuery({queryKey:['budgets',connected,month,currency],enabled:connected,retry:false,queryFn:async():Promise<ServerBudget>=>request(`/budgets?month=${month}&currency=${currency}`)});
  const catalog=useQuery({queryKey:['categories',connected],enabled:connected,retry:false,queryFn:async():Promise<Category[]>=>request('/categories')});
  const queue=useQuery({queryKey:['import-stats',connected],enabled:connected,retry:false,refetchInterval:connected&&screen==='Conexiones'?5000:false,queryFn:async():Promise<ImportStats>=>request('/imports/stats')});
  const recurringQuery=useQuery({queryKey:['recurring',connected],enabled:connected,retry:false,queryFn:async():Promise<RecurringTemplate[]>=>request('/recurring')});
  const recurring=connected?(recurringQuery.data??[]):local.recurring;
  const categoryCatalog=connected?(catalog.data??[]):local.categories;
  const catalogReady=!connected||catalog.isSuccess;
- const params=movementParams(month,currency,type,search,categoryFilter);
+ const params=movementParams(month,currency,type,search,categoryFilter)+(connected&&accountFilter?`&accountId=${encodeURIComponent(accountFilter)}`:'');
  const query=useInfiniteQuery({queryKey:['movements',connected,params],enabled:connected,retry:false,initialPageParam:null as string|null,
   queryFn:async({pageParam}):Promise<Page<Movement>>=>request(`/movements?page=true&${params}${pageParam?`&cursor=${encodeURIComponent(pageParam)}`:''}`),
   getNextPageParam:last=>last.nextCursor??undefined});
@@ -81,15 +86,15 @@ function Home({onAuth,personal,onLogout,onExpired,accessNotice}:{onAuth:(route:A
  const priorMonth=previousMonth(month);const priorSummary=summarize(filterMovements(local.movements,{currency,month:priorMonth}),currency);
  const comparison=connected?totals.data?.comparison:{previousMonth:priorMonth,income:changeSince(summary.incomeMinor,priorSummary.incomeMinor),expense:changeSince(summary.expenseMinor,priorSummary.expenseMinor)};
  const categories=connected?(totals.data?.categories??[]):categoryExpenses(period);
- async function refreshMovements(){await Promise.all([client.invalidateQueries({queryKey:['movements']}),client.invalidateQueries({queryKey:['summary']})]);}
+ async function refreshMovements(){await Promise.all([client.invalidateQueries({queryKey:['movements']}),client.invalidateQueries({queryKey:['summary']}),client.invalidateQueries({queryKey:['accounts']})]);}
  async function exportAll(){
   if(!connected){await exportCsv(visible,month);return;}
   const response=await fetch(`${url}/movements/export?${params}`,{headers:{Authorization:`Bearer ${session}`}});
   if(!response.ok)throw new Error('No se pudo exportar. Reintenta la descarga.');
   await exportCsvText(await response.text(),`FlowSaldo-${month}.csv`);
  }
- const budgetKey=`${connected?'api':'demo'}:${month}:${currency}`;const budget=local.budgets[budgetKey]??0;
- const categoryBudgets=Object.fromEntries(categoryCatalog.filter(c=>local.categoryBudgets[`${budgetKey}:${c.id}`]).map(c=>[c.id,local.categoryBudgets[`${budgetKey}:${c.id}`]]));
+ const budgetKey=`${connected?'api':'demo'}:${month}:${currency}`;const budget=connected?(serverBudget.data?.limitMinor??0):(local.budgets[budgetKey]??0);
+ const categoryBudgets=connected?Object.fromEntries((serverBudget.data?.categoryLimits??[]).map(c=>[c.categoryId,c.limitMinor])):Object.fromEntries(categoryCatalog.filter(c=>local.categoryBudgets[`${budgetKey}:${c.id}`]).map(c=>[c.id,local.categoryBudgets[`${budgetKey}:${c.id}`]]));
  const categoryTotals=connected?(totals.data?.categoryTotals??[]):categoryCatalog.map(c=>({categoryId:c.id,amountMinor:period.filter(m=>m.type==='EXPENSE'&&m.categoryId===c.id).reduce((n,m)=>n+m.amountMinor,0)}));
  const recent=[...new Set((connected?(query.data?.pages.flatMap(p=>p.items)??[]):[...local.movements].sort((a,b)=>b.occurredAt.localeCompare(a.occurredAt))).map(m=>m.categoryId).filter((id):id is string=>!!id))].slice(0,5);
  async function saveCategory(name:string,id?:string){
@@ -106,8 +111,17 @@ function Home({onAuth,personal,onLogout,onExpired,accessNotice}:{onAuth:(route:A
   if(connected){await request(`/categories/${id}`,{method:'PATCH',body:JSON.stringify({archived})});await catalog.refetch();}
   else {if(localRef.current.categories.find(c=>c.id===id)?.system)throw new Error('Sin categorizar es una categoría del sistema.');await persist({...localRef.current,categories:localRef.current.categories.map(c=>c.id===id?{...c,archived}:c)});}
  }
+ async function saveServerBudget(limitMinor:number|null,categoryLimits:Array<{categoryId:string;limitMinor:number}>){
+  if(!serverBudget.isSuccess||serverBudget.isFetching)throw new Error('Actualiza el presupuesto del servidor antes de guardar.');
+  try{await request('/budgets',{method:'POST',body:JSON.stringify({month,currency,expectedVersion:serverBudget.data.version,limitMinor,categoryLimits})});}catch(error){await serverBudget.refetch();throw error;}await serverBudget.refetch();
+ }
+ async function saveGeneralBudget(value:number|null){
+  if(connected){await saveServerBudget(value,serverBudget.data?.categoryLimits??[]);return;}
+  const budgets={...localRef.current.budgets};if(value===null)delete budgets[budgetKey];else budgets[budgetKey]=value;await persist({...localRef.current,budgets});
+ }
  async function saveCategoryBudget(id:string,value:number|null){
   if(value!==null&&categoryCatalog.find(c=>c.id===id)?.archived)throw new Error('Selecciona una categoría activa.');
+  if(connected){const limits=(serverBudget.data?.categoryLimits??[]).filter(c=>c.categoryId!==id);if(value!==null)limits.push({categoryId:id,limitMinor:value});await saveServerBudget(serverBudget.data?.limitMinor??null,limits);return;}
   const budgets={...localRef.current.categoryBudgets};const key=`${budgetKey}:${id}`;
   if(value===null)delete budgets[key];else budgets[key]=value;
   await persist({...localRef.current,categoryBudgets:budgets});
@@ -145,7 +159,7 @@ function Home({onAuth,personal,onLogout,onExpired,accessNotice}:{onAuth:(route:A
   const edit=editor&&editor!=='new'?editor:null;
   if(connected){await request(edit?`/movements/${edit.id}`:'/movements',{method:edit?'PATCH':'POST',body:JSON.stringify(draft)});await refreshMovements();}
   else {const item:Movement={...draft,...selectedCategory(localRef.current.categories,draft.categoryId??undefined,draft.category,edit??undefined),id:edit?.id??`local-${Date.now()}-${Math.random().toString(36).slice(2)}`};await persist({...localRef.current,movements:edit?localRef.current.movements.map(m=>m.id===item.id?item:m):[item,...localRef.current.movements]});}
-  setDuplicate(null);setCategoryFilter('');setMonth(draft.occurredAt.slice(0,7));setCurrency(draft.currency);setSearch('');setType('ALL');setEditor(null);setScreen('Movimientos');setNotice('Movimiento guardado.');
+  setDuplicate(null);setCategoryFilter('');setAccountFilter('');setMonth(draft.occurredAt.slice(0,7));setCurrency(draft.currency);setSearch('');setType('ALL');setEditor(null);setScreen('Movimientos');setNotice('Movimiento guardado.');
  }
  async function remove(id:string) {
   if(connected){await request(`/movements/${id}`,{method:'DELETE'});await refreshMovements();}
@@ -168,7 +182,7 @@ function Home({onAuth,personal,onLogout,onExpired,accessNotice}:{onAuth:(route:A
   setNotice('Correo descartado sin contabilizar.');
  }
  async function reset() {const next=initialData();await persist(next);setLoadError('');setReady(true);setResetConfirm(false);setNotice('Demo restablecida.');}
- function disconnect(){setSession('');setToken('');client.clear();setEditor(null);setDuplicate(null);setCategoryFilter('');setDeleteId(null);setNotice('Sesión cerrada. Volviste a la demo local.');}
+ function disconnect(){setAccountFilter('');setSession('');setToken('');client.clear();setEditor(null);setDuplicate(null);setCategoryFilter('');setDeleteId(null);setNotice('Sesión cerrada. Volviste a la demo local.');}
  return <SafeAreaView style={s.root}><StatusBar style="light"/><ScrollView keyboardShouldPersistTaps="handled" contentContainerStyle={s.content}>
   <View style={s.between}><View><Text style={s.brand}>FlowSaldo ⤴</Text><Text style={s.muted}>Tus finanzas, en orden.</Text></View><Choice label="Configuración" text="⚙" selected={screen==='Configuración'} onPress={()=>{setEditor(null);setScreen('Configuración');}}/><Button label="+ Nuevo movimiento" text="+ Añadir" disabled={!ready||busy||!!editor||!catalogReady} onPress={()=>{setDuplicate(null);setEditor('new');setScreen('Movimientos');setError('');setNotice('');}}/></View>
   {!!accessNotice&&<Text style={s.muted}>{accessNotice}</Text>}
@@ -179,7 +193,7 @@ function Home({onAuth,personal,onLogout,onExpired,accessNotice}:{onAuth:(route:A
 
    {!!notice&&<Text accessibilityLiveRegion="polite" style={s.success}>{notice}</Text>}{!!error&&<Text accessibilityRole="alert" style={s.error}>{error}</Text>}
    {connected&&catalog.error&&<View style={s.card}><Text style={s.error}>No se pudieron cargar las categorías.</Text><Button label="Reintentar categorías" onPress={()=>void catalog.refetch()}/></View>}
-   {(screen==='Panel'||screen==='Movimientos')&&<View style={s.between}><View style={s.row}><Choice label="‹ Mes anterior" text="‹" selected={false} onPress={()=>setMonth(shiftMonth(month,-1))}/><Text style={s.title}>{month}</Text><Choice label="Mes siguiente ›" text="›" selected={false} onPress={()=>setMonth(shiftMonth(month,1))}/></View><View style={s.row}>{(['DOP','USD'] as const).map(c=><Choice key={c} label={c} selected={currency===c} onPress={()=>setCurrency(c)}/>)}</View></View>}
+   {(screen==='Panel'||screen==='Movimientos')&&<View style={s.between}><View style={s.row}><Choice label="‹ Mes anterior" text="‹" selected={false} onPress={()=>setMonth(shiftMonth(month,-1))}/><Text style={s.title}>{month}</Text><Choice label="Mes siguiente ›" text="›" selected={false} onPress={()=>setMonth(shiftMonth(month,1))}/></View><View style={s.row}>{(['DOP','USD'] as const).map(c=><Choice key={c} label={c} selected={currency===c} onPress={()=>{setCurrency(c);setAccountFilter('');}}/>)}</View></View>}
    {connected&&query.isFetching&&<ActivityIndicator color={palette.primary}/>}
    {connected&&query.error&&<View style={s.card}><Text accessibilityRole="alert" style={s.error}>{query.error.message}</Text><Button label="Reintentar" onPress={()=>void refreshMovements()}/></View>}
    {screen==='Panel'&&connected&&(totals.isPending||totals.error)&&<View style={s.card}><Text style={s.muted}>{totals.error?'No se pudo cargar el resumen mensual.':'Cargando resumen mensual…'}</Text>{!!totals.error&&<Button label="Reintentar resumen" onPress={()=>void totals.refetch()}/>}</View>}
@@ -190,23 +204,27 @@ function Home({onAuth,personal,onLogout,onExpired,accessNotice}:{onAuth:(route:A
     {pending>0&&<View style={[s.card,{borderColor:'#53412b'}]}><View style={s.between}><Text style={s.text}>{pendingMailMessage(pending)}</Text><Button label="Ir a revisiones" onPress={()=>setScreen('Por revisar')}/></View><Text style={s.muted}>Revisa los datos antes de incorporarlos a tus movimientos.</Text></View>}
     {comparison&&<MonthlyComparison comparison={comparison} money={money} currency={currency}/>}
     {preferences.hideAmounts?<View style={s.card}><Text style={s.muted}>Flujo semanal oculto por tu preferencia de privacidad.</Text></View>:<WeeklyFlow rows={period} month={month} currency={currency} days={connected?totals.data?.days:undefined}/>}
-    <View style={s.card}><Text style={s.title}>Tu presupuesto mensual</Text><Text style={s.muted}>Límite de gastos para {month} en {currency}. Guardado en este dispositivo para el modo actual.</Text>
+    <View style={s.card}><Text style={s.title}>Tu presupuesto mensual</Text><Text style={s.muted}>Límite de gastos para {month} en {currency}. {connected?'Guardado en el servidor de esta cuenta personal.':'Guardado en este dispositivo para la demo.'}</Text>
      {budget>0&&<BudgetProgress spent={summary.expenseMinor} limit={budget} money={money} currency={currency}/>}
      <Field label="Nuevo límite mensual" value={budgetInput} onChangeText={setBudgetInput} keyboardType="decimal-pad" placeholder="Ejemplo: 20000"/>
-     <View style={s.row}><Button label="Guardar presupuesto" disabled={busy} onPress={()=>void action(async()=>{const value=parseAmount(budgetInput);await persist({...localRef.current,budgets:{...localRef.current.budgets,[budgetKey]:value}});setBudgetInput('');setNotice('Presupuesto guardado.');})}/>{budget>0&&<Button label="Quitar límite" disabled={busy} onPress={()=>void action(async()=>{const budgets={...localRef.current.budgets};delete budgets[budgetKey];await persist({...localRef.current,budgets});})}/>}</View>
+     <View style={s.row}><Button label="Guardar presupuesto" disabled={busy||(connected&&(!serverBudget.isSuccess||serverBudget.isFetching))} onPress={()=>void action(async()=>{const value=parseAmount(budgetInput);await saveGeneralBudget(value);setBudgetInput('');setNotice('Presupuesto guardado.');})}/>{budget>0&&<Button label="Quitar límite" disabled={busy} onPress={()=>void action(async()=>{await saveGeneralBudget(null);setNotice('Límite mensual eliminado.');})}/>}</View>
     </View>
-    {catalogReady&&<CategoryBudgets key={budgetKey} items={categoryCatalog} budgets={categoryBudgets} expenses={categoryTotals} onSave={saveCategoryBudget} money={money} currency={currency}/>}
+    {connected&&<View style={s.card}><Text style={s.muted}>{serverBudget.isFetching?'Actualizando presupuestos…':serverBudget.error?'No se pudo cargar el presupuesto.':'Presupuestos sincronizados con el servidor. Los cambios de otro dispositivo se consultan al actualizar.'}</Text><Button label="Actualizar presupuestos" onPress={()=>void serverBudget.refetch()}/>{serverBudget.data?.version===0&&(!!local.budgets[budgetKey]||categoryCatalog.some(c=>!!local.categoryBudgets[`${budgetKey}:${c.id}`]))&&<><Text style={s.muted}>Hay límites antiguos guardados en este dispositivo. Puedes copiar el límite general y los límites de categorías activas al período vacío del servidor; los locales se conservan como respaldo.</Text><Button label="Copiar presupuestos locales al servidor" disabled={busy||serverBudget.isFetching} onPress={()=>void action(async()=>{await saveServerBudget(local.budgets[budgetKey]??null,categoryCatalog.filter(c=>!c.archived&&local.categoryBudgets[`${budgetKey}:${c.id}`]).map(c=>({categoryId:c.id,limitMinor:local.categoryBudgets[`${budgetKey}:${c.id}`]})));setNotice('Presupuestos locales copiados al servidor.');})}/></>}</View>}
+    {catalogReady&&(!connected||serverBudget.isSuccess)&&<CategoryBudgets synced={connected} disabled={connected&&serverBudget.isFetching} key={budgetKey} items={categoryCatalog} budgets={categoryBudgets} expenses={categoryTotals} onSave={saveCategoryBudget} money={money} currency={currency}/>}
     <View style={s.card}><Text style={s.title}>Principales categorías de gastos</Text>{!categories.length&&<Text style={s.muted}>Todavía no hay gastos este mes en esta moneda.</Text>}{categories.slice(0,5).map(c=><View key={c.category} style={{gap:8}}><View style={s.between}><Text style={s.text}>{c.category}</Text><Text style={s.text}>{money(c.amountMinor,currency)}</Text></View><View style={s.track}><View style={[s.fill,{width:`${Math.round(c.amountMinor/summary.expenseMinor*100)}%`}]}/></View></View>)}</View>
     <Text style={s.muted}>Las transferencias propias se excluyen de ingresos y gastos. Los indicadores incluyen todos los movimientos del mes y la moneda seleccionados.</Text>
    </>}
    {screen==='Movimientos'&&<>
-    {editor&&catalogReady&&<MovementForm categories={categoryCatalog} recent={recent} editing={editor!=='new'} title={duplicate?'Duplicar movimiento':undefined} key={editor==='new'?'new-'+(duplicate?.id??''):editor.id} movement={editor==='new'?(duplicate??undefined):editor} currency={currency} month={month} onSave={saveMovement} onCancel={()=>setEditor(null)}/>}
+    {editor&&connected&&!accountsQuery.isSuccess&&<View style={s.card}><Text style={s.muted}>{accountsQuery.error?'No se pudieron cargar las cuentas.':'Cargando cuentas…'}</Text><Button label="Reintentar cuentas" onPress={()=>void accountsQuery.refetch()}/></View>}
+    {editor&&catalogReady&&(!connected||accountsQuery.isSuccess)&&<MovementForm accounts={connected?accountsQuery.data:undefined} categories={categoryCatalog} recent={recent} editing={editor!=='new'} title={duplicate?'Duplicar movimiento':undefined} key={editor==='new'?'new-'+(duplicate?.id??''):editor.id} movement={editor==='new'?(duplicate??undefined):editor} currency={currency} month={month} onSave={saveMovement} onCancel={()=>setEditor(null)}/>}
     <Field label="Buscar descripción o categoría" value={search} onChangeText={setSearch} maxLength={100} placeholder="Supermercado, transporte…"/>
     <View style={s.row}><Choice label="Todos" selected={type==='ALL'} onPress={()=>setType('ALL')}/>{(['INCOME','EXPENSE','TRANSFER'] as const).map(t=><Choice key={t} label={typeLabels[t]} selected={type===t} onPress={()=>setType(t)}/>)}</View>
+    {connected&&<View style={s.row}><Choice label="Todas las cuentas" selected={!accountFilter} onPress={()=>setAccountFilter('')}/>{(accountsQuery.data??[]).filter(a=>a.currency===currency).map(a=><Choice key={a.id} label={`Filtrar cuenta: ${a.name}`} text={a.name+(a.archived?' · Archivada':'')} selected={accountFilter===a.id} onPress={()=>setAccountFilter(a.id)}/>)}</View>}
     <View style={s.row}><Choice label="Todas las categorías" selected={!categoryFilter} onPress={()=>setCategoryFilter('')}/>{categoryCatalog.map(c=><Choice key={c.id} label={`Filtrar: ${c.name}`} text={c.name+(c.archived?' · Archivada':'')} selected={categoryFilter===c.id} onPress={()=>setCategoryFilter(c.id)}/>)}</View>
     <View style={s.between}><Text style={s.title}>{countLabel(connected?(query.data?.pages[0]?.total??0):visible.length,'movimiento','movimientos')}</Text><View style={s.row}>{connected&&<Button label="Actualizar" onPress={()=>void refreshMovements()}/>}<Button label="Exportar CSV" disabled={!visible.length||busy} onPress={()=>void action(exportAll)}/></View></View>
     {!visible.length&&(!connected||query.isSuccess)&&<View style={s.card}><Text style={s.title}>No hay movimientos con estos filtros</Text><Text style={s.muted}>Cambia el mes, la moneda o añade tu primer movimiento.</Text></View>}
     {visible.map(m=><View key={m.id} style={s.card}><View style={s.between}><View><Text style={s.text}>{m.description}</Text><Text style={s.muted}>{m.category} · {m.occurredAt.slice(0,10)} · {typeLabels[m.type]}</Text></View><Text style={m.type==='INCOME'?s.income:m.type==='EXPENSE'?s.expense:s.amount}>{m.type==='EXPENSE'?'−':m.type==='INCOME'?'+':'↔'} {money(m.amountMinor,m.currency)}</Text></View>
+     {!!m.accountId&&<Text style={s.muted}>Cuenta: {accountsQuery.data?.find(a=>a.id===m.accountId)?.name??'Asignada'}{m.targetAccountId?` → ${accountsQuery.data?.find(a=>a.id===m.targetAccountId)?.name??'Destino asignado'}`:''}</Text>}
      <View style={s.row}><Choice label={`Editar ${m.description}`} selected={false} onPress={()=>{setDuplicate(null);setEditor(m);setDeleteId(null);}}/><Choice label={`Duplicar ${m.description}`} selected={false} onPress={()=>{const d=new Date();const today=`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;setDuplicate({...m,occurredAt:movementDate(month,today)+'T12:00:00.000Z'});setEditor('new');setDeleteId(null);setNotice('Borrador duplicado. Revisa los datos y guarda para crear el movimiento.');}}/><Choice label="Eliminar" selected={false} onPress={()=>setDeleteId(m.id)}/></View>
      {deleteId===m.id&&<><Text style={s.error}>¿Eliminar este movimiento? Esta acción no se puede deshacer.</Text><View style={s.row}><Button label="Confirmar eliminación" disabled={busy} onPress={()=>void action(()=>remove(m.id))}/><Button label="Cancelar eliminación" disabled={busy} onPress={()=>setDeleteId(null)}/></View></>}
     </View>)}
@@ -215,6 +233,8 @@ function Home({onAuth,personal,onLogout,onExpired,accessNotice}:{onAuth:(route:A
    {screen==='Movimientos'&&connected&&recurringQuery.error&&<View style={s.card}><Text style={s.error}>No se pudieron cargar las plantillas.</Text><Button label="Reintentar plantillas" onPress={()=>void recurringQuery.refetch()}/></View>}
    {screen==='Movimientos'&&connected&&query.hasNextPage&&<Button label={query.isFetchingNextPage?'Cargando movimientos…':'Cargar más movimientos'} disabled={query.isFetching} onPress={()=>void query.fetchNextPage()}/>}
    {screen==='Configuración'&&<Text style={s.title}>Configuración</Text>}
+   {screen==='Configuración'&&connected&&<><Button label={showFinance?'Ocultar cuentas y conciliación':'Administrar cuentas y conciliación'} onPress={()=>setShowFinance(v=>!v)}/>{showFinance&&(accountsQuery.isSuccess?<FinancePanel items={accountsQuery.data} request={request} money={money} onRefresh={async()=>{await accountsQuery.refetch();}}/>:<View style={s.card}><Text style={s.muted}>{accountsQuery.error?'No se pudieron cargar las cuentas.':'Cargando cuentas…'}</Text><Button label="Reintentar cuentas" onPress={()=>void accountsQuery.refetch()}/></View>)}</>}
+
    {screen==='Configuración'&&personal&&<PersonalAccount session={personal} onLogout={onLogout} onPasswordChanged={onExpired}/>}
    {screen==='Configuración'&&personal&&<RecoverySettings token={personal.token}/>}
    {screen==='Configuración'&&personal&&<DataRetention token={personal.token} onApplied={async()=>{await Promise.all([client.invalidateQueries({queryKey:['imports']}),client.invalidateQueries({queryKey:['import-stats']})]);}}/>}
@@ -229,7 +249,8 @@ function Home({onAuth,personal,onLogout,onExpired,accessNotice}:{onAuth:(route:A
     {connected&&imports.isFetching&&<ActivityIndicator color={palette.primary}/>}
     {connected&&imports.error&&<Text style={s.error}>{imports.error.message}</Text>}
     {connected&&<Button label="Actualizar revisiones" onPress={()=>void imports.refetch()}/>}
-    {!reviewDateError&&(!connected||imports.isSuccess)&&<ReviewInbox onRetry={connected?retryImport:undefined} money={money} onMovement={async id=>connected?request(`/movements/${id}`):(localRef.current.movements.find(m=>m.id===id)??null)} categories={categoryCatalog} key={reviewParams} total={connected?imports.data?.pages[0]?.total:reviews.length} showHistory={reviewStatus!=='REVIEW'} items={reviews} month={month} currency={currency} onResolve={resolveReview} onDiscard={discardReview} onOriginal={async id=>(await request(`/imports/${id}`)).body}/>}
+    {connected&&!accountsQuery.isSuccess&&<View style={s.card}><Text style={s.muted}>{accountsQuery.error?'No se pudieron cargar las cuentas para revisar.':'Cargando cuentas para revisar…'}</Text><Button label="Reintentar cuentas de revisión" onPress={()=>void accountsQuery.refetch()}/></View>}
+    {!reviewDateError&&(!connected||(imports.isSuccess&&accountsQuery.isSuccess))&&<ReviewInbox accounts={connected?accountsQuery.data:undefined} onRetry={connected?retryImport:undefined} money={money} onMovement={async id=>connected?request(`/movements/${id}`):(localRef.current.movements.find(m=>m.id===id)??null)} categories={categoryCatalog} key={reviewParams} total={connected?imports.data?.pages[0]?.total:reviews.length} showHistory={reviewStatus!=='REVIEW'} items={reviews} month={month} currency={currency} onResolve={resolveReview} onDiscard={discardReview} onOriginal={async id=>(await request(`/imports/${id}`)).body}/>}
    </>}
    {screen==='Por revisar'&&connected&&imports.hasNextPage&&<Button label={imports.isFetchingNextPage?'Cargando revisiones…':'Cargar más revisiones'} disabled={imports.isFetching} onPress={()=>void imports.fetchNextPage()}/>}
    {screen==='Conexiones'&&<>
@@ -243,7 +264,7 @@ function Home({onAuth,personal,onLogout,onExpired,accessNotice}:{onAuth:(route:A
     </View>
     {connected&&<View style={s.card}><Text style={s.title}>Laboratorio de correo sintético</Text><Text style={s.muted}>Envía un aviso de prueba al worker. Un formato desconocido aparecerá en Por revisar cuando el worker lo procese.</Text><Field label="Identificador del correo de prueba" value={sampleId} onChangeText={setSampleId} maxLength={200}/><Field label="Contenido sintético" value={sampleBody} onChangeText={setSampleBody} maxLength={10000} multiline/><Button label="Encolar correo de prueba" disabled={busy||!sampleId.trim()||!sampleBody.trim()} onPress={()=>void action(async()=>{await request('/imports',{method:'POST',body:JSON.stringify({externalId:sampleId.trim(),body:sampleBody})});await Promise.all([client.invalidateQueries({queryKey:['imports']}),queue.refetch()]);setNotice('Correo encolado. Espera al worker y actualiza revisiones.');})}/></View>}
     <View style={s.card}><Text style={s.title}>Datos de demostración</Text><Text style={s.muted}>Restablece movimientos y presupuestos locales. Los datos de PostgreSQL no se eliminan.</Text><Button label={resetConfirm?'Confirmar restablecimiento local':'Restablecer demo'} disabled={busy||connected} onPress={()=>resetConfirm?void action(reset):setResetConfirm(true)}/>{resetConfirm&&<Button label="Cancelar restablecimiento" onPress={()=>setResetConfirm(false)}/>}</View>
-    <View style={s.card}><Text style={s.title}>FlowSaldo 0.9</Text><Text style={s.muted}>Dark Slate, esmeralda y cian, según DESIGN.md. Una base personal para aprender, registrar y revisar tus movimientos. La sincronización bancaria, OAuth y conciliación siguen pendientes.</Text></View>
+    <View style={s.card}><Text style={s.title}>FlowSaldo 0.10</Text><Text style={s.muted}>Dark Slate, esmeralda y cian, según DESIGN.md. Una base personal para aprender, registrar y revisar tus movimientos. Cuentas y conciliación manual disponibles en modo API. La sincronización bancaria y OAuth siguen pendientes.</Text></View>
    </>}
   </>}
  </ScrollView>

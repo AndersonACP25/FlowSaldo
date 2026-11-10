@@ -1,6 +1,6 @@
 # FlowSaldo — memoria del proyecto
 
-Última actualización: 2026-11-10. Versión del proyecto y app 0.8.0.
+Última actualización: 2026-11-10. Versión del proyecto y app 0.10.0.
 
 ## Objetivo
 
@@ -45,7 +45,7 @@ Monorepo pnpm: apps/mobile (Expo, React Native, React Query), apps/api (Express,
 
 ## Límites y pendientes
 
-No hay OAuth Gmail/Outlook, parsers bancarios reales, usuarios ni autenticación de producción. No conectar información bancaria real. Los listados de compatibilidad conservan 200/100 filas; la app utiliza los endpoints paginados y el resumen mensual completo. Los presupuestos no se sincronizan entre dispositivos. No hay gestión de deuda, devoluciones ni conciliación. Restablecer demo no borra PostgreSQL.
+No hay OAuth Gmail/Outlook, parsers bancarios reales ni despliegue de producción verificado; sí hay cuenta personal y sesiones. No conectar información bancaria real. Los listados de compatibilidad conservan 200/100 filas; la app utiliza los endpoints paginados y el resumen mensual completo. Los presupuestos API se guardan en servidor con versión. Cuentas/deuda y conciliación manual disponibles; devoluciones e intereses/cuotas automáticos no implementados. Restablecer demo no borra PostgreSQL.
 
 La exportación nativa genera un archivo CSV en caché y abre el menú de compartir; su recepción en otra app requiere Android físico. Confirmar comportamiento en Android físico y generar APK en EAS sigue pendiente.
 
@@ -134,3 +134,12 @@ Siguiente lote del roadmap: recuperación mediante cinco códigos offline de 192
 Retención manual de cuerpos REVIEW/FAILED antiguos sin movimiento, 7–365 días, hasta 1000 por lote. Preview guarda IDs/cutoff, un uso/10min; apply exige contraseña y literal, revalida elegibilidad y preserva movimientos/cola activa/avisos posteriores. Limpia credenciales caducadas y registra cantidades sin cuerpos. Migración recovery_retention aditiva. No es borrado completo de cuenta ni retención automática.
 
 Versiones root/mobile/app 0.9.0. Pruebas acotadas: mismas 9 unitarias CORE y 4 recorridos web; ampliar solo acceso crítico y smoke API para riesgos de recuperación/pérdida de datos. Evidencia de ejecución en PR #6. Plan original de ocho features implementado; validación física Android/SecureStore/CSV/APK, TLS real, proveedor/banco/OAuth, conector/parsers reales, deduplicación semántica, cuentas/deudas/conciliación y sincronización de presupuestos siguen pendientes. docs/roadmap.md es estado actual; notas anteriores son historial.
+
+
+## v0.10 — Punto #4 del roadmap (2026-11-10)
+
+Cuentas financieras en API: BANK/CASH/CREDIT_CARD/LOAN, moneda explícita y saldo inicial fijo. Tarjeta/préstamo inicial <=0; saldos/deuda y crédito disponible calculados, sin intereses/cuotas automáticas. Movimientos previos siguen sin cuenta; asignación manual, transferencias misma moneda origen/destino. Pagos de principal no duplican gastos. FinanceLock serializa mutaciones vinculadas y conciliación, revision invalida previews, corte UTC confirmado protege altas/ediciones/desvinculaciones/borrados históricos. No reapertura de períodos ni ajustes automáticos. IDs de recibo manual persisten al eliminar movimiento para impedir replay. Filtro de cuenta incluye destino y CSV completo.
+
+Presupuestos API por mes/moneda ahora en PostgreSQL, versión optimista y tombstone al quitar límites; conflicto exige refetch/revisión. Límites locales anteriores conservados y copia explícita de general/categorías activas solo en período servidor vacío. Demo sigue local, sin añadir cuentas ficticias ni cifras bancarias. Migración financial_accounts aditiva; detener servicios, generar/migrar y reiniciar.
+
+Versiones 0.10.0. Pruebas: siguen 9 casos CORE ampliando precisión/saldos; un quinto recorrido crítico Playwright se justifica por nuevo riesgo de pago/conciliación/presupuesto persistido. Concurrencia, moneda, recibos borrados, períodos protegidos y versiones viven en integración PostgreSQL. Validación/CI concretos en PR #6. Usuario autorizó puntos #4 y #5 en mismo PR, comenzar por #4; #5 aún pendiente: borrado completo, retención automática y respaldos/restauración. Android físico y correo/TLS reales siguen pendientes.

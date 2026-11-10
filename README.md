@@ -1,4 +1,4 @@
-# FlowSaldo ↗ · v0.9
+# FlowSaldo ↗ · v0.10
 
 Base Android de finanzas personales: React Native + Expo + TypeScript, Express, worker y PostgreSQL con Prisma.
 
@@ -32,7 +32,7 @@ La pantalla inicial permite iniciar sesión en la cuenta personal, configurar la
 
 La demo permite crear, editar y eliminar movimientos con confirmación, buscar por descripción/categoría, filtrar mes/moneda/tipo, ver gastos por categoría, guardar presupuesto por mes/moneda y exportar el conjunto filtrado. En web se descarga CSV; Android crea un archivo CSV en caché y abre el menú nativo para compartirlo. Los movimientos demo y presupuestos persisten con AsyncStorage (almacenamiento sin cifrar, solo datos ficticios), separados de la API. La sesión y token API nunca se guardan. Conexiones permite restablecer la demo con confirmación. Las muestras iniciales se ubican en el mes actual al iniciar una demo nueva.
 
-Los indicadores se calculan por mes y moneda. En modo API el historial se carga por páginas y los indicadores mensuales se calculan sobre todos los registros del mes seleccionado. Los presupuestos son locales al dispositivo y se separan por modo demo/API, mes y moneda; no se sincronizan con el servidor. La exportación incluye todos los resultados filtrados aunque aún no hayas cargado todas las páginas. Los totales corresponden al mes y moneda seleccionados; no son saldos bancarios. Si Expo Go no soporta este SDK, instala una versión compatible desde https://expo.dev/go o crea un development build. No uses credenciales reales en el prototipo.
+Los indicadores se calculan por mes y moneda. En modo API el historial se carga por páginas y los indicadores mensuales se calculan sobre todos los registros del mes seleccionado. Los presupuestos de demo son locales; en modo API se guardan en el servidor por mes y moneda, con versión para detectar cambios de otro dispositivo. La exportación incluye todos los resultados filtrados aunque aún no hayas cargado todas las páginas. Los totales corresponden al mes y moneda seleccionados; no son saldos bancarios. Si Expo Go no soporta este SDK, instala una versión compatible desde https://expo.dev/go o crea un development build. No uses credenciales reales en el prototipo.
 
 ## API, base de datos y worker
 
@@ -242,3 +242,18 @@ En Configuración → Recuperación de cuenta, confirma la contraseña para gene
 En Configuración → Privacidad y contenido antiguo, selecciona 7–365 días y previsualiza. Confirma con contraseña y el texto ELIMINAR CONTENIDO. Se descarta el texto de hasta 1000 avisos antiguos Por revisar/Con error sin movimiento; se conservan movimientos, categorías, presupuestos, recurrencias y trabajos activos. La vista previa enumera IDs exactos, vence en 10 minutos y es de un uso. También limpia credenciales caducadas/revocadas y limitadores antiguos. No elimina la cuenta ni implementa retención automática.
 
 Para actualizar desde v0.8, detén API/worker, ejecuta `pnpm db:generate` y `pnpm exec prisma migrate deploy --config packages/database/prisma.config.ts`, y reinicia ambos con esta versión. Migración aditiva recovery_retention; no exige reset ni borra datos al migrar. El estado completo del plan está en [docs/roadmap.md](docs/roadmap.md).
+
+
+## v0.10 — Cuentas, tarjetas, préstamos y conciliación
+
+En modo API, abre Configuración → Administrar cuentas y conciliación. Crea cuentas bancarias, efectivo, tarjetas de crédito o préstamos en DOP o USD. El saldo inicial es explícito y anterior a todos los movimientos que vincules; para tarjetas/préstamos la deuda inicial se registra con signo negativo. Tipo, moneda y saldo inicial quedan fijos. Puedes renombrar, archivar y reactivar; archivar conserva datos. Los movimientos anteriores permanecen sin cuenta, sin modificar importes ni indicadores.
+
+En Nuevo/Editar movimiento puedes asignar una cuenta de la misma moneda; los confirmados por correo también pueden asignarse manualmente. Para pagar una tarjeta/préstamo, selecciona Transferencia, cuenta de origen y cuenta de deuda como destino. Ambas deben usar la misma moneda. El traslado afecta ambos saldos y se excluye de ingresos/gastos. Las compras de tarjeta son gastos; los pagos de principal no se vuelven a contar como gasto. No se calculan intereses, cuotas, vencimientos ni tipos de cambio automáticamente. Las importaciones y recurrencias sin cuenta siguen fuera de estos saldos hasta asignarlas.
+
+Movimientos incluye filtro por cuenta (origen o destino) y exportación CSV completa del conjunto filtrado. Los saldos son registros personales, no saldos bancarios consultados en línea. La deuda es la parte negativa del saldo en tarjetas/préstamos; crédito disponible registrado = límite + saldo. Se permite registrar sobregiros/excesos para reflejar diferencias reales; no se simula autorización bancaria.
+
+Para conciliar, selecciona una cuenta, fecha al cierre del día UTC y saldo del estado de cuenta. Comparar muestra la diferencia; solo puedes confirmar cuando es cero. La confirmación rechaza vistas desactualizadas y protege el historial vinculado hasta esa fecha, incluyendo transferencias. No genera ajustes ni permite reabrir el período en esta versión. Los movimientos posteriores pueden continuar; consultar conciliaciones muestra los últimos 100 registros.
+
+Los límites mensuales y por categoría del modo API se sincronizan mediante el servidor. Actualizar presupuestos consulta otros dispositivos; un conflicto exige revisar datos antes de volver a guardar. La demo sigue siendo local. Los antiguos límites API del dispositivo no se sobrescriben ni copian automáticamente: en un período vacío aparece la acción para copiar el límite general y categorías activas, conservando respaldo local.
+
+Actualización: detén API/worker, ejecuta `pnpm install --frozen-lockfile`, `pnpm db:generate` y `pnpm exec prisma migrate deploy --config packages/database/prisma.config.ts`, y reinicia. Migración aditiva financial_accounts, sin reset. El punto #4 queda implementado; el punto #5 (eliminación completa, retención automática y respaldo/restauración) continúa pendiente para el siguiente lote en el mismo PR.

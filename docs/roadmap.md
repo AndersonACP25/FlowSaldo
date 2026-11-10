@@ -14,7 +14,7 @@ Diseño Dark Slate según DESIGN.md, navegación inferior, flujo de siete días,
 2. Cuenta personal/sesiones/revocación/SecureStore y política HTTPS implementadas en v0.8. Recuperación offline y limpieza manual de contenido implementadas en v0.9. Pendientes: despliegue TLS real, validación nativa, eliminación completa/política automática y diseño multiusuario solo si se requiere.
 3. Seleccionar Gmail u Outlook y un banco; recopilar muestras anonimizadas. Resolver requisitos de OAuth antes de conectar datos reales.
 4. Implementar conector incremental, cursores y parsers bancarios versionados. Backoff/recuperación de la cola sintética completados en v0.7; integrarlos al futuro conector real. Deduplicar avisos distintos de una misma operación sigue pendiente.
-5. Añadir cuentas, tarjetas/deuda, conciliación; sincronizar presupuestos por usuario.
+5. Implementado en v0.10 para la cuenta personal: cuentas, tarjetas/préstamos, conciliación manual y presupuestos en servidor.
 6. Validar exportación CSV nativa en Android físico y ejecutar el piloto personal (archivo nativo implementado en v0.6).
 
 IA opcional después de validar parsers deterministas. Ningún dato de correo debe ejecutar instrucciones ni acciones. Casos inciertos pasan por revisión humana.
@@ -60,7 +60,14 @@ Lotes adicionales completados: v0.7 recuperación de cola, v0.8 cuenta personal/
 | HTTPS operativo | Desplegar TLS y verificar acceso/revocación en ese entorno |
 | Proveedor y banco | Elegir Gmail u Outlook y un banco; obtener muestras anonimizadas y requisitos OAuth |
 | Correo real | OAuth, conector incremental/cursores, parsers versionados y deduplicación entre avisos de la misma operación |
-| Modelo financiero ampliado | Cuentas, tarjetas/deuda, conciliación y presupuestos sincronizados en servidor |
+| Modelo financiero ampliado | Implementado en v0.10: cuentas, tarjetas/préstamos, conciliación manual y presupuestos en servidor |
 | Política completa de datos | Eliminación de cuenta/finanzas, retención automática, copias de seguridad y restauración verificable |
 
 Siguiente lote recomendado: preparación y checklist ejecutable del piloto Android/HTTPS. La conexión bancaria real requiere primero proveedor/banco y muestras; no se inventarán formatos ni credenciales. Multiusuario e IA opcional no forman parte del plan original.
+
+
+## Lote v0.10 — Punto #4 implementado
+
+Cuentas y deuda con saldos explícitos por moneda, transferencias internas sin doble gasto, conciliación manual con período protegido y presupuestos del modo API guardados en servidor con control de versiones. UI disponible desde Configuración y Movimientos; demo local conservada. No calcula intereses/cuotas ni conecta saldos bancarios en línea. El historial anterior no se reasigna automáticamente.
+
+Siguiente lote autorizado en el mismo PR: punto #5, eliminación completa de cuenta/datos, retención automática y respaldo/restauración verificable. La limpieza manual v0.9 no sustituye esas funciones. Android físico/APK, TLS operativo y correo real siguen pendientes.

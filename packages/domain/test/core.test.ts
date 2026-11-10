@@ -1,8 +1,9 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {parseAmount,summarize,filterMovements,demoMovements,parseDemoMail,upgradeCategories,selectedCategory,budgetStatus,nextMonthlyDate,prepareOccurrence,changeSince,previousMonth,movementsCsv,validateExportTable,movementExportHeaders,type RecurringTemplate} from '../src/index.ts';
+import {ledgerBalance,parseSignedAmount,parseAmount,summarize,filterMovements,demoMovements,parseDemoMail,upgradeCategories,selectedCategory,budgetStatus,nextMonthlyDate,prepareOccurrence,changeSince,previousMonth,movementsCsv,validateExportTable,movementExportHeaders,type RecurringTemplate} from '../src/index.ts';
 
 test('CORE: monetary precision and input bounds',()=>{
+ assert.equal(parseSignedAmount('-100.29'),-10029);assert.equal(parseSignedAmount('0.00'),0);assert.throws(()=>parseSignedAmount('-21474836.48'));
  assert.equal(parseAmount('100.29'),10029);assert.equal(parseAmount('200,50'),20050);
  for(const value of ['-1','0','1.001','1,000.50','21474836.48'])assert.throws(()=>parseAmount(value));
 });
@@ -10,6 +11,8 @@ test('CORE: totals isolate currencies/months and exclude own transfers',()=>{
  const rows=filterMovements(demoMovements,{month:'2026-10',currency:'DOP'});
  assert.deepEqual(summarize(rows,'DOP'),{incomeMinor:4500000,expenseMinor:245050,differenceMinor:4254950});
  assert.equal(summarize(demoMovements,'USD').expenseMinor,1299);
+ // Payment transfers reduce source cash and debt equally; no new expense.
+ assert.equal(ledgerBalance(100000,0,25000,0),75000);assert.equal(ledgerBalance(-50000,0,0,25000),-25000);assert.equal(ledgerBalance(0,10029,0,0),10029);assert.throws(()=>ledgerBalance(Number.MAX_SAFE_INTEGER,1,0,0));
  assert.equal(filterMovements(rows,{month:'2026-09',currency:'DOP'}).length,0);
 });
 test('CORE: only explicit valid synthetic messages become movements',()=>{

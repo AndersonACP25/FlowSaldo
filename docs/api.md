@@ -148,3 +148,31 @@ Migración aditiva `20261110040000_recovery_retention`: RecoveryCode, CleanupPre
 Generar/revocar comparten cinco intentos por IP/15 min. Recuperar y aplicar limpieza tienen cada uno cinco intentos por IP/15 min; también cuentan entradas inválidas. Cambiar contraseña ahora invalida también códigos. Contraseña incorrecta 401, validación 400, vista previa vencida/sustituida/consumida o contraseña cambiada concurrentemente 409, hash ocupado 503. /auth/recover es excepción pública acotada de autenticación, con la misma política de transporte HTTPS y no-store.
 
 Preview guarda hasta 1000 IDs elegibles más antiguos por createdAt/id, cutoff fijo y caducidad diez minutos; solo una preview por propietario. Apply consume exactamente ese conjunto, revalida REVIEW/FAILED, cuerpo no vacío, fecha y ausencia de movimiento, y marca DISMISSED vaciando body. Conservará avisos nuevos, confirmados o reencolados en estado activo. Las cantidades finales pueden disminuir por acciones concurrentes. No reintenta un aviso descartado. Limpia sesiones revocadas/vencidas, códigos vencidos/usados y throttles anteriores a un día; no elimina la sesión vigente. Se registra auditoría de cantidades, sin texto original. No elimina datos financieros/cuenta ni programa tareas automáticas.
+
+
+## v0.10 — Modelo financiero y presupuestos del servidor
+
+Migración aditiva financial_accounts. Nuevos FinancialAccount, FinanceLock singleton, Reconciliation, BudgetPeriod/BudgetCategory y MovementRequest; campos accountId/targetAccountId/requestKey nulos en movimientos anteriores. Sin backfill inferido ni cambios de importes/historia. Todas las rutas usan autorización existente (sesión personal o bootstrap solo antes de configurar propietario).
+
+| Método | Ruta | Contrato |
+|---|---|---|
+| GET | /accounts | Lista completa (máximo 100 cuentas), balanceMinor/debtMinor/availableCreditMinor calculados sobre todos los movimientos vinculados, revision, reconciledThrough |
+| POST | /accounts | name 1–60, kind BANK/CASH/CREDIT_CARD/LOAN, currency DOP/USD, openingMinor firmado ±2147483647, creditLimitMinor positivo opcional solo tarjeta; tarjeta/préstamo openingMinor <= 0; 201 |
+| PATCH | /accounts/:id | expectedRevision y name/archived; 200, versión desactualizada 409, inexistente 404; tipo/moneda/saldo inicial inmutables |
+| POST | /accounts/:id/reconciliation/preview | asOf AAAA-MM-DD y statementMinor entero seguro firmado; devuelve expectedMinor/differenceMinor/expectedRevision, accountId/asOf/statementMinor |
+| POST | /accounts/:id/reconciliation | Mismo cuerpo + expectedRevision; 201, diferencia o versión cambiada 409. Solo fecha no futura y posterior al último período; sin ajustes automáticos |
+| GET | /accounts/:id/reconciliations | Últimas 100 conciliaciones por fecha; balanceMinor serializado como número seguro, no BigInt JSON |
+| GET | /budgets?month=AAAA-MM&currency=DOP | version, limitMinor nullable y categoryLimits [{categoryId,limitMinor}]; período inexistente devuelve version 0 |
+| POST | /budgets | month, currency, expectedVersion, limitMinor positivo o null, categoryLimits hasta 200 sin IDs repetidos; guarda conjunto completo e incrementa versión; conflicto 409 |
+
+Movimiento manual y resolución de revisión aceptan accountId y targetAccountId opcionales/nulos. INCOME suma y EXPENSE resta a accountId. TRANSFER debe tener ambas cuentas distintas o ninguna (compatibilidad histórica); resta origen/suma destino. Las cuentas deben existir, estar activas y tener la moneda del movimiento. Editar con campos ausentes conserva la asignación anterior; null explícito la retira solo si el período no está protegido. Confirmación de correo comparte estas reglas. Recurrencias/parser conservan asignación nula hasta edición manual.
+
+POST /movements acepta requestKey de 10–100 caracteres; obligatoria en transferencias con cuentas. Repetición con mismos datos devuelve el mismo movimiento (201), reutilización con otros datos 409. El recibo persiste aunque se elimine el movimiento: repetir ese envío devuelve 409 y no vuelve a contabilizar. El cliente mantiene la clave del borrador ante reintentos. PATCH no cambia esta clave. El ledger no garantiza idempotencia para clientes que no envían clave, excepto resolución de correo/recurrencias con sus garantías previas.
+
+GET /movements?page=true y /movements/export aceptan accountId: coincide con origen o destino y combina con filtros existentes. El resumen mensual sigue incluyendo todos los movimientos del período/moneda, independiente de cuenta. El CSV conserva sus columnas previas.
+
+Saldo inicial + ingresos − gastos − transferencias salientes + entrantes, siempre centavos enteros y sin conversión. En cuentas de deuda debtMinor=max(0,−saldo); crédito disponible puede ser negativo si se excedió el límite o superior al límite con saldo a favor. No calcula intereses ni crea gastos por principal de pagos.
+
+Los cambios financieros de API se serializan mediante FinanceLock. Una mutación vinculada incrementa revision en todas las cuentas afectadas. Conciliar verifica revision y diferencia cero bajo el mismo bloqueo y fija reconciledThrough; no permite crear, editar, desvincular o eliminar movimientos dentro del período protegido, ni alterar una transferencia protegida por cualquiera de sus cuentas. Los saldos GET usan snapshot RepeatableRead. Archivar conserva historial, no permite nuevas asignaciones ni modificaciones de movimientos asignados hasta reactivar; eliminación de movimientos posteriores a la conciliación sigue posible.
+
+Presupuestos se separan por mes/moneda para la única instalación personal. Borrar límites conserva versión (tombstone), evitando sobrescrituras desde clientes antiguos. Categorías deben existir; límite archivado puede conservarse sin cambios o retirarse, no crearse/modificarse. No hay unión automática de datos locales ni sincronización offline: copiar límites es explícito y solo con versión 0. Demo continúa local. Conflicto 409 se muestra y se vuelve a consultar; nunca se reintenta silenciosamente sobrescribiendo.

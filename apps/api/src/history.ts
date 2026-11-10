@@ -16,7 +16,7 @@ const paging = z.object({
 });
 const filters = z.object({
  currency: z.enum(['DOP','USD']).optional(), month: monthSchema.optional(),
- categoryId:z.string().min(1).max(200).optional(), type: z.enum(['INCOME','EXPENSE','TRANSFER']).optional(), search: z.string().trim().max(100).optional()
+ accountId:z.string().min(1).max(200).optional(),categoryId:z.string().min(1).max(200).optional(), type: z.enum(['INCOME','EXPENSE','TRANSFER']).optional(), search: z.string().trim().max(100).optional()
 });
 function monthRange(month: string) {
  const gte = new Date(month+'-01T00:00:00.000Z'); const lt = new Date(gte); lt.setUTCMonth(lt.getUTCMonth()+1);
@@ -26,7 +26,7 @@ function movementWhere(filter: z.infer<typeof filters>) {
  // Escape LIKE metacharacters so a text search has the same literal meaning as the demo.
  const search = filter.search?.replace(/[\\%_]/g, '\\$&');
  return {currency:filter.currency,type:filter.type,categoryId:filter.categoryId,...(filter.month?{occurredAt:monthRange(filter.month)}:{}),
-  ...(search?{OR:[{description:{contains:search,mode:'insensitive' as const}},{category:{contains:search,mode:'insensitive' as const}}]}:{})};
+  AND:[...(search?[{OR:[{description:{contains:search,mode:'insensitive' as const}},{category:{contains:search,mode:'insensitive' as const}}]}]:[]),...(filter.accountId?[{OR:[{accountId:filter.accountId},{targetAccountId:filter.accountId}]}]:[])]};
 }
 function nextCursor(row: {id:string}, date:Date) { return Buffer.from(JSON.stringify({date:date.toISOString(),id:row.id})).toString('base64url'); }
 function after(cursor: z.infer<typeof paging>['cursor'], field: 'occurredAt'|'createdAt') {

@@ -83,7 +83,7 @@
     {
       "id": "qa",
       "profile": "ai/agents/qa.md",
-      "purpose": "Verificar reglas CORE, acceso personal y recorridos críticos por riesgo, con evidencia reproducible y sin ampliar pruebas a todo el sistema.",
+      "purpose": "Verificar CORE financiero, acceso y cuentas/conciliación por riesgo, con evidencia reproducible y sin ampliar pruebas a todo el sistema.",
       "writablePaths": [
         "scripts/",
         "packages/domain/test/"

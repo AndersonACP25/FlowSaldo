@@ -70,3 +70,12 @@ Diseño Dark Slate, revisión manual, flujo semanal y launcher Expo con prueba M
 - Limpieza manual de contenido antiguo con vista previa limitada, contraseña y confirmación; conserva movimientos y trabajos activos.
 - Migración aditiva recovery_retention y estado del plan actualizado.
 - Se conservan 9 unitarias CORE y 4 recorridos críticos Playwright; integración PostgreSQL cubre recuperación concurrente y conservación de datos.
+
+
+## v0.10.0 — Cuentas, deuda y conciliación
+
+- Cuentas bancarias, efectivo, tarjetas y préstamos con saldos por moneda y archivo sin perder historia.
+- Transferencias internas y pagos de deuda sin duplicar gastos; claves idempotentes de envío.
+- Conciliación manual por fecha UTC con diferencias, versión e historial protegido.
+- Presupuestos API en servidor, control de conflictos y copia explícita de límites locales anteriores.
+- Migración aditiva y pruebas enfocadas en integridad financiera.

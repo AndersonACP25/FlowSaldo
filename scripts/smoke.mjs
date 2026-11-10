@@ -1,3 +1,4 @@
+import {checkFinance} from './finance-smoke.mjs';
 import {checkAccessTransport} from './access-transport-smoke.mjs';
 import {checkPersonalAccess} from './access-smoke.mjs';
 import {once} from 'node:events';
@@ -68,6 +69,7 @@ try {
  await checkHistory(request,/^DATABASE_URL=(.+)$/m.exec(env)?.[1]);
  const workerExit=once(worker,'exit');worker.kill('SIGTERM');await workerExit;
  await checkImportRecovery(request,/^DATABASE_URL=(.+)$/m.exec(env)?.[1]);
+ await checkFinance(request);
  await checkPersonalAccess(token,/^DATABASE_URL=(.+)$/m.exec(env)?.[1]);
  await checkAccessTransport();
  console.info('Smoke: auth, validation, persistence, idempotency and review passed');

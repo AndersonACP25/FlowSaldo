@@ -20,7 +20,9 @@ export async function checkAccessFlow(browser){
   else if(url.pathname==='/auth/data/retention/apply'){const body=route.request().postDataJSON();assert.equal(body.previewId,'synthetic-preview');assert.equal(body.confirmation,'ELIMINAR CONTENIDO');assert.equal(body.currentPassword,password);data={reviewBodies:1,failedBodies:0};}
   else if(url.pathname==='/auth/password'){assert.equal(route.request().postDataJSON().newPassword,updated);changed=true;await route.fulfill({headers,status:204});return;}
   else if(url.pathname==='/auth/logout'){assert.equal(route.request().headers().authorization,'Bearer '+(changed?nextToken:token));loggedOut=true;await route.fulfill({headers,status:204});return;}
-  else if(url.pathname==='/categories')data=demoCategoryCatalog([]);
+  else if(url.pathname==='/budgets')data={version:0,limitMinor:null,categoryLimits:[]};
+   else if(url.pathname==='/accounts')data=[];
+   else if(url.pathname==='/categories')data=demoCategoryCatalog([]);
   else if(url.pathname==='/recurring')data=[];
   else if(url.pathname==='/imports')data={items:[],total:0,nextCursor:null,pendingTotal:0};
   else if(url.pathname==='/imports/stats')data={counts:{PENDING:0,PROCESSING:0,FAILED:0,REVIEW:0,PARSED:0,DISMISSED:0},scheduledRetries:0,expiredLeases:0,nextRetryAt:null,lastProcessedAt:null};

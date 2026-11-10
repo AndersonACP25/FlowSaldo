@@ -1,6 +1,6 @@
 # Seguridad y privacidad
 
-FlowSaldo v0.9 incluye autenticación y recuperación personal en un prototipo con datos sintéticos. Una cuenta por instalación; no es un sistema multiusuario ni se ha certificado para exponerlo a Internet o conectar correo financiero real. OAuth, recuperación por correo, eliminación de cuenta/datos y política completa de retención siguen pendientes.
+FlowSaldo v0.10 incluye autenticación y recuperación personal en un prototipo con datos sintéticos. Una cuenta por instalación; no es un sistema multiusuario ni se ha certificado para exponerlo a Internet o conectar correo financiero real. OAuth, recuperación por correo, eliminación de cuenta/datos y política completa de retención siguen pendientes.
 
 ## Cuenta inicial y acceso
 
@@ -38,3 +38,8 @@ Cinco códigos aleatorios de 192 bits por lote, solo SHA-256 en PostgreSQL; text
 La retención es manual, con reautenticación y confirmación escrita. La vista previa persiste hasta 1000 IDs exactos, se reemplaza al pedir otra, vence en diez minutos y se consume transaccionalmente. Aplicar revalida estado/fecha/ausencia de movimiento, vacía cuerpo y descarta solo REVIEW/FAILED elegibles; no amplía a registros que llegaron después. Conserva trabajos activos y datos financieros, sesión actual y códigos vigentes. El registro DataCleanup contiene fecha/cantidades, sin cuerpos ni credenciales. Credenciales caducadas/revocadas y throttles de más de un día se eliminan. No hay borrado completo de cuenta/finanzas, borrado de backups ni política automática general.
 
 Referencia: [OWASP Forgot Password](https://cheatsheetseries.owasp.org/cheatsheets/Forgot_Password_Cheat_Sheet.html).
+
+
+## Datos financieros v0.10
+
+Cuentas, conciliaciones y presupuestos API usan la autorización personal existente y la misma política HTTPS. No almacenar números completos de tarjetas, credenciales bancarias ni identificadores reales en esta fase. Son registros sintéticos/manuales, sin consulta bancaria ni cálculo automático de intereses. La conciliación protege historia y las claves de envío evitan replay financiero; no sustituyen respaldos ni eliminación completa (punto #5 pendiente). Los límites API ahora persisten en PostgreSQL; los de demo y antiguos respaldos locales siguen sin cifrar.

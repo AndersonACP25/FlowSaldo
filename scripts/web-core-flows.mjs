@@ -45,7 +45,9 @@ export async function checkCoreFlows(browser) {
    const url=new URL(route.request().url());const headers={'Access-Control-Allow-Origin':'*','Access-Control-Allow-Headers':'authorization,content-type'};
    if(route.request().method()==='OPTIONS'){await route.fulfill({status:204,headers});return;}
    let data;
-   if(url.pathname==='/categories')data=demoCategoryCatalog([]);
+   if(url.pathname==='/budgets')data={version:0,limitMinor:null,categoryLimits:[]};
+   else if(url.pathname==='/accounts')data=[];
+   else if(url.pathname==='/categories')data=demoCategoryCatalog([]);
    else if(url.pathname==='/recurring')data=[];
    else if(url.pathname==='/imports/stats')data={counts:{PENDING:retried?1:0,PROCESSING:0,FAILED:retried?0:1,REVIEW:0,PARSED:0,DISMISSED:0},scheduledRetries:0,expiredLeases:0,nextRetryAt:null,lastProcessedAt:null};
    else if(url.pathname==='/imports/job-core/retry'){assert.equal(route.request().method(),'POST');assert.equal(retried,false);retried=true;await route.fulfill({headers,status:202,json:{id:'job-core',status:'PENDING'}});return;}

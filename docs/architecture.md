@@ -16,7 +16,7 @@ flowchart TD
 ## Decisiones
 
 - Dinero en centavos enteros, moneda obligatoria, sin conversiones implícitas.
-- Transferencias propias no participan en ingresos y gastos. Todavía no se modelan cuentas, deuda, devoluciones ni conciliación.
+- Transferencias propias no participan en ingresos y gastos. Desde v0.10 se modelan cuentas/deuda y conciliación manual; devoluciones e intereses automáticos siguen pendientes.
 - externalId único evita reimportar el mismo mensaje. No deduplica mensajes distintos sobre una misma operación: esa capacidad está pendiente.
 - SELECT FOR UPDATE SKIP LOCKED mantiene un mensaje bloqueado mientras se procesa. Crear movimiento y actualizar importación ocurre en una sola transacción; un fallo revierte ambas acciones. importId único añade protección.
 - Desde v0.7 hay reservas durables, backoff e intentos limitados; FAILED permite reintento manual. Ver el contrato de recuperación al final.
@@ -77,3 +77,8 @@ Production rechaza HTTP; un proxy TLS local requiere confianza loopback explíci
 ## v0.9: recuperación y limpieza manual
 
 RecoveryCode guarda hashes de códigos offline; AppOwner serializa generación/consumo/cambio de contraseña. Recuperar elimina el lote completo y revoca sesiones. CleanupPreview conserva un conjunto limitado de IDs con cutoff y expiración; DataCleanup guarda auditoría de cantidades. Aplicar exige reautenticación/confirmación y revalida elegibilidad dentro de la transacción, sin borrar movimientos ni ampliar el conjunto previsualizado. No incorpora correo de recuperación, borrado total ni tareas automáticas de retención.
+
+
+## v0.10 — Ledger de cuentas y planificación
+
+Movement agrega origen/destino opcionales, sin reasignar registros previos. FinancialAccount guarda metadatos/saldo inicial; el saldo se calcula desde movimientos vinculados. Una transferencia es una fila con dos extremos de misma moneda. La reserva de requestKey en MovementRequest sobrevive al borrado del movimiento. FinanceLock serializa modificaciones de cuentas/movimientos vinculados/conciliación y presupuestos; los workers/recurrencias siguen creando registros sin cuenta. Reconciliation confirma snapshot por revision y fija un corte histórico protegido. BudgetPeriod/BudgetCategory guardan límites por mes/moneda con versión optimista y tombstone. Se conserva una instalación personal, sin multiusuario ni bancos reales.
