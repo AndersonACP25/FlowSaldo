@@ -13,7 +13,8 @@ try {
     if (!item) return;
     const result = parseDemoMail(item.body);
     if (result.status === 'PARSED' && result.movement.amountMinor <= 2147483647) {
-     await tx.movement.create({ data: { ...result.movement, importId: item.id } });
+     const category=await tx.category.findUniqueOrThrow({where:{normalizedName:'sin categorizar'}});
+     await tx.movement.create({ data: { ...result.movement,categoryId:category.id, importId: item.id } });
      await tx.mailImport.update({ where: { id: item.id }, data: { status: 'PARSED', body: '', reason: null } });
     } else {
      await tx.mailImport.update({ where: { id: item.id }, data: { status: 'REVIEW', reason: result.status === 'REVIEW' ? result.reason : 'Monto fuera de rango' } });

@@ -1,5 +1,6 @@
 /* global document */
 import { chromium } from 'playwright';
+import { checkPlanningUi } from './planning-web-smoke.mjs';
 import { checkHistoryUi } from './history-web-smoke.mjs';
 import assert from 'node:assert/strict';
 import { createServer } from 'node:http';
@@ -109,5 +110,6 @@ try{
  assert.deepEqual(posts,[],'Las vistas previas y preferencias locales no envían credenciales ni formularios');
  assert.deepEqual(errors,[]);
  await checkHistoryUi(browser);
+ await checkPlanningUi(browser);
  console.log('PASS: auth previews without POST, settings persistence, singular counts, CSV columns/name, CRUD, review and responsive layout.');
 }finally{await browser.close();server.close();}

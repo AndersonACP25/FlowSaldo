@@ -45,4 +45,23 @@ Movimientos admite `month`, `currency`, `type=INCOME|EXPENSE|TRANSFER` y `search
 
 Importaciones admite `status=PENDING|REVIEW|PARSED|DISMISSED`, `from=AAAA-MM-DD` y `to=AAAA-MM-DD`: recepción inclusiva por días UTC. Fecha inválida o rango invertido devuelve 400. Añade `pendingTotal` (todas las revisiones pendientes, independiente del filtro) y excluye cuerpos. El historial confirmado/descartado es de consulta; únicamente REVIEW permite confirmar o descartar. Cursores, límites y filtros inválidos devuelven 400.
 
-No requiere migraciones nuevas. Mantiene autorización Bearer, datos sintéticos e idempotencia de confirmación/worker.
+La entrega 1 no requería migraciones nuevas; la entrega 2 añade el catálogo de categorías descrito a continuación. Mantiene autorización Bearer, datos sintéticos e idempotencia de confirmación/worker.
+
+
+## Entrega 2 — Categorías administrables
+
+Aplicar `pnpm db:generate` y `pnpm db:migrate` antes de iniciar API/worker nuevos. La migración `20261110000000_categories` crea Category, agrega Movement.categoryId e inicializa las categorías predeterminadas y las existentes. No cambia los importes, etiquetas category, monedas, fechas ni IDs de movimientos. Unifica nombres por mayúsculas/minúsculas y espacios consecutivos. No se borran tablas ni se reinician datos.
+
+| Método | Ruta | Contrato |
+|---|---|---|
+| GET | /categories | Catálogo completo, activas primero; objetos id, name, normalizedName, archived, system |
+| POST | /categories | `{name}`; nombre de 1–60 caracteres tras normalizar espacios; 201; duplicado 409 |
+| PATCH | /categories/:id | `{name?,archived?}` con al menos un campo; 200; inexistente 404; categoría del sistema 409 |
+
+Sin categorizar es la categoría protegida del worker: no admite renombrado ni archivo. No hay borrado físico de categorías. Archivar conserva movimientos y presupuestos; se puede reactivar. Renombrar mantiene el identificador y las etiquetas históricas de cada movimiento; las asignaciones nuevas toman el nombre actual.
+
+POST/PATCH /movements y POST /imports/:id/resolve aceptan `categoryId`. Se recomienda enviarlo; sin él se busca `category` por nombre normalizado, por defecto Sin categorizar. Categoría desconocida devuelve 400; archivada, 409. Un movimiento ya asociado puede conservar su categoría archivada al editar otros campos. Duplicarlo es una asignación nueva y exige una categoría activa. Las asignaciones bloquean la fila de categoría dentro de la transacción, coordinándose con archivo/renombrado. Confirmación de revisiones conserva el bloqueo de importación y la idempotencia.
+
+GET /movements?page=true y /movements/export admiten `categoryId`, incluyendo categorías archivadas. El resumen mensual agrega `categoryTotals:[{categoryId,amountMinor}]` para gastos por ID, independiente de páginas y nombres históricos. `categories` conserva el desglose por etiqueta histórica de la entrega anterior. Transferencias e ingresos no consumen presupuestos de gastos.
+
+Los presupuestos general y por categoría siguen locales al dispositivo. Cada límite por categoría se identifica por modo demo/API, mes, moneda e ID de categoría. No se sincronizan ni crean usuarios. Avisos de 80 % y 100 % utilizan el gasto real; el porcentaje mostrado se redondea sin adelantar el aviso. Archivar conserva un presupuesto y permite retirarlo, pero no asignar uno nuevo a esa categoría.

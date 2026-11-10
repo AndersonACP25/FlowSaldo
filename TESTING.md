@@ -3,7 +3,7 @@
 | Cambio | Comprobaciones requeridas |
 |---|---|
 | Código TypeScript/producto | pnpm db:generate; pnpm check |
-| Dominio monetario | npm test, incluyendo monedas, fechas, duplicados y límites relevantes |
+| Dominio monetario | pnpm test, incluyendo monedas, fechas, duplicados y límites relevantes |
 | API/worker/Prisma | Migración y seed PostgreSQL de prueba; node scripts/smoke.mjs |
 | UI web | pnpm test:web con Chromium instalado |
 | Arranque Expo/Metro | pnpm test:dev en Windows y Linux |
@@ -16,3 +16,6 @@ pnpm check ejecuta lint, tipos y dominio, no todas las pruebas de integración o
 Cada tarea declara requiredChecks concretos. Registrar command, status (pass/fail/not_run) y evidence. Si falta entorno, informar blocked. El validador de entregas verifica consistencia declarada; el orquestador contrasta la evidencia con logs reales.
 
 Cambios v0.5: pnpm text:check; pnpm exports:test (crea y valida Excel/CSV sintéticos); pnpm ai:validate y pnpm ai:test para los doce perfiles. El flujo web cubre vistas previas sin credenciales enviadas, conteo singular y preferencias persistidas.
+
+
+Entrega 2 v0.6: `scripts/smoke.mjs` incluye migración de categorías con registros previos, API/archivos/historia y asignaciones archivadas; `test:web` incluye actualización de demo, CRUD/archivo, aislamiento/persistencia de presupuestos, calendario y duplicación a 390 px. Las pruebas de dominio se concentran en estas reglas CORE. Ejecutar migraciones antes del smoke; nunca sobre bases de producción.

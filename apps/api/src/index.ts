@@ -1,4 +1,5 @@
 import express from 'express';
+import { categoryRoutes,assignCategory,CategoryError } from './categories';
 import { history } from './history';
 import helmet from 'helmet';
 import cors from 'cors';
@@ -22,7 +23,8 @@ app.use((req, res, next) => {
  next();
 });
 app.use(history);
-const movementSchema = z.object({ amountMinor: z.number().int().positive().max(2147483647), currency: z.enum(['DOP','USD']), type: z.enum(['INCOME','EXPENSE','TRANSFER']), description: z.string().trim().min(1).max(100), category: z.string().trim().min(1).max(60).default('Sin categorizar'), occurredAt: z.iso.datetime() });
+app.use(categoryRoutes);
+const movementSchema = z.object({ amountMinor: z.number().int().positive().max(2147483647), currency: z.enum(['DOP','USD']), type: z.enum(['INCOME','EXPENSE','TRANSFER']), description: z.string().trim().min(1).max(100), categoryId:z.string().min(1).max(200).nullish(), category: z.string().trim().min(1).max(60).default('Sin categorizar'), occurredAt: z.iso.datetime() });
 app.get('/movements', async (req, res) => {
  const filter = z.object({ currency: z.enum(['DOP','USD']).optional(), month: z.string().regex(/^\d{4}-\d{2}$/).refine(v => validDate(v+'-01')).optional() }).parse(req.query);
  const from = filter.month ? new Date(filter.month+'-01T00:00:00.000Z') : undefined;
@@ -32,14 +34,18 @@ app.get('/movements', async (req, res) => {
 });
 app.post('/movements', async (req, res) => {
  const data = movementSchema.parse(req.body);
- res.status(201).json(await db.movement.create({ data }));
+ res.status(201).json(await db.$transaction(async tx=>tx.movement.create({data:{...data,...await assignCategory(tx,data)}})));
 });
 
 app.patch('/movements/:id', async (req, res) => {
  const data = movementSchema.parse(req.body);
- const result = await db.movement.updateMany({where:{id:req.params.id},data});
- if(!result.count) {res.status(404).json({error:'Movimiento no encontrado'});return;}
- res.json(await db.movement.findUnique({where:{id:req.params.id}}));
+ const result=await db.$transaction(async tx=>{
+  const existing=await tx.movement.findUnique({where:{id:req.params.id}});
+  if(!existing)return null;
+  return tx.movement.update({where:{id:existing.id},data:{...data,...await assignCategory(tx,data,existing)}});
+ });
+ if(!result){res.status(404).json({error:'Movimiento no encontrado'});return;}
+ res.json(result);
 });
 app.delete('/movements/:id', async (req, res) => {
  const result = await db.movement.deleteMany({where:{id:req.params.id}});
@@ -67,7 +73,7 @@ app.post('/imports/:id/resolve',async(req,res)=>{
   const rows=await tx.$queryRaw<Array<{id:string;status:string}>>`SELECT id,status FROM "MailImport" WHERE id=${id} FOR UPDATE`;
   if(!rows[0])return {status:404};
   if(rows[0].status!=='REVIEW')return {status:409};
-  const movement=await tx.movement.create({data:{...data,importId:id}});
+  const movement=await tx.movement.create({data:{...data,...await assignCategory(tx,data),importId:id}});
   await tx.mailImport.update({where:{id},data:{status:'PARSED',body:'',reason:'Confirmado manualmente'}});
   return {status:201,movement};
  });
@@ -82,6 +88,8 @@ app.post('/imports/:id/dismiss',async(req,res)=>{
 });
 app.get('/imports', async (_req, res) => res.json(await db.mailImport.findMany({ select: { id: true, externalId: true, status: true, reason: true, parserVersion: true, createdAt: true }, orderBy: { createdAt: 'desc' }, take: 100 })));
 app.use((error: unknown, _req: express.Request, res: express.Response, _next: express.NextFunction) => {
+ if(error instanceof CategoryError){res.status(error.status).json({error:error.message});return;}
+ if(typeof error==='object'&&error!==null&&'code' in error&&error.code==='P2002'){res.status(409).json({error:'Ya existe una categoría con ese nombre.'});return;}
  if (error instanceof SyntaxError) { res.status(400).json({ error: 'JSON inválido' }); return; }
  if (error instanceof z.ZodError) { res.status(400).json({ error: 'Datos inválidos', issues: error.issues.map(i => ({ path: i.path, message: i.message })) }); return; }
  res.status(500).json({ error: 'Error interno' });

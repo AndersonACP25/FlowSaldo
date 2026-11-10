@@ -28,3 +28,11 @@ Diseño Dark Slate, revisión manual, flujo semanal y launcher Expo con prueba M
 - Totales mensuales, categorías y flujo semanal completos calculados en servidor.
 - CSV del conjunto filtrado completo y revisiones por estado/fecha con contador global.
 - Integración de regresión con 205 movimientos y 105 revisiones; sin migración de datos.
+
+
+### Entrega 2 del lote v0.6
+
+- Catálogo administrable en demo/API: crear, renombrar, archivar y reactivar, sin perder etiquetas históricas.
+- Migración aditiva con categoryId estable; filtros/exportación por ID y gasto mensual completo por categoría.
+- Presupuestos locales por categoría/mes/moneda/modo, disponibles/excesos y avisos 80/100.
+- Fecha actual, calendario, categorías recientes y duplicación editable que requiere guardar.

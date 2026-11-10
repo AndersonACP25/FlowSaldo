@@ -174,6 +174,24 @@ La preferencia local de privacidad no cifra datos ni autentica usuarios. No intr
 
 ## v0.6 — Entrega 1 del lote: historial completo
 
-La API conserva los endpoints anteriores para compatibilidad e incorpora paginación por cursor con `page=true`, resumen mensual agregado y CSV completo por mes/moneda/tipo/búsqueda. Movimientos y revisiones ofrecen Cargar más. Por revisar añade estados y fechas de recepción; el contador pendiente no depende del filtro. Los avisos demo antiguos sin fecha permanecen visibles sin filtro de fechas. No cambia la clave local ni se borran datos. API y app deben actualizarse juntas; no hay nueva migración Prisma. Se mantienen acceso demo, proveedores de correo pendientes y presupuestos locales.
+La API conserva los endpoints anteriores para compatibilidad e incorpora paginación por cursor con `page=true`, resumen mensual agregado y CSV completo por mes/moneda/tipo/búsqueda. Movimientos y revisiones ofrecen Cargar más. Por revisar añade estados y fechas de recepción; el contador pendiente no depende del filtro. Los avisos demo antiguos sin fecha permanecen visibles sin filtro de fechas. No cambia la clave local ni se borran datos. API y app deben actualizarse juntas; la entrega 2 requiere la migración aditiva de categorías. Se mantienen acceso demo, proveedores de correo pendientes y presupuestos locales.
 
 Las pruebas de integración incluyen más de 200 movimientos y 100 revisiones, fechas repetidas, monedas, transferencias, CSV completo, cursor cuya fila fue eliminada y validación. Las categorías administrables, presupuestos por categoría y recurrencias quedan para las próximas entregas.
+
+
+## v0.6 — Entrega 2: categorías, presupuestos y registro rápido
+
+En Configuración puedes crear, renombrar, archivar y reactivar categorías del modo actual. Los movimientos conservan sus etiquetas históricas y un identificador estable permite filtrarlos aunque la categoría cambie de nombre. Los formularios solo asignan categorías activas; una edición puede conservar su categoría archivada. Sin categorizar es una categoría protegida.
+
+Panel permite límites por categoría, separados por mes, moneda y modo demo/API, con gastado, disponible, exceso y avisos al 80 % y 100 %. Siguen guardados en el dispositivo, al igual que el presupuesto general. Las transferencias propias no consumen los límites. Archivar o renombrar conserva el presupuesto.
+
+Nuevo movimiento propone la fecha actual al trabajar en el mes vigente y el primer día para otros meses; mantiene entrada de fecha y añade calendario. Categorías recientes permite reutilizar categorías del historial cargado. Duplicar abre un borrador editable con fecha propuesta; solo Guardar movimiento crea el registro.
+
+Antes de usar la API y el worker actualizados:
+
+```powershell
+pnpm db:generate
+pnpm db:migrate
+```
+
+La migración agrega el catálogo y vincula los registros existentes sin borrar sus datos. La demo conserva `flowsaldo.demo.v2` y actualiza su estructura al leerla; categorías y límites se guardan al realizar una acción. No reinicies la demo para actualizar. La sincronización de presupuestos entre dispositivos continúa pendiente.

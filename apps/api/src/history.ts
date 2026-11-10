@@ -15,7 +15,7 @@ const paging = z.object({
 });
 const filters = z.object({
  currency: z.enum(['DOP','USD']).optional(), month: monthSchema.optional(),
- type: z.enum(['INCOME','EXPENSE','TRANSFER']).optional(), search: z.string().trim().max(100).optional()
+ categoryId:z.string().min(1).max(200).optional(), type: z.enum(['INCOME','EXPENSE','TRANSFER']).optional(), search: z.string().trim().max(100).optional()
 });
 function monthRange(month: string) {
  const gte = new Date(month+'-01T00:00:00.000Z'); const lt = new Date(gte); lt.setUTCMonth(lt.getUTCMonth()+1);
@@ -24,7 +24,7 @@ function monthRange(month: string) {
 function movementWhere(filter: z.infer<typeof filters>) {
  // Escape LIKE metacharacters so a text search has the same literal meaning as the demo.
  const search = filter.search?.replace(/[\\%_]/g, '\\$&');
- return {currency:filter.currency,type:filter.type,...(filter.month?{occurredAt:monthRange(filter.month)}:{}),
+ return {currency:filter.currency,type:filter.type,categoryId:filter.categoryId,...(filter.month?{occurredAt:monthRange(filter.month)}:{}),
   ...(search?{OR:[{description:{contains:search,mode:'insensitive' as const}},{category:{contains:search,mode:'insensitive' as const}}]}:{})};
 }
 function nextCursor(row: {id:string}, date:Date) { return Buffer.from(JSON.stringify({date:date.toISOString(),id:row.id})).toString('base64url'); }
@@ -61,17 +61,18 @@ history.get('/summary',async(req,res,next)=>{
  const end=today.startsWith(month)?today:new Date(monthRange(month).lt.getTime()-86400000).toISOString().slice(0,10);
  const start=new Date(end+'T00:00:00.000Z'); start.setUTCDate(start.getUTCDate()-6);
  const result=await db.$transaction(async tx=>{
-  const [types,categories,daily,total]=await Promise.all([
+  const [types,categories,daily,total,categoryTotals]=await Promise.all([
    tx.movement.groupBy({by:['type'],where,_sum:{amountMinor:true}}),
    tx.movement.groupBy({by:['category'],where:{...where,type:'EXPENSE'},_sum:{amountMinor:true},orderBy:{_sum:{amountMinor:'desc'}}}),
    tx.$queryRaw<Array<{day:string;type:string;amount:bigint}>>`SELECT to_char("occurredAt", 'YYYY-MM-DD') AS day, type, SUM("amountMinor") AS amount FROM "Movement" WHERE currency::text=${currency} AND "occurredAt">=${start} AND "occurredAt"<${new Date(Date.parse(end+'T00:00:00.000Z')+86400000)} AND "occurredAt">=${where.occurredAt.gte} GROUP BY day,type`,
-   tx.movement.count({where})
+   tx.movement.count({where}),
+   tx.movement.groupBy({by:['categoryId'],where:{...where,type:'EXPENSE'},_sum:{amountMinor:true}})
   ]);
   const safe=(value:unknown)=>{const n=Number(value??0);if(!Number.isSafeInteger(n))throw new Error('Total fuera de rango');return n;};
   const incomeMinor=safe(types.find(v=>v.type==='INCOME')?._sum.amountMinor);
   const expenseMinor=safe(types.find(v=>v.type==='EXPENSE')?._sum.amountMinor);
   const weeklyRows=daily.map((v,i)=>({id:String(i),amountMinor:safe(v.amount),currency:currency as Currency,type:v.type,occurredAt:v.day,description:'',category:''})) as Movement[];
-  return {currency,month,scope:'month',incomeMinor,expenseMinor,differenceMinor:safe(incomeMinor-expenseMinor),total,
+  return {categoryTotals:categoryTotals.map(v=>({categoryId:v.categoryId,amountMinor:safe(v._sum.amountMinor)})),currency,month,scope:'month',incomeMinor,expenseMinor,differenceMinor:safe(incomeMinor-expenseMinor),total,
    categories:categories.map(v=>({category:v.category,amountMinor:safe(v._sum.amountMinor)})),days:dailyCashFlow(weeklyRows,end)};
  },{isolationLevel:'RepeatableRead'});
  res.json(result);

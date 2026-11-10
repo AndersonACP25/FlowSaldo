@@ -2,7 +2,7 @@
 import assert from 'node:assert/strict';
 import { URL } from 'node:url';
 import { readFile } from 'node:fs/promises';
-import { movementsCsv } from '../packages/domain/src/index.ts';
+import { demoCategoryCatalog,movementsCsv } from '../packages/domain/src/index.ts';
 import { parseCsv } from './export-guardian.mjs';
 
 export async function checkHistoryUi(browser) {
@@ -12,13 +12,13 @@ export async function checkHistoryUi(browser) {
  const month=new Date().toISOString().slice(0,7);
  const rows=Array.from({length:205},(_,i)=>({id:String(i),amountMinor:10000,currency:'DOP',type:'EXPENSE',description:'Movimiento '+i,category:'Servicios',occurredAt:month+'-01T12:00:00.000Z'}));
  const reviews=Array.from({length:105},(_,i)=>({id:String(i),externalId:'Correo '+i,status:'REVIEW',reason:'Revisión de prueba',createdAt:month+'-01T12:00:00.000Z'}));
- let failSummary=false;
+ const catalog=demoCategoryCatalog([]);let failSummary=false;
  await page.route(process.env.EXPO_PUBLIC_API_URL+'/**',async route=>{
   const url=new URL(route.request().url());let data;
   if(route.request().method()==='OPTIONS'){await route.fulfill({status:204,headers:{'Access-Control-Allow-Origin':'*','Access-Control-Allow-Headers':'authorization,content-type'}});return;}
-  if(url.pathname==='/summary'){
+  if(url.pathname==='/categories'){data=catalog;}else if(url.pathname==='/summary'){
    if(failSummary){await route.fulfill({status:500,json:{error:'Prueba sin resumen'},headers:{'Access-Control-Allow-Origin':'*'}});return;}
-   data={total:205,incomeMinor:0,expenseMinor:2050000,differenceMinor:-2050000,categories:[{category:'Servicios',amountMinor:2050000}],days:Array.from({length:7},(_,i)=>({day:month+'-'+String(i+1).padStart(2,'0'),incomeMinor:0,expenseMinor:0,netMinor:0}))};
+   data={categoryTotals:[],total:205,incomeMinor:0,expenseMinor:2050000,differenceMinor:-2050000,categories:[{category:'Servicios',amountMinor:2050000}],days:Array.from({length:7},(_,i)=>({day:month+'-'+String(i+1).padStart(2,'0'),incomeMinor:0,expenseMinor:0,netMinor:0}))};
   }else if(url.pathname==='/movements/export'){
    await route.fulfill({contentType:'text/csv',body:movementsCsv(rows),headers:{'Access-Control-Allow-Origin':'*'}});return;
   }else if(url.pathname==='/movements'){

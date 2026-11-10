@@ -37,9 +37,21 @@ model Movement {
  type MovementType
  description String
  category String @default("Sin categorizar")
+ categoryId String?
+ categoryRef Category? @relation(fields: [categoryId], references: [id], onDelete: Restrict)
  occurredAt DateTime
  createdAt DateTime @default(now())
  importId String? @unique
  source MailImport? @relation(fields: [importId], references: [id])
  @@index([currency, occurredAt])
+ @@index([categoryId])
+}
+
+model Category {
+ id String @id @default(cuid())
+ name String
+ normalizedName String @unique
+ archived Boolean @default(false)
+ system Boolean @default(false)
+ movements Movement[]
 }
