@@ -16,6 +16,8 @@ import { ReviewInbox } from './src/ReviewInbox';
 import { demoReviews, type ReviewItem } from './src/reviews';
 import { WeeklyFlow } from './src/WeeklyFlow';
 import { AuthScreen, type AuthRoute } from './src/AuthScreen';
+import {RecoverySettings} from './src/RecoverySettings';
+import {DataRetention} from './src/DataRetention';
 import {PersonalAccount} from './src/PersonalAccount';
 import {apiBase,accessRequest,type PersonalSession} from './src/access';
 import {readAccess,writeAccess,clearAccess} from './src/accessVault';
@@ -214,6 +216,8 @@ function Home({onAuth,personal,onLogout,onExpired,accessNotice}:{onAuth:(route:A
    {screen==='Movimientos'&&connected&&query.hasNextPage&&<Button label={query.isFetchingNextPage?'Cargando movimientos…':'Cargar más movimientos'} disabled={query.isFetching} onPress={()=>void query.fetchNextPage()}/>}
    {screen==='Configuración'&&<Text style={s.title}>Configuración</Text>}
    {screen==='Configuración'&&personal&&<PersonalAccount session={personal} onLogout={onLogout} onPasswordChanged={onExpired}/>}
+   {screen==='Configuración'&&personal&&<RecoverySettings token={personal.token}/>}
+   {screen==='Configuración'&&personal&&<DataRetention token={personal.token} onApplied={async()=>{await Promise.all([client.invalidateQueries({queryKey:['imports']}),client.invalidateQueries({queryKey:['import-stats']})]);}}/>}
    {screen==='Configuración'&&<AccountSettings personal={!!personal} preferences={preferences} onAuth={onAuth} onSave={async value=>{await savePreferences(value);setPreferences(value);setCurrency(value.currency);}}/>}
    {screen==='Configuración'&&catalogReady&&<CategoryManager items={categoryCatalog} onSave={saveCategory} onArchive={archiveCategory}/>}
    {screen==='Por revisar'&&<>
@@ -239,7 +243,7 @@ function Home({onAuth,personal,onLogout,onExpired,accessNotice}:{onAuth:(route:A
     </View>
     {connected&&<View style={s.card}><Text style={s.title}>Laboratorio de correo sintético</Text><Text style={s.muted}>Envía un aviso de prueba al worker. Un formato desconocido aparecerá en Por revisar cuando el worker lo procese.</Text><Field label="Identificador del correo de prueba" value={sampleId} onChangeText={setSampleId} maxLength={200}/><Field label="Contenido sintético" value={sampleBody} onChangeText={setSampleBody} maxLength={10000} multiline/><Button label="Encolar correo de prueba" disabled={busy||!sampleId.trim()||!sampleBody.trim()} onPress={()=>void action(async()=>{await request('/imports',{method:'POST',body:JSON.stringify({externalId:sampleId.trim(),body:sampleBody})});await Promise.all([client.invalidateQueries({queryKey:['imports']}),queue.refetch()]);setNotice('Correo encolado. Espera al worker y actualiza revisiones.');})}/></View>}
     <View style={s.card}><Text style={s.title}>Datos de demostración</Text><Text style={s.muted}>Restablece movimientos y presupuestos locales. Los datos de PostgreSQL no se eliminan.</Text><Button label={resetConfirm?'Confirmar restablecimiento local':'Restablecer demo'} disabled={busy||connected} onPress={()=>resetConfirm?void action(reset):setResetConfirm(true)}/>{resetConfirm&&<Button label="Cancelar restablecimiento" onPress={()=>setResetConfirm(false)}/>}</View>
-    <View style={s.card}><Text style={s.title}>FlowSaldo 0.8</Text><Text style={s.muted}>Dark Slate, esmeralda y cian, según DESIGN.md. Una base personal para aprender, registrar y revisar tus movimientos. La sincronización bancaria, OAuth y conciliación siguen pendientes.</Text></View>
+    <View style={s.card}><Text style={s.title}>FlowSaldo 0.9</Text><Text style={s.muted}>Dark Slate, esmeralda y cian, según DESIGN.md. Una base personal para aprender, registrar y revisar tus movimientos. La sincronización bancaria, OAuth y conciliación siguen pendientes.</Text></View>
    </>}
   </>}
  </ScrollView>
@@ -262,5 +266,5 @@ export default function App(){
  function openAuth(next:AuthRoute){client.clear();setRoute(next);}
  return <QueryClientProvider client={client}>{restoring?<SafeAreaView style={s.root}><ActivityIndicator color={palette.primary}/><Text style={s.muted}>Validando sesión guardada…</Text></SafeAreaView>:route==='demo'||route==='personal'?<Home key={personal?.sessionId??'demo'} onAuth={openAuth} personal={route==='personal'?personal:undefined} onLogout={logout} onExpired={()=>forget('Tu sesión terminó. Inicia sesión nuevamente.')} accessNotice={notice}/>:<>
  {canRetry&&<Button label="Reintentar sesión guardada" onPress={()=>void restore()}/>}
- <AuthScreen key={route} route={route} onRoute={setRoute} onDemo={()=>{client.clear();setRoute('demo');}} onSession={acceptSession} notice={notice}/></>}</QueryClientProvider>;
+ <AuthScreen key={route} route={route} onRoute={setRoute} onDemo={()=>{client.clear();setRoute('demo');}} onSession={acceptSession} onRecovered={()=>forget('Contraseña restablecida. Inicia sesión con la nueva contraseña.')} notice={notice}/></>}</QueryClientProvider>;
 }

@@ -67,11 +67,74 @@ export function createAuth(bootstrapSecret:string){
   });
   res.json({token,expiresAt,sessionId:session.id,owner:{id:owner.id,name:owner.name,email:owner.email}});
  });
+ publicRoutes.post('/auth/recover',throttle('recover',5),async(req,res)=>{
+  const data=z.object({email,code:z.string().regex(/^fr_[A-Za-z0-9_-]{32}$/),newPassword:password}).parse(req.body);
+  // Hash before checking the code so unknown accounts/codes follow the same expensive path.
+  const passwordHash=await hashPassword(data.newPassword);
+  await db.$transaction(async tx=>{
+   const [owner]=await tx.$queryRaw<Array<{email:string}>>`SELECT email FROM "AppOwner" WHERE id=1 FOR UPDATE`;
+   const code=await tx.recoveryCode.findUnique({where:{codeHash:tokenDigest(data.code)}});
+   if(!owner||owner.email!==data.email||!code||code.ownerId!==1||code.usedAt||code.expiresAt<=new Date())throw new AuthError('El correo o el código de recuperación no son válidos.');
+   await tx.appOwner.update({where:{id:1},data:{passwordHash}});
+   // Recovering control invalidates the entire old batch, not just the presented code.
+   await tx.recoveryCode.deleteMany({where:{ownerId:1}});
+   await tx.accessSession.updateMany({where:{ownerId:1,revokedAt:null},data:{revokedAt:new Date()}});
+  });res.status(204).end();
+ });
  sessionRoutes.use('/auth',requireSession);
  sessionRoutes.get('/auth/me',(_req,res)=>{const s=res.locals.accessSession;res.json({owner:s.owner,expiresAt:s.expiresAt,sessionId:s.id});});
  sessionRoutes.post('/auth/logout',async(_req,res)=>{await db.accessSession.updateMany({where:{id:res.locals.accessSession.id,revokedAt:null},data:{revokedAt:new Date()}});res.status(204).end();});
  sessionRoutes.get('/auth/sessions',async(_req,res)=>{const sessions=await db.accessSession.findMany({where:{ownerId:1,revokedAt:null,expiresAt:{gt:new Date()}},select:{id:true,createdAt:true,expiresAt:true},orderBy:{createdAt:'desc'}});res.json(sessions.map(s=>({...s,current:s.id===res.locals.accessSession.id})));});
  sessionRoutes.post('/auth/sessions/revoke-others',async(_req,res)=>{const result=await db.accessSession.updateMany({where:{ownerId:1,id:{not:res.locals.accessSession.id},revokedAt:null},data:{revokedAt:new Date()}});res.json({revoked:result.count});});
+ sessionRoutes.get('/auth/recovery-codes',async(_req,res)=>{
+  const now=new Date();const where={ownerId:1,usedAt:null,expiresAt:{gt:now}};
+  const [remaining,first]=await Promise.all([db.recoveryCode.count({where}),db.recoveryCode.findFirst({where,select:{expiresAt:true},orderBy:{expiresAt:'asc'}})]);
+  res.json({remaining,expiresAt:first?.expiresAt??null});
+ });
+ sessionRoutes.post('/auth/recovery-codes',throttle('recovery-codes',5),async(req,res)=>{
+  const {currentPassword}=z.object({currentPassword:z.string().min(1).max(128)}).parse(req.body);
+  const existing=await db.appOwner.findUniqueOrThrow({where:{id:1}});if(!await verify(currentPassword,existing.passwordHash))throw new AuthError('La contraseña actual no es correcta.');
+  const codes=Array.from({length:5},()=> 'fr_'+randomBytes(24).toString('base64url'));const expiresAt=new Date(Date.now()+90*86400000);
+  await db.$transaction(async tx=>{
+   const [owner]=await tx.$queryRaw<Array<{passwordHash:string}>>`SELECT "passwordHash" FROM "AppOwner" WHERE id=1 FOR UPDATE`;
+   if(owner.passwordHash!==existing.passwordHash)throw new AuthError('La contraseña cambió. Inicia sesión nuevamente.',409);
+   await tx.recoveryCode.deleteMany({where:{ownerId:1}});await tx.recoveryCode.createMany({data:codes.map(code=>({ownerId:1,codeHash:tokenDigest(code),expiresAt}))});
+  });res.status(201).json({codes,expiresAt});
+ });
+ sessionRoutes.post('/auth/recovery-codes/revoke',throttle('recovery-codes',5),async(req,res)=>{
+  const {currentPassword}=z.object({currentPassword:z.string().min(1).max(128)}).parse(req.body);
+  const existing=await db.appOwner.findUniqueOrThrow({where:{id:1}});if(!await verify(currentPassword,existing.passwordHash))throw new AuthError('La contraseña actual no es correcta.');
+  await db.$transaction(async tx=>{const [owner]=await tx.$queryRaw<Array<{passwordHash:string}>>`SELECT "passwordHash" FROM "AppOwner" WHERE id=1 FOR UPDATE`;if(owner.passwordHash!==existing.passwordHash)throw new AuthError('La contraseña cambió.',409);await tx.recoveryCode.deleteMany({where:{ownerId:1}});});res.status(204).end();
+ });
+ sessionRoutes.post('/auth/data/retention/preview',async(req,res)=>{
+  const {olderThanDays}=z.object({olderThanDays:z.number().int().min(7).max(365)}).parse(req.body);const cutoff=new Date(Date.now()-olderThanDays*86400000);
+  const where={body:{not:''},createdAt:{lt:cutoff},movement:{is:null},status:{in:['REVIEW','FAILED'] as Array<'REVIEW'|'FAILED'>}};
+  const result=await db.$transaction(async tx=>{
+   await tx.$queryRaw`SELECT id FROM "AppOwner" WHERE id=1 FOR UPDATE`;
+   const [rows,totalEligible,lastCleanup]=await Promise.all([tx.mailImport.findMany({where,orderBy:[{createdAt:'asc'},{id:'asc'}],take:1000,select:{id:true,status:true}}),tx.mailImport.count({where}),tx.dataCleanup.findFirst({where:{ownerId:1},orderBy:{createdAt:'desc'},select:{createdAt:true,reviewBodies:true,failedBodies:true}})]);
+   const id=randomBytes(24).toString('base64url');const expiresAt=new Date(Date.now()+10*60000);const data={id,cutoff,expiresAt,importIds:rows.map(row=>row.id)};
+   await tx.cleanupPreview.upsert({where:{ownerId:1},create:{ownerId:1,...data},update:data});
+   return {previewId:id,cutoff,expiresAt,reviewBodies:rows.filter(r=>r.status==='REVIEW').length,failedBodies:rows.filter(r=>r.status==='FAILED').length,totalEligible,hasMore:totalEligible>rows.length,lastCleanup};
+  });res.json(result);
+ });
+ sessionRoutes.post('/auth/data/retention/apply',throttle('retention',5),async(req,res)=>{
+  const data=z.object({previewId:z.string().min(1).max(100),currentPassword:z.string().min(1).max(128),confirmation:z.literal('ELIMINAR CONTENIDO')}).strict().parse(req.body);
+  const existing=await db.appOwner.findUniqueOrThrow({where:{id:1}});if(!await verify(data.currentPassword,existing.passwordHash))throw new AuthError('La contraseña actual no es correcta.');
+  const result=await db.$transaction(async tx=>{
+   const [owner]=await tx.$queryRaw<Array<{passwordHash:string}>>`SELECT "passwordHash" FROM "AppOwner" WHERE id=1 FOR UPDATE`;
+   if(owner.passwordHash!==existing.passwordHash)throw new AuthError('La contraseña cambió. Inicia sesión nuevamente.',409);
+   const preview=await tx.cleanupPreview.findUnique({where:{ownerId:1}});if(!preview||preview.id!==data.previewId||preview.expiresAt<=new Date())throw new AuthError('La vista previa venció o cambió. Previsualiza nuevamente.',409);
+   const cutoff=preview.cutoff;const where={id:{in:preview.importIds},body:{not:''},createdAt:{lt:cutoff},movement:{is:null}};const now=new Date();
+   // updateMany rechecks state under row locks: a concurrently confirmed record is preserved.
+   const review=await tx.mailImport.updateMany({where:{...where,status:'REVIEW'},data:{body:'',status:'DISMISSED',reason:'Contenido eliminado por retención manual.',processedAt:now}});
+   const failed=await tx.mailImport.updateMany({where:{...where,status:'FAILED'},data:{body:'',status:'DISMISSED',reason:'Contenido eliminado por retención manual.',processedAt:now,lockToken:null,lockedUntil:null}});
+   const sessions=await tx.accessSession.deleteMany({where:{OR:[{revokedAt:{not:null}},{expiresAt:{lte:now}}]}});
+   const codes=await tx.recoveryCode.deleteMany({where:{OR:[{usedAt:{not:null}},{expiresAt:{lte:now}}]}});
+   const throttles=await tx.authThrottle.deleteMany({where:{startedAt:{lt:new Date(now.getTime()-86400000)}}});
+   await tx.cleanupPreview.delete({where:{ownerId:1}});
+   return tx.dataCleanup.create({data:{ownerId:1,cutoff,reviewBodies:review.count,failedBodies:failed.count,accessRecords:sessions.count+codes.count+throttles.count},select:{id:true,cutoff:true,reviewBodies:true,failedBodies:true,accessRecords:true,createdAt:true}});
+  });res.json(result);
+ });
  sessionRoutes.post('/auth/password',throttle('password',5),async(req,res)=>{
   const data=z.object({currentPassword:z.string().min(1).max(128),newPassword:password}).refine(v=>v.currentPassword!==v.newPassword).parse(req.body);
   const existing=await db.appOwner.findUniqueOrThrow({where:{id:1}});
@@ -80,7 +143,7 @@ export function createAuth(bootstrapSecret:string){
   await db.$transaction(async tx=>{
    const [current]=await tx.$queryRaw<Array<{passwordHash:string}>>`SELECT "passwordHash" FROM "AppOwner" WHERE id=1 FOR UPDATE`;
    if(current.passwordHash!==existing.passwordHash)throw new AuthError('La contraseña cambió. Inicia sesión nuevamente.',409);
-   await tx.appOwner.update({where:{id:1},data:{passwordHash}});await tx.accessSession.updateMany({where:{ownerId:1,revokedAt:null},data:{revokedAt:new Date()}});
+   await tx.appOwner.update({where:{id:1},data:{passwordHash}});await tx.recoveryCode.deleteMany({where:{ownerId:1}});await tx.accessSession.updateMany({where:{ownerId:1,revokedAt:null},data:{revokedAt:new Date()}});
   });res.status(204).end();
  });
  return {publicRoutes,authorize,sessionRoutes};

@@ -103,6 +103,9 @@ model AppOwner {
  passwordHash String
  createdAt DateTime @default(now())
  sessions AccessSession[]
+ recoveryCodes RecoveryCode[]
+ cleanups DataCleanup[]
+ cleanupPreview CleanupPreview?
 }
 model AccessSession {
  id String @id @default(cuid())
@@ -118,4 +121,33 @@ model AuthThrottle {
  key String @id
  startedAt DateTime
  attempts Int
+}
+
+model RecoveryCode {
+ id String @id @default(cuid())
+ ownerId Int
+ owner AppOwner @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+ codeHash String @unique
+ createdAt DateTime @default(now())
+ expiresAt DateTime
+ usedAt DateTime?
+ @@index([ownerId, expiresAt])
+}
+model DataCleanup {
+ id String @id @default(cuid())
+ ownerId Int
+ owner AppOwner @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+ cutoff DateTime
+ reviewBodies Int
+ failedBodies Int
+ accessRecords Int
+ createdAt DateTime @default(now())
+}
+model CleanupPreview {
+ ownerId Int @id
+ owner AppOwner @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+ id String @unique
+ cutoff DateTime
+ importIds String[]
+ expiresAt DateTime
 }

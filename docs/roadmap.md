@@ -11,7 +11,7 @@ Diseño Dark Slate según DESIGN.md, navegación inferior, flujo de siete días,
 ## Pendiente
 
 1. Validar en Android físico y generar APK preview. Añadir pruebas Appium y accesibilidad nativa.
-2. Cuenta personal/sesiones/revocación/SecureStore y política HTTPS implementadas en v0.8. Pendientes: despliegue TLS real, validación nativa, recuperación, retención/eliminación y diseño multiusuario si se requiere.
+2. Cuenta personal/sesiones/revocación/SecureStore y política HTTPS implementadas en v0.8. Recuperación offline y limpieza manual de contenido implementadas en v0.9. Pendientes: despliegue TLS real, validación nativa, eliminación completa/política automática y diseño multiusuario solo si se requiere.
 3. Seleccionar Gmail u Outlook y un banco; recopilar muestras anonimizadas. Resolver requisitos de OAuth antes de conectar datos reales.
 4. Implementar conector incremental, cursores y parsers bancarios versionados. Backoff/recuperación de la cola sintética completados en v0.7; integrarlos al futuro conector real. Deduplicar avisos distintos de una misma operación sigue pendiente.
 5. Añadir cuentas, tarjetas/deuda, conciliación; sincronizar presupuestos por usuario.
@@ -35,3 +35,32 @@ Cola sintética recuperable, reintentos limitados, FAILED/reencolado manual y re
 ## Lote v0.8
 
 Acceso personal real para una cuenta por instalación, conservación de datos existentes, sesión/revocación/cambio de contraseña y almacenamiento de credencial por plataforma. No habilita registro multiusuario, proveedor OAuth ni despliegue público. Próximas fases: validación Android, recuperación y política de datos, TLS operativo y selección de proveedor/banco para muestras anonimizadas.
+
+
+## Estado actual del plan — v0.9 (2026-11-10)
+
+El plan funcional original de ocho puntos está implementado; la validación física de exportación nativa sigue abierta. «Implementado» no equivale a preparación para producción.
+
+| Punto original | Estado |
+|---|---|
+| Historial completo, paginación, totales y CSV | Implementado |
+| Categorías administrables con historia estable | Implementado |
+| Presupuestos por categoría y alertas | Implementado; almacenamiento local |
+| Comparación mensual y principales gastos | Implementado |
+| Registro rápido y duplicación como borrador | Implementado |
+| Recurrencias con confirmación manual e idempotencia | Implementado |
+| Revisión filtrada y trazabilidad al movimiento | Implementado |
+| Archivo CSV nativo | Implementado; compartir en Android físico pendiente |
+
+Lotes adicionales completados: v0.7 recuperación de cola, v0.8 cuenta personal/sesiones y v0.9 recuperación con códigos offline + limpieza manual de contenido. No se implementó recuperación por correo ni eliminación total de la cuenta.
+
+| Trabajo restante | Dependencia o alcance |
+|---|---|
+| Android físico y APK preview | Probar SecureStore, compartir CSV y accesibilidad; generar build instalable |
+| HTTPS operativo | Desplegar TLS y verificar acceso/revocación en ese entorno |
+| Proveedor y banco | Elegir Gmail u Outlook y un banco; obtener muestras anonimizadas y requisitos OAuth |
+| Correo real | OAuth, conector incremental/cursores, parsers versionados y deduplicación entre avisos de la misma operación |
+| Modelo financiero ampliado | Cuentas, tarjetas/deuda, conciliación y presupuestos sincronizados en servidor |
+| Política completa de datos | Eliminación de cuenta/finanzas, retención automática, copias de seguridad y restauración verificable |
+
+Siguiente lote recomendado: preparación y checklist ejecutable del piloto Android/HTTPS. La conexión bancaria real requiere primero proveedor/banco y muestras; no se inventarán formatos ni credenciales. Multiusuario e IA opcional no forman parte del plan original.

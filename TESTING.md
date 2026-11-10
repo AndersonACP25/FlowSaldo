@@ -29,3 +29,6 @@ v0.7: la recuperación de cola se prueba en integración PostgreSQL con reloj co
 
 
 v0.8 añade un único recorrido crítico de acceso personal (credencial rechazada/aceptada, ausencia de persistencia web, cambio que termina sesión y logout). La integración PostgreSQL prueba singleton concurrente, bootstrap desactivado, hashes, expiración, otras sesiones y límites. La prueba de transporte valida rechazo HTTP en production y confianza de encabezados solo por proxy loopback explícito, sin afirmar TLS real. Unitarias CORE: 9. No se añade una matriz de formularios/errores en UI.
+
+
+v0.9 extiende el mismo recorrido de acceso (siguen siendo 4 recorridos Playwright y 9 unitarias CORE): códigos fuera de web storage, ocultación, confirmación explícita de limpieza y recuperación seguida de login. Integración PostgreSQL cubre hashes/rotación/expiración, recuperación concurrente de un uso, revocación global, preview de IDs exactos, reautenticación, confirmación, rechazo de reutilización y conservación de movimientos/trabajos activos/avisos posteriores. No se añade matriz de pantallas ni tests unitarios por componente. La evidencia de CI se registra en PR #6; Android físico sigue pendiente.

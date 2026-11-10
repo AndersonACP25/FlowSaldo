@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import {checkRecoveryRetention} from './recovery-retention-smoke.mjs';
 import {PrismaClient} from '@prisma/client';
 import {PrismaPg} from '@prisma/adapter-pg';
 import {createHash} from 'node:crypto';
@@ -28,6 +29,7 @@ export async function checkPersonalAccess(bootstrapToken,connectionString){
   assert.equal((await call('/auth/me',undefined,first.token)).status,401);assert.equal((await call('/auth/login',{email:credentials.email,password:credentials.password})).status,401);
   const changed=await login(nextPassword);assert.equal((await call('/auth/logout',{},changed.token)).status,204);assert.equal((await call('/movements',undefined,changed.token)).status,401);
   const expired=await login(nextPassword);await db.accessSession.update({where:{id:expired.sessionId},data:{expiresAt:new Date(Date.now()-1000)}});assert.equal((await call('/auth/me',undefined,expired.token)).status,401);
+  await checkRecoveryRetention(call,db,nextPassword);
   let limited=false;for(let i=0;i<12;i++){const result=await call('/auth/login',{email:'invalid'});if(result.status===429){assert.ok(result.headers.get('retry-after'));limited=true;break;}}assert.ok(limited,'Login attempts are throttled');
   const oldUrl=process.env.EXPO_PUBLIC_API_URL;try{
    for(const url of ['http://10.evil.example','http://192.168.evil.example','http://example.test','https://user:password@example.test']){process.env.EXPO_PUBLIC_API_URL=url;assert.throws(apiBase);}

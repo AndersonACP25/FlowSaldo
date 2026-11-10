@@ -125,3 +125,12 @@ Cuenta única AppOwner id=1 con constraint; setup requiere DEV_API_TOKEN, conser
 Cliente AuthScreen funcional: web token en memoria; nativo SecureStore ligado a API URL con validación previa a restaurar. Logout/401 elimina credencial y caché, sin simular revocación remota si falla red. HTTP público bloqueado; production API requiere HTTPS, con trust proxy solo loopback explícito. No se despliega TLS ni se certifican datos reales. Migración personal_access aditiva, sin reset. La demo y presupuestos locales permanecen separados y sin cifrar.
 
 QA sigue acotado: 9 unitarias CORE, 4 recorridos web al añadir solo el flujo crítico de acceso/cambio/cierre. Integración valida singleton concurrente, bloqueo bootstrap después de setup, hashes/sesiones, expiración/revocación, throttle, límite de URL/proxy. Android físico/SecureStore y recuperación de contraseña siguen pendientes. Evidencia de ejecución y CI en PR #6.
+
+
+## v0.9 — Recuperación y limpieza manual (2026-11-10)
+
+Siguiente lote del roadmap: recuperación mediante cinco códigos offline de 192 bits, hashes SHA256, 90 días, generación/revocación con reautenticación. Consumo concurrente serializado en AppOwner; recuperar invalida lote y sesiones, cambiar contraseña invalida códigos. Texto en memoria cliente con ocultación a cinco minutos; no envío de correo ni bypass bootstrap.
+
+Retención manual de cuerpos REVIEW/FAILED antiguos sin movimiento, 7–365 días, hasta 1000 por lote. Preview guarda IDs/cutoff, un uso/10min; apply exige contraseña y literal, revalida elegibilidad y preserva movimientos/cola activa/avisos posteriores. Limpia credenciales caducadas y registra cantidades sin cuerpos. Migración recovery_retention aditiva. No es borrado completo de cuenta ni retención automática.
+
+Versiones root/mobile/app 0.9.0. Pruebas acotadas: mismas 9 unitarias CORE y 4 recorridos web; ampliar solo acceso crítico y smoke API para riesgos de recuperación/pérdida de datos. Evidencia de ejecución en PR #6. Plan original de ocho features implementado; validación física Android/SecureStore/CSV/APK, TLS real, proveedor/banco/OAuth, conector/parsers reales, deduplicación semántica, cuentas/deudas/conciliación y sincronización de presupuestos siguen pendientes. docs/roadmap.md es estado actual; notas anteriores son historial.

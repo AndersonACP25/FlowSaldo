@@ -1,4 +1,4 @@
-# FlowSaldo ↗ · v0.8
+# FlowSaldo ↗ · v0.9
 
 Base Android de finanzas personales: React Native + Expo + TypeScript, Express, worker y PostgreSQL con Prisma.
 
@@ -233,3 +233,12 @@ Una cuenta por instalación. Los movimientos/importaciones/categorías anteriore
 El cliente bloquea HTTP público; permite localhost/IPv4 privada para desarrollo. En modo producción la API exige HTTPS; el despliegue TLS real y la preparación para datos financieros reales continúan pendientes. No reutilices contraseñas reales en esta fase. Ver SECURITY.md para los límites y la configuración de proxy confiable.
 
 Las unitarias siguen en 9 casos CORE. Se añade solo un cuarto recorrido Playwright de acceso/cambio/cierre, justificado por el nuevo riesgo de credenciales y revocación; el resto de combinaciones de seguridad se valida en API/PostgreSQL.
+
+
+## v0.9: recuperar acceso y limpiar contenido antiguo
+
+En Configuración → Recuperación de cuenta, confirma la contraseña para generar cinco códigos. Guárdalos fuera del dispositivo: se muestran una vez, se ocultan a los cinco minutos y vencen en 90 días. En el acceso, «Recuperar cuenta con código» permite restablecer la contraseña sin enviar correo. Recuperar, cambiar contraseña o regenerar códigos invalida el lote anterior; recuperar también cierra todas las sesiones. Sin código vigente ni contraseña no hay recuperación autoservicio ni bypass mediante el token inicial.
+
+En Configuración → Privacidad y contenido antiguo, selecciona 7–365 días y previsualiza. Confirma con contraseña y el texto ELIMINAR CONTENIDO. Se descarta el texto de hasta 1000 avisos antiguos Por revisar/Con error sin movimiento; se conservan movimientos, categorías, presupuestos, recurrencias y trabajos activos. La vista previa enumera IDs exactos, vence en 10 minutos y es de un uso. También limpia credenciales caducadas/revocadas y limitadores antiguos. No elimina la cuenta ni implementa retención automática.
+
+Para actualizar desde v0.8, detén API/worker, ejecuta `pnpm db:generate` y `pnpm exec prisma migrate deploy --config packages/database/prisma.config.ts`, y reinicia ambos con esta versión. Migración aditiva recovery_retention; no exige reset ni borra datos al migrar. El estado completo del plan está en [docs/roadmap.md](docs/roadmap.md).

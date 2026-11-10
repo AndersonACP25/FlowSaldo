@@ -1,6 +1,6 @@
 # Seguridad y privacidad
 
-FlowSaldo v0.8 agrega autenticación personal a un prototipo con datos sintéticos. Una cuenta por instalación; no es un sistema multiusuario ni se ha certificado para exponerlo a Internet o conectar correo financiero real. OAuth, recuperación por correo, eliminación de cuenta/datos y política completa de retención siguen pendientes.
+FlowSaldo v0.9 incluye autenticación y recuperación personal a un prototipo con datos sintéticos. Una cuenta por instalación; no es un sistema multiusuario ni se ha certificado para exponerlo a Internet o conectar correo financiero real. OAuth, recuperación por correo, eliminación de cuenta/datos y política completa de retención siguen pendientes.
 
 ## Cuenta inicial y acceso
 
@@ -29,3 +29,12 @@ CORS no autentica. Preservar transacciones, leases e idempotencia. Los parsers n
 Ante una vulnerabilidad, evitar publicar secretos o explotación con datos reales. Contactar al mantenedor por un canal privado disponible; no inventar un canal ni una dirección.
 
 Referencias de implementación: [OWASP Password Storage](https://cheatsheetseries.owasp.org/cheatsheets/Password_Storage_Cheat_Sheet.html), [Expo SecureStore](https://docs.expo.dev/versions/latest/sdk/securestore/).
+
+
+## Recuperación y retención manual v0.9
+
+Cinco códigos aleatorios de 192 bits por lote, solo SHA-256 en PostgreSQL; texto claro únicamente en la respuesta inicial sin caché y memoria de la vista por cinco minutos. Nunca se persisten en almacenamiento del cliente. Vencen en 90 días. Generar/revocar requiere sesión y contraseña; comparten límite de cinco intentos por IP/15 minutos. Recuperación pública tiene cinco intentos/15 minutos y respuesta genérica. El bloqueo de AppOwner serializa consumo concurrente, rotación y cambio de contraseña; recuperar elimina todo el lote y revoca todas las sesiones. No envía correo ni introduce recuperación mediante token inicial. El usuario debe custodiar sus códigos fuera del dispositivo.
+
+La retención es manual, con reautenticación y confirmación escrita. La vista previa persiste hasta 1000 IDs exactos, se reemplaza al pedir otra, vence en diez minutos y se consume transaccionalmente. Aplicar revalida estado/fecha/ausencia de movimiento, vacía cuerpo y descarta solo REVIEW/FAILED elegibles; no amplía a registros que llegaron después. Conserva trabajos activos y datos financieros, sesión actual y códigos vigentes. El registro DataCleanup contiene fecha/cantidades, sin cuerpos ni credenciales. Credenciales caducadas/revocadas y throttles de más de un día se eliminan. No hay borrado completo de cuenta/finanzas, borrado de backups ni política automática general.
+
+Referencia: [OWASP Forgot Password](https://cheatsheetseries.owasp.org/cheatsheets/Forgot_Password_Cheat_Sheet.html).

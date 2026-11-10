@@ -130,3 +130,21 @@ El token inicial solo autoriza datos mientras AppOwner no existe. Después devue
 Throttling por IP/acción persistido, 15 min: setup/cambio 5 solicitudes, login 10; inválidas también cuentan. 429 incluye Retry-After. Se evita registrar contraseñas, hashes o sesiones en logs. La respuesta de error no distingue cuenta inexistente/contraseña equivocada. Validación 400, credencial inválida 401, instalación ya configurada o cambio concurrente 409, límite 429, cómputo de hash ocupado 503.
 
 NODE_ENV=production exige req.secure en acceso/datos y no acepta X-Forwarded-Proto por defecto. Un proxy TLS local requiere TRUST_PROXY_LOOPBACK=1 y configuración que sobrescriba encabezados; este PR no despliega certificados ni un proxy. HTTP privado de desarrollo sigue solo para datos ficticios.
+
+
+## v0.9 — Recuperación y retención
+
+Migración aditiva `20261110040000_recovery_retention`: RecoveryCode, CleanupPreview y DataCleanup; sin reset ni cambio de datos financieros.
+
+| Método | Ruta | Contrato |
+|---|---|---|
+| POST | /auth/recover | Público: email, code (fr_ + 32 caracteres base64url), newPassword 15–128; 204, código/correo inválido 401, límite 429. Consume lote completo y revoca todas las sesiones; no inicia sesión automáticamente |
+| GET | /auth/recovery-codes | Sesión: remaining y expiresAt, nunca códigos/hashes |
+| POST | /auth/recovery-codes | Sesión + currentPassword: 201 con codes y expiresAt; cinco códigos nuevos, reemplaza lote anterior, vencimiento 90 días, texto visible solo aquí |
+| POST | /auth/recovery-codes/revoke | Sesión + currentPassword: 204, invalida lote completo |
+| POST | /auth/data/retention/preview | Sesión + olderThanDays entero 7–365: previewId, cutoff, expiresAt, reviewBodies, failedBodies, totalEligible, hasMore, lastCleanup |
+| POST | /auth/data/retention/apply | Sesión + previewId, currentPassword, confirmation literal ELIMINAR CONTENIDO; 200 con id/cutoff/createdAt y cantidades reviewBodies/failedBodies/accessRecords |
+
+Generar/revocar comparten cinco intentos por IP/15 min. Recuperar y aplicar limpieza tienen cada uno cinco intentos por IP/15 min; también cuentan entradas inválidas. Cambiar contraseña ahora invalida también códigos. Contraseña incorrecta 401, validación 400, vista previa vencida/sustituida/consumida o contraseña cambiada concurrentemente 409, hash ocupado 503. /auth/recover es excepción pública acotada de autenticación, con la misma política de transporte HTTPS y no-store.
+
+Preview guarda hasta 1000 IDs elegibles más antiguos por createdAt/id, cutoff fijo y caducidad diez minutos; solo una preview por propietario. Apply consume exactamente ese conjunto, revalida REVIEW/FAILED, cuerpo no vacío, fecha y ausencia de movimiento, y marca DISMISSED vaciando body. Conservará avisos nuevos, confirmados o reencolados en estado activo. Las cantidades finales pueden disminuir por acciones concurrentes. No reintenta un aviso descartado. Limpia sesiones revocadas/vencidas, códigos vencidos/usados y throttles anteriores a un día; no elimina la sesión vigente. Se registra auditoría de cantidades, sin texto original. No elimina datos financieros/cuenta ni programa tareas automáticas.
