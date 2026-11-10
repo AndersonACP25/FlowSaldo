@@ -1,5 +1,5 @@
 import type { Movement } from '@flowsaldo/domain';
-export interface ReviewItem { id:string; movement?:{id:string}|null; createdAt?:string; externalId:string; reason:string|null; status:'REVIEW'|'PARSED'|'DISMISSED'|'PENDING'; body?:string; suggestion?:Movement }
+export interface ReviewItem { id:string; movement?:{id:string}|null; createdAt?:string; externalId:string; reason:string|null; status:'REVIEW'|'PARSED'|'DISMISSED'|'PENDING'|'PROCESSING'|'FAILED';attempts?:number;manualRetries?:number;nextAttemptAt?:string;lastAttemptAt?:string|null;lastErrorCode?:string|null;lockedUntil?:string|null; body?:string; suggestion?:Movement }
 export function demoReviews():ReviewItem[] {
  const date=new Date().toISOString().slice(0,10)+'T12:00:00.000Z';
  return [

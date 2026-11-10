@@ -19,7 +19,7 @@ flowchart TD
 - Transferencias propias no participan en ingresos y gastos. Todavía no se modelan cuentas, deuda, devoluciones ni conciliación.
 - externalId único evita reimportar el mismo mensaje. No deduplica mensajes distintos sobre una misma operación: esa capacidad está pendiente.
 - SELECT FOR UPDATE SKIP LOCKED mantiene un mensaje bloqueado mientras se procesa. Crear movimiento y actualizar importación ocurre en una sola transacción; un fallo revierte ambas acciones. importId único añade protección.
-- Errores transitorios reintentan cada dos segundos. No hay contador/backoff ni dead-letter: implementar antes del piloto real.
+- Desde v0.7 hay reservas durables, backoff e intentos limitados; FAILED permite reintento manual. Ver el contrato de recuperación al final.
 - API de desarrollo para una sola persona con token compartido. No hay usuarios ni aislamiento multiusuario. Health es público; los demás endpoints exigen Bearer.
 - La app limita la lista remota a 200 registros del mes y moneda seleccionados e identifica ese alcance. El endpoint summary usa todos los registros; no tiene filtros mensuales todavía; la app filtra por mes mediante GET /movements y calcula sus propios indicadores sobre ese subconjunto.
 - No se almacena token en disco ni en EXPO_PUBLIC_*. La sesión del móvil vive en memoria.
@@ -54,3 +54,10 @@ CSV ejecuta validadores de nombre/esquema antes de descargar. ExcelJS solo se us
 RecurringTemplate conserva calendario mensual y versión; RecurringOccurrence registra confirmaciones con clave única por fecha y FK nullable al movimiento. La transacción bloquea plantilla/categoría, valida versión/vencimiento y crea movimiento, recibo y siguiente fecha de forma atómica. Sin scheduler. Demo aplica la misma regla con recibos persistidos en AsyncStorage; no sincroniza instancias. Summary agrega meses actual/anterior en snapshot común. Importaciones exponen únicamente el ID del movimiento generado para consulta autorizada.
 
 La exportación nativa usa implementación .native.ts con File/Directory/Paths y expo-sharing; web conserva Blob. La caché retiene archivos para recepción externa. Las pruebas se distribuyen por riesgo: reglas financieras en 9 unitarias CORE, integridad transaccional en API y 3 recorridos críticos de Playwright; Metro verifica solo arranque.
+
+
+## v0.7: reserva durable y recuperación
+
+La reclamación es una transacción corta: selecciona PENDING elegible o PROCESSING vencido con SKIP LOCKED, incrementa intentos y persiste token/expiración. La finalización verifica el token bajo bloqueo y crea movimiento/cambia estado en una transacción. Un dueño antiguo no puede finalizar una reserva recuperada. Ante fallo se agenda otro intento o FAILED; al recuperar un quinto intento interrumpido se detiene el ciclo. La idempotencia mantiene externalId e importId únicos.
+
+Los códigos de resultado son públicos y acotados; el token de propietario solo vive en PostgreSQL/worker. Stats usa snapshot consistente y la UI lo describe como estado de importaciones, sin simular conectividad. El reencolado manual es explícito, limitado a FAILED sin movimiento y con protección concurrente. No se añade un scheduler externo ni servicios adicionales.

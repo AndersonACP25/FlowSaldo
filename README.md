@@ -1,4 +1,4 @@
-# FlowSaldo ↗ · v0.6
+# FlowSaldo ↗ · v0.7
 
 Base Android de finanzas personales: React Native + Expo + TypeScript, Express, worker y PostgreSQL con Prisma.
 
@@ -208,3 +208,14 @@ Android comparte un archivo `FlowSaldo-AAAA-MM.csv` mediante expo-file-system y 
 Para actualizar la API/worker: `pnpm install --frozen-lockfile`, `pnpm db:generate` y `pnpm db:migrate`. Se añade la migración aditiva de plantillas/confirmaciones; no borra movimientos existentes. La demo conserva su clave y añade listas vacías de plantillas/confirmaciones al leer datos anteriores.
 
 Por regla del proyecto, las unitarias y Playwright cubren solo reglas CORE y recorridos críticos. Actualmente hay **9 casos de dominio y 3 recorridos web**, sin revisar cada pantalla ni duplicar las combinaciones de API en UI. El smoke de Metro y las pruebas transaccionales de PostgreSQL son independientes. Ver TESTING.md y AGENTS.md antes de añadir nuevos tests.
+
+
+## v0.7 — Importaciones recuperables
+
+Conexiones incorpora Estado de importaciones: En cola, Procesando, Por revisar y Con error, con reintentos programados y procesamientos a recuperar. Son datos registrados en PostgreSQL; no se presenta un estado ficticio de conexión del worker. La información se actualiza mientras consultas Conexiones o la bandeja.
+
+El worker intenta procesar cada aviso hasta cinco veces, con espera creciente ante fallos. Si se detiene durante un aviso, otro proceso puede recuperarlo después de 30 segundos. Al agotarse los intentos aparece Con error. Desde Por revisar → Con error puedes revisar el aviso y pulsar Reintentar importación → Confirmar reintento, iniciando un ciclo nuevo limitado. Se conserva la protección contra duplicados; los avisos desconocidos siguen requiriendo revisión humana.
+
+Para actualizar, detén API/worker y ejecuta `pnpm install --frozen-lockfile`, `pnpm db:generate` y `pnpm db:migrate`. Luego reinicia ambos. La migración agrega estados/metadatos sin restablecer registros. Los contadores nuevos empiezan desde la actualización y no inventan actividad anterior.
+
+Se mantienen 9 unitarias CORE y 3 recorridos Playwright; el recorrido API existente también comprueba el reintento manual. Recuperación, espera, concurrencia y duplicados se verifican en integración PostgreSQL, sin una matriz nueva de pruebas de pantallas.

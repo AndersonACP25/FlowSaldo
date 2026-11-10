@@ -1,4 +1,5 @@
 import express from 'express';
+import {importRoutes,importMetadata} from './imports';
 import { recurringRoutes } from './recurring';
 import { categoryRoutes,assignCategory,CategoryError } from './categories';
 import { history } from './history';
@@ -23,6 +24,7 @@ app.use((req, res, next) => {
  if (received.length !== expected.length || !timingSafeEqual(received, expected)) { res.status(401).json({ error: 'No autorizado' }); return; }
  next();
 });
+app.use(importRoutes);
 app.use(history);
 app.use(categoryRoutes);
 app.use(recurringRoutes);
@@ -70,7 +72,7 @@ app.post('/imports', async (req, res) => {
  res.status(202).json({ id: item.id, status: item.status });
 });
 app.get('/imports/:id', async (req,res)=>{
- const item=await db.mailImport.findUnique({where:{id:req.params.id},select:{id:true,body:true,status:true,externalId:true,movement:{select:{id:true}}}});
+ const item=await db.mailImport.findUnique({where:{id:req.params.id},select:{...importMetadata,id:true,body:true,status:true,externalId:true,movement:{select:{id:true}}}});
  if(!item){res.status(404).json({error:'Importación no encontrada'});return;}
  res.json(item);
 });
@@ -93,7 +95,7 @@ app.post('/imports/:id/dismiss',async(req,res)=>{
  if(!result.count){res.status(409).json({error:'El correo no está pendiente de revisión'});return;}
  res.status(204).end();
 });
-app.get('/imports', async (_req, res) => res.json(await db.mailImport.findMany({ select: { id: true, externalId: true, status: true, reason: true, parserVersion: true, createdAt: true,movement:{select:{id:true}} }, orderBy: { createdAt: 'desc' }, take: 100 })));
+app.get('/imports', async (_req, res) => res.json(await db.mailImport.findMany({ select: { ...importMetadata,id: true, externalId: true, status: true, reason: true, parserVersion: true, createdAt: true,movement:{select:{id:true}} }, orderBy: { createdAt: 'desc' }, take: 100 })));
 app.use((error: unknown, _req: express.Request, res: express.Response, _next: express.NextFunction) => {
  if(error instanceof CategoryError){res.status(error.status).json({error:error.message});return;}
  if(typeof error==='object'&&error!==null&&'code' in error&&error.code==='P2002'){res.status(409).json({error:'El registro ya existe; actualiza la lista antes de reintentar.'});return;}

@@ -5,6 +5,7 @@ import { QueryClient, QueryClientProvider, useQuery, useInfiniteQuery } from '@t
 import { prepareOccurrence,changeSince,previousMonth,upgradeCategories,selectedCategory,categoryName,categoryKey,movementDate,validDate, countLabel, pendingMailMessage, categoryExpenses, demoMovements, filterMovements, parseAmount, summarize, type RecurringTemplate,type Category,type Movement, type Currency, type MovementType } from '@flowsaldo/domain';
 import { styles as s, palette } from './src/theme';
 import { Button, Choice, Field } from './src/ui';
+import {ImportQueue,type ImportStats} from './src/ImportQueue';
 import { MonthlyComparison } from './src/MonthlyComparison';
 import { RecurringPanel } from './src/RecurringPanel';
 import { CategoryManager } from './src/CategoryManager';
@@ -51,6 +52,7 @@ function Home({onAuth}:{onAuth:(route:AuthRoute)=>void}) {
   return response.status===204?null:response.json();
  }
  const catalog=useQuery({queryKey:['categories',connected],enabled:connected,retry:false,queryFn:async():Promise<Category[]>=>request('/categories')});
+ const queue=useQuery({queryKey:['import-stats',connected],enabled:connected,retry:false,refetchInterval:connected&&screen==='Conexiones'?5000:false,queryFn:async():Promise<ImportStats>=>request('/imports/stats')});
  const recurringQuery=useQuery({queryKey:['recurring',connected],enabled:connected,retry:false,queryFn:async():Promise<RecurringTemplate[]>=>request('/recurring')});
  const recurring=connected?(recurringQuery.data??[]):local.recurring;
  const categoryCatalog=connected?(catalog.data??[]):local.categories;
@@ -62,7 +64,7 @@ function Home({onAuth}:{onAuth:(route:AuthRoute)=>void}) {
  const totals=useQuery({queryKey:['summary',connected,month,currency],enabled:connected,retry:false,queryFn:async():Promise<MonthlySummary>=>request(`/summary?month=${month}&currency=${currency}`)});
  const reviewParams=`${reviewStatus==='ALL'?'':`&status=${reviewStatus}`}${reviewFrom?`&from=${encodeURIComponent(reviewFrom)}`:''}${reviewTo?`&to=${encodeURIComponent(reviewTo)}`:''}`;
  const reviewDateError=(reviewFrom&&!validDate(reviewFrom))||(reviewTo&&!validDate(reviewTo))||(reviewFrom&&reviewTo&&reviewFrom>reviewTo);
- const imports=useInfiniteQuery({queryKey:['imports',connected,reviewParams],enabled:connected&&!reviewDateError,retry:false,initialPageParam:null as string|null,
+ const imports=useInfiniteQuery({queryKey:['imports',connected,reviewParams],enabled:connected&&!reviewDateError,retry:false,refetchInterval:connected&&(screen==='Por revisar'||screen==='Conexiones')?5000:false,initialPageParam:null as string|null,
   queryFn:async({pageParam}):Promise<Page<ReviewItem>>=>request(`/imports?page=true${reviewParams}${pageParam?`&cursor=${encodeURIComponent(pageParam)}`:''}`),
   getNextPageParam:last=>last.nextCursor??undefined});
  const reviews=connected?(imports.data?.pages.flatMap(p=>p.items)??[]):local.reviews.filter(i=>(reviewStatus==='ALL'||i.status===reviewStatus)&&(!reviewFrom||!!i.createdAt&&i.createdAt.slice(0,10)>=reviewFrom)&&(!reviewTo||!!i.createdAt&&i.createdAt.slice(0,10)<=reviewTo));
@@ -153,6 +155,7 @@ function Home({onAuth}:{onAuth:(route:AuthRoute)=>void}) {
   }
   setNotice('Revisión confirmada. Movimiento registrado.');
  }
+ async function retryImport(id:string){await request(`/imports/${id}/retry`,{method:'POST'});await Promise.all([client.invalidateQueries({queryKey:['imports']}),client.invalidateQueries({queryKey:['import-stats']})]);setNotice('Importación reencolada. Se iniciará otro ciclo limitado de intentos.');}
  async function discardReview(id:string) {
   if(connected) {await request(`/imports/${id}/dismiss`,{method:'POST'});await client.invalidateQueries({queryKey:['imports']});}
   else await persist({...localRef.current,reviews:localRef.current.reviews.map(i=>i.id===id?{...i,status:'DISMISSED' as const,body:''}:i)});
@@ -207,7 +210,7 @@ function Home({onAuth}:{onAuth:(route:AuthRoute)=>void}) {
    {screen==='Configuración'&&catalogReady&&<CategoryManager items={categoryCatalog} onSave={saveCategory} onArchive={archiveCategory}/>}
    {screen==='Configuración'&&<AccountSettings preferences={preferences} onAuth={onAuth} onSave={async value=>{await savePreferences(value);setPreferences(value);setCurrency(value.currency);}}/>}
    {screen==='Por revisar'&&<>
-    <View style={s.card}><Text style={s.title}>Filtros de revisiones</Text><View style={s.row}>{(['REVIEW','PENDING','PARSED','DISMISSED','ALL'] as const).map(status=><Choice key={status} label={{REVIEW:'Por confirmar',PENDING:'En proceso',PARSED:'Confirmados',DISMISSED:'Descartados',ALL:'Todos los estados'}[status]} selected={reviewStatus===status} onPress={()=>setReviewStatus(status)}/>)}</View>
+    <View style={s.card}><Text style={s.title}>Filtros de revisiones</Text><View style={s.row}>{(['REVIEW','PENDING','PROCESSING','FAILED','PARSED','DISMISSED','ALL'] as const).map(status=><Choice key={status} label={{REVIEW:'Por confirmar',PENDING:'En cola',PROCESSING:'Procesando',FAILED:'Con error',PARSED:'Confirmados',DISMISSED:'Descartados',ALL:'Todos los estados'}[status]} selected={reviewStatus===status} onPress={()=>setReviewStatus(status)}/>)}</View>
     <Field label="Recibido desde (AAAA-MM-DD)" value={reviewFrom} onChangeText={setReviewFrom} maxLength={10}/><Field label="Recibido hasta (AAAA-MM-DD)" value={reviewTo} onChangeText={setReviewTo} maxLength={10}/>
     {!!reviewDateError&&<Text accessibilityRole="alert" style={s.error}>Escribe fechas válidas en orden: desde debe ser anterior o igual a hasta.</Text>}
     <Button label="Limpiar filtros de revisiones" onPress={()=>{setReviewStatus('REVIEW');setReviewFrom('');setReviewTo('');}}/>
@@ -215,20 +218,21 @@ function Home({onAuth}:{onAuth:(route:AuthRoute)=>void}) {
     {connected&&imports.isFetching&&<ActivityIndicator color={palette.primary}/>}
     {connected&&imports.error&&<Text style={s.error}>{imports.error.message}</Text>}
     {connected&&<Button label="Actualizar revisiones" onPress={()=>void imports.refetch()}/>}
-    {!reviewDateError&&(!connected||imports.isSuccess)&&<ReviewInbox money={money} onMovement={async id=>connected?request(`/movements/${id}`):(localRef.current.movements.find(m=>m.id===id)??null)} categories={categoryCatalog} key={reviewParams} total={connected?imports.data?.pages[0]?.total:reviews.length} showHistory={reviewStatus!=='REVIEW'} items={reviews} month={month} currency={currency} onResolve={resolveReview} onDiscard={discardReview} onOriginal={async id=>(await request(`/imports/${id}`)).body}/>}
+    {!reviewDateError&&(!connected||imports.isSuccess)&&<ReviewInbox onRetry={connected?retryImport:undefined} money={money} onMovement={async id=>connected?request(`/movements/${id}`):(localRef.current.movements.find(m=>m.id===id)??null)} categories={categoryCatalog} key={reviewParams} total={connected?imports.data?.pages[0]?.total:reviews.length} showHistory={reviewStatus!=='REVIEW'} items={reviews} month={month} currency={currency} onResolve={resolveReview} onDiscard={discardReview} onOriginal={async id=>(await request(`/imports/${id}`)).body}/>}
    </>}
    {screen==='Por revisar'&&connected&&imports.hasNextPage&&<Button label={imports.isFetchingNextPage?'Cargando revisiones…':'Cargar más revisiones'} disabled={imports.isFetching} onPress={()=>void imports.fetchNextPage()}/>}
    {screen==='Conexiones'&&<>
     <Text style={s.title}>Centro de conexiones</Text>
+    {connected&&<ImportQueue data={queue.data} loading={queue.isFetching} error={!!queue.error} onRefresh={()=>void queue.refetch()} onErrors={()=>{setReviewStatus('FAILED');setReviewFrom('');setReviewTo('');setScreen('Por revisar');}}/>}
     <View style={s.card}><Text style={s.eyebrow}>PROVEEDORES DE CORREO</Text>{['Gmail Personal','Outlook'].map(provider=><View key={provider} style={s.between}><Text style={s.text}>{provider}</Text><Text style={s.muted}>Próximamente · sin conectar</Text></View>)}<Text style={s.muted}>OAuth aún no está implementado. Esta versión no accede a tu buzón ni utiliza IA para clasificar correos.</Text></View>
 
     <View style={s.card}><Text style={s.title}>Conexión personal</Text><Text style={s.muted}>La demo se guarda localmente. La API guarda movimientos en PostgreSQL. Los datos de ambos modos se mantienen separados.</Text><Text style={s.text}>{url??'Sin URL configurada. Añade EXPO_PUBLIC_API_URL en apps/mobile/.env.'}</Text>
      {connected?<Button label="Desconectar y volver a demo" onPress={disconnect}/>:<><Field label="Token de desarrollo" value={token} onChangeText={setToken} secureTextEntry autoCapitalize="none"/><Button label="Conectar API" disabled={!url||token.length<24} onPress={()=>{client.clear();setCategoryFilter('');setDuplicate(null);setSession(token);setToken('');setScreen('Panel');}}/></>}
      <Text style={s.muted}>El token solo vive en memoria. Usa exclusivamente datos ficticios en esta fase.</Text>
     </View>
-    {connected&&<View style={s.card}><Text style={s.title}>Laboratorio de correo sintético</Text><Text style={s.muted}>Envía un aviso de prueba al worker. Un formato desconocido aparecerá en Por revisar cuando el worker lo procese.</Text><Field label="Identificador del correo de prueba" value={sampleId} onChangeText={setSampleId} maxLength={200}/><Field label="Contenido sintético" value={sampleBody} onChangeText={setSampleBody} maxLength={10000} multiline/><Button label="Encolar correo de prueba" disabled={busy||!sampleId.trim()||!sampleBody.trim()} onPress={()=>void action(async()=>{await request('/imports',{method:'POST',body:JSON.stringify({externalId:sampleId.trim(),body:sampleBody})});await client.invalidateQueries({queryKey:['imports']});setNotice('Correo encolado. Espera al worker y actualiza revisiones.');})}/></View>}
+    {connected&&<View style={s.card}><Text style={s.title}>Laboratorio de correo sintético</Text><Text style={s.muted}>Envía un aviso de prueba al worker. Un formato desconocido aparecerá en Por revisar cuando el worker lo procese.</Text><Field label="Identificador del correo de prueba" value={sampleId} onChangeText={setSampleId} maxLength={200}/><Field label="Contenido sintético" value={sampleBody} onChangeText={setSampleBody} maxLength={10000} multiline/><Button label="Encolar correo de prueba" disabled={busy||!sampleId.trim()||!sampleBody.trim()} onPress={()=>void action(async()=>{await request('/imports',{method:'POST',body:JSON.stringify({externalId:sampleId.trim(),body:sampleBody})});await Promise.all([client.invalidateQueries({queryKey:['imports']}),queue.refetch()]);setNotice('Correo encolado. Espera al worker y actualiza revisiones.');})}/></View>}
     <View style={s.card}><Text style={s.title}>Datos de demostración</Text><Text style={s.muted}>Restablece movimientos y presupuestos locales. Los datos de PostgreSQL no se eliminan.</Text><Button label={resetConfirm?'Confirmar restablecimiento local':'Restablecer demo'} disabled={busy||connected} onPress={()=>resetConfirm?void action(reset):setResetConfirm(true)}/>{resetConfirm&&<Button label="Cancelar restablecimiento" onPress={()=>setResetConfirm(false)}/>}</View>
-    <View style={s.card}><Text style={s.title}>FlowSaldo 0.6</Text><Text style={s.muted}>Dark Slate, esmeralda y cian, según DESIGN.md. Una base personal para aprender, registrar y revisar tus movimientos. La sincronización bancaria, OAuth y conciliación siguen pendientes.</Text></View>
+    <View style={s.card}><Text style={s.title}>FlowSaldo 0.7</Text><Text style={s.muted}>Dark Slate, esmeralda y cian, según DESIGN.md. Una base personal para aprender, registrar y revisar tus movimientos. La sincronización bancaria, OAuth y conciliación siguen pendientes.</Text></View>
    </>}
   </>}
  </ScrollView>

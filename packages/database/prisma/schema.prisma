@@ -6,6 +6,8 @@ datasource db {
 }
 enum ImportStatus {
  PENDING
+ PROCESSING
+ FAILED
  PARSED
  REVIEW
  DISMISSED
@@ -26,9 +28,18 @@ model MailImport {
  status ImportStatus @default(PENDING)
  reason String?
  parserVersion String @default("demo-v1")
+ attempts Int @default(0)
+ manualRetries Int @default(0)
+ nextAttemptAt DateTime @default(now())
+ lastAttemptAt DateTime?
+ lockedUntil DateTime?
+ lockToken String?
+ lastErrorCode String?
+ processedAt DateTime?
  createdAt DateTime @default(now())
  movement Movement?
  @@index([status, createdAt])
+ @@index([status, nextAttemptAt])
 }
 model Movement {
  id String @id @default(cuid())

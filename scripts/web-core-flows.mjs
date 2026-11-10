@@ -38,15 +38,18 @@ export async function checkCoreFlows(browser) {
   assert.equal((await stored()).movements.length,2);
  },legacy);
  if(!process.env.EXPO_PUBLIC_API_URL)throw new Error('Exporta con EXPO_PUBLIC_API_URL para el recorrido CORE API.');
- await scenario('API exports all 205 results before loading next page',async(page,button)=>{
+ await scenario('API exports complete results and manually retries a failed import',async(page,button)=>{
   const rows=Array.from({length:205},(_,i)=>({...demoMovements[1],id:String(i),description:'Movimiento '+i,occurredAt:month+'-01T12:00:00.000Z'}));
+  let retried=false;
   await page.route(process.env.EXPO_PUBLIC_API_URL+'/**',async route=>{
    const url=new URL(route.request().url());const headers={'Access-Control-Allow-Origin':'*','Access-Control-Allow-Headers':'authorization,content-type'};
    if(route.request().method()==='OPTIONS'){await route.fulfill({status:204,headers});return;}
    let data;
    if(url.pathname==='/categories')data=demoCategoryCatalog([]);
    else if(url.pathname==='/recurring')data=[];
-   else if(url.pathname==='/imports')data={items:[],total:0,nextCursor:null,pendingTotal:0};
+   else if(url.pathname==='/imports/stats')data={counts:{PENDING:retried?1:0,PROCESSING:0,FAILED:retried?0:1,REVIEW:0,PARSED:0,DISMISSED:0},scheduledRetries:0,expiredLeases:0,nextRetryAt:null,lastProcessedAt:null};
+   else if(url.pathname==='/imports/job-core/retry'){assert.equal(route.request().method(),'POST');assert.equal(retried,false);retried=true;await route.fulfill({headers,status:202,json:{id:'job-core',status:'PENDING'}});return;}
+   else if(url.pathname==='/imports'){const items=url.searchParams.get('status')==='FAILED'&&!retried?[{id:'job-core',externalId:'Error CORE',status:'FAILED',attempts:5,manualRetries:0,lastErrorCode:'PROCESSING_FAILED',reason:'No se pudo procesar el aviso.'}]:[];data={items,total:items.length,nextCursor:null,pendingTotal:0};}
    else if(url.pathname==='/summary')data={incomeMinor:0,expenseMinor:50235250,differenceMinor:-50235250,total:205,categories:[],categoryTotals:[],days:Array.from({length:7},(_,i)=>({day:month+'-0'+(i+1),incomeMinor:0,expenseMinor:0,netMinor:0}))};
    else if(url.pathname==='/movements/export'){await route.fulfill({headers,contentType:'text/csv',body:movementsCsv(rows)});return;}
    else if(url.pathname==='/movements'){const offset=Number(url.searchParams.get('cursor')??0);data={items:rows.slice(offset,offset+50),total:205,nextCursor:offset+50<205?String(offset+50):null};}
@@ -57,5 +60,7 @@ export async function checkCoreFlows(browser) {
   await button('Movimientos').click();await page.getByText('205 movimientos',{exact:true}).waitFor();assert.equal(await page.getByText('Movimiento 50',{exact:true}).count(),0);
   const waiting=page.waitForEvent('download');await button('Exportar CSV').click();const file=await waiting;assert.equal(parseCsv(await readFile(await file.path(),'utf8')).length,206);
   await button('Cargar más movimientos').click();await page.getByText('Movimiento 99',{exact:true}).waitFor();
+  await button('Conexiones').click();await button('Ver importaciones con error').click();await page.getByText('Error CORE',{exact:true}).waitFor();
+  await button('Reintentar importación').click();await button('Confirmar reintento de importación').click();await page.getByText('Importación reencolada. Se iniciará otro ciclo limitado de intentos.',{exact:true}).waitFor();assert.equal(retried,true);
  });
 }

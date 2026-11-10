@@ -1,4 +1,4 @@
-# Contrato API — FlowSaldo v0.6
+# Contrato API — FlowSaldo v0.7
 
 Base local: http://127.0.0.1:3000. Todo salvo health requiere `Authorization: Bearer <DEV_API_TOKEN>`. Error de autorización: 401; validación: 400; fallo inesperado: 500 sin detalle sensible. CORS admite WEB_ORIGINS, por defecto http://localhost:8081 y http://127.0.0.1:8081. La preflight no requiere token; las operaciones sí.
 
@@ -84,3 +84,25 @@ La plantilla tiene startDate, nextDate, anchorDay y active. Solo se admite perio
 La migración aditiva `20261110010000_recurring` crea RecurringTemplate y RecurringOccurrence, sin modificar movimientos previos. Cada ocurrencia conserva su registro al eliminar el movimiento (movementId pasa a null); la fecha ya confirmada no se vuelve a abrir. En demo se conservan recibos locales y un bloqueo por vencimiento dentro de la instancia de app; no hay sincronización entre pestañas/dispositivos.
 
 GET /imports, el listado paginado y GET /imports/:id incluyen `movement:{id}` o null. Confirmar conserva la relación existente importId; descartar no crea vínculo. Al eliminar un movimiento, el vínculo deja de estar disponible y la importación sigue procesada. Los cuerpos de correo no se agregan a los listados.
+
+
+## v0.7 — Cola recuperable y reintentos
+
+Migración aditiva `20261110020000_import_recovery`: agrega PROCESSING y FAILED al enum y metadatos de intentos/bloqueo. Conserva filas, cuerpos pendientes e IDs de importación/movimientos; los contadores de filas anteriores comienzan en cero, sin reconstruir intentos históricos. Detener API/worker anteriores, aplicar Prisma y arrancar los nuevos juntos.
+
+El worker reclama PENDING solo cuando nextAttemptAt ha llegado, o PROCESSING con lockedUntil vencido. Usa FOR UPDATE SKIP LOCKED, incrementa attempts de forma durable y asigna lockToken/lease de 30 segundos antes de procesar. Finalizar exige conservar el token bajo bloqueo de fila; un propietario antiguo no puede finalizar ni modificar un trabajo recuperado. Crear movimiento y cambiar estado siguen en una sola transacción con importId único.
+
+Hasta 5 intentos por ciclo. Fallos recuperables vuelven a PENDING con esperas de 2, 4, 8 y 16 segundos; después pasan a FAILED. Un fallo de categoría del sistema inexistente pasa directamente a FAILED. Si el proceso se interrumpe durante el quinto intento, el siguiente worker marca FAILED al recuperar la reserva. Formato desconocido/monto fuera de rango sigue yendo a REVIEW inmediatamente, sin reintentos automáticos ni contabilización.
+
+Si PostgreSQL está caído no se pueden guardar intentos fallidos: el proceso aplica espera en memoria con máximo de 30 segundos, y una reserva ya persistida se recupera al expirar cuando la base vuelve. attempts cuenta reservas durables de procesamiento, no cada intento de reconexión.
+
+| Método | Ruta | Resultado |
+|---|---|---|
+| GET | /imports/stats | counts por estado, scheduledRetries, expiredLeases, nextRetryAt y lastProcessedAt; instantánea RepeatableRead autorizada |
+| POST | /imports/:id/retry | Solo FAILED sin movimiento generado: reencola, reinicia attempts del ciclo, incrementa manualRetries y devuelve 202; concurrente/no elegible 409; inexistente 404 |
+
+El listado paginado permite PROCESSING y FAILED. Listados y detalle exponen attempts, manualRetries, nextAttemptAt, lastAttemptAt, lastErrorCode, processedAt y lockedUntil. Nunca devuelven lockToken ni excepciones/SQL/tokens internos. Los códigos públicos son PROCESSING_FAILED, CATEGORY_UNAVAILABLE y LEASE_EXPIRED; son diagnósticos resumidos, no mensajes originales de excepción. Los listados siguen excluyendo cuerpos. FAILED conserva su cuerpo sintético para poder reintentar; PARSED y DISMISSED siguen vaciándolo.
+
+Reencolar requiere acción explícita; repetir POST /imports con el mismo externalId conserva su estado y no inicia otro ciclo. Una importación ya PARSED no puede reintentarse aunque se elimine su movimiento. La confirmación manual sigue limitada a REVIEW y conserva 201/409.
+
+Conexiones muestra estado de importaciones sin afirmar que el worker esté conectado. Actualización cada 5 segundos solo al consultar Conexiones; Por revisar actualiza su listado cada 5 segundos mientras esa sección está abierta. Los tiempos se muestran en UTC. No se añade OAuth, ingesta de correo real ni actividad simulada.

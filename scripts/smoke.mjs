@@ -1,3 +1,5 @@
+import {once} from 'node:events';
+import {checkImportRecovery} from './import-recovery-smoke.mjs';
 import { spawn } from 'node:child_process';
 import assert from 'node:assert/strict';
 import { checkCategoryMigration } from './category-migration-smoke.mjs';
@@ -62,5 +64,7 @@ try {
  await checkCategories(request);
  await checkRecurring(request);
  await checkHistory(request,/^DATABASE_URL=(.+)$/m.exec(env)?.[1]);
+ const workerExit=once(worker,'exit');worker.kill('SIGTERM');await workerExit;
+ await checkImportRecovery(request,/^DATABASE_URL=(.+)$/m.exec(env)?.[1]);
  console.info('Smoke: auth, validation, persistence, idempotency and review passed');
 } finally { api.kill('SIGTERM'); worker.kill('SIGTERM'); }

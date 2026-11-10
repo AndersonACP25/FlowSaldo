@@ -45,3 +45,11 @@ Diseño Dark Slate, revisión manual, flujo semanal y launcher Expo con prueba M
 - Enlace de revisiones confirmadas al movimiento generado y archivo CSV adjunto en Android.
 - Política QA: 9 casos unitarios CORE y 3 recorridos Playwright críticos; se eliminan recorridos de todo el sistema y duplicaciones de UI.
 - Migración aditiva de recurrencias; nueva demo conserva datos previos. Compartir en Android físico pendiente de validación.
+
+
+## v0.7.0 — Cola e importaciones recuperables
+
+- Reservas de procesamiento durables con expiración, token de propietario y recuperación tras interrupción.
+- Cinco intentos por ciclo con espera creciente; FAILED y reintento manual confirmado, conservando idempotencia.
+- Estado real de importaciones en Conexiones, filtros Procesando/Con error y metadatos de intentos sin detalles sensibles.
+- Migración aditiva sin reset; se mantienen 9 unitarias CORE y 3 recorridos críticos, con integración enfocada en recuperación/concurrencia.

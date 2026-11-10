@@ -1,6 +1,6 @@
 # FlowSaldo — memoria del proyecto
 
-Última actualización: 2026-11-10. Versión del proyecto y app 0.6.0.
+Última actualización: 2026-11-10. Versión del proyecto y app 0.7.0.
 
 ## Objetivo
 
@@ -107,3 +107,12 @@ CSV nativo: archivo temporal con BOM, MIME y nombre correctos; se retiene en cac
 Instrucción explícita del usuario: unitarias y Playwright solo relevantes/CORE. Se sustituyen 20 unitarias dispersas por 9 casos financieros agrupados y los recorridos web extensos por 3 recorridos críticos independientes. Sin matrices de pantallas/preferencias/calendario/CRUD secundario en UI; combinaciones transaccionales y autorización viven en integración API. Smoke Metro solo arranque/bundle. Regla permanente en AGENTS.md, TESTING.md y perfil QA/catálogo. Nuevos tests deben justificar riesgo CORE o regresión concreta, sin duplicación por capa.
 
 Evidencia de instalación, Prisma, checks, integración y CI del commit final en PR #6. Validación en Android físico/APK sigue pendiente.
+
+
+## v0.7 — Fiabilidad de importaciones (2026-11-10)
+
+Siguiente lote elegido del roadmap después de completar v0.6: robustecer worker/cola sintética antes de correo real. PROCESSING/FAILED, intentos durables y lease de 30 s con token de propietario; cinco intentos por ciclo y backoff exponencial. Fallo de DB aplica espera en memoria hasta 30 s, sin fingir persistencia durante la caída. Marcar resultado exige token actual; el movimiento y estado terminal son transaccionales. Formato desconocido -> REVIEW sin reintentar ni contabilizar. Códigos públicos resumidos, nunca excepción SQL ni lockToken en API.
+
+POST /imports/:id/retry solo FAILED sin movimiento, bajo bloqueo de fila; attempts vuelve a cero, manualRetries sube y el ciclo continúa en PENDING. No reabre PARSED al borrar su movimiento. GET /imports/stats da instantánea real, sin afirmar conectividad del worker. UI en Conexiones y filtro Con error con confirmación de reintento; polling solo en secciones relevantes. Migración aditiva 20261110020000_import_recovery; detener API/worker, aplicar Prisma y reiniciar versión nueva juntos. No cambia claves locales ni datos demo.
+
+Regla de pruebas conservada: 9 casos CORE, 3 recorridos Playwright (se extiende el recorrido API crítico, sin nueva matriz). Integración PostgreSQL cubre backoff, intentos/reserva durables, recuperación de proceso interrumpido, propietario obsoleto, agotamiento y reintento manual concurrente. Evidencia y CI en PR #6. Identidad/OAuth, política de retención, conciliación y Android físico siguen pendientes.
