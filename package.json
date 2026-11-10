@@ -1,7 +1,7 @@
 {
   "name": "flowsaldo",
   "private": true,
-  "version": "0.5.0",
+  "version": "0.6.0",
   "engines": {
     "node": ">=24.11 <25"
   },
@@ -16,10 +16,10 @@
     "db:seed": "pnpm --filter @flowsaldo/database seed",
     "typecheck": "pnpm -r --if-present typecheck",
     "lint": "eslint .",
-    "test": "node --test packages/domain/test/*.test.ts",
+    "test": "node --test packages/domain/test/core.test.ts",
     "check": "pnpm lint && pnpm typecheck && pnpm test && pnpm text:check && pnpm exports:test",
     "dev:mobile": "pnpm start",
-    "test:web": "pnpm --filter @flowsaldo/mobile exec expo export --platform web --output-dir ../../dist/web && node scripts/web-smoke.mjs",
+    "test:web": "node scripts/test-web.mjs",
     "test:dev": "node scripts/dev-smoke.mjs",
     "ai:validate": "node scripts/ai.mjs validate",
     "ai:plan": "node scripts/ai.mjs plan",

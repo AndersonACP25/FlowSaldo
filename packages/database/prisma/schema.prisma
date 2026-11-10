@@ -42,6 +42,7 @@ model Movement {
  occurredAt DateTime
  createdAt DateTime @default(now())
  importId String? @unique
+ recurrenceOccurrence RecurringOccurrence?
  source MailImport? @relation(fields: [importId], references: [id])
  @@index([currency, occurredAt])
  @@index([categoryId])
@@ -54,4 +55,32 @@ model Category {
  archived Boolean @default(false)
  system Boolean @default(false)
  movements Movement[]
+ recurringTemplates RecurringTemplate[]
+}
+
+model RecurringTemplate {
+ id String @id @default(cuid())
+ version Int @default(0)
+ description String
+ amountMinor Int
+ currency Currency
+ type MovementType
+ category String
+ categoryId String
+ categoryRef Category @relation(fields: [categoryId], references: [id], onDelete: Restrict)
+ startDate String
+ nextDate String
+ anchorDay Int
+ active Boolean @default(true)
+ occurrences RecurringOccurrence[]
+}
+model RecurringOccurrence {
+ id String @id @default(cuid())
+ templateId String
+ template RecurringTemplate @relation(fields: [templateId], references: [id], onDelete: Restrict)
+ scheduledFor String
+ movementId String? @unique
+ movement Movement? @relation(fields: [movementId], references: [id], onDelete: SetNull)
+ confirmedAt DateTime @default(now())
+ @@unique([templateId,scheduledFor])
 }

@@ -1,6 +1,8 @@
+import type { Comparison } from './MonthlyComparison';
 import type { Currency, dailyCashFlow } from '@flowsaldo/domain';
 export interface Page<T> { items:T[];total:number;nextCursor:string|null;pendingTotal?:number }
 export interface MonthlySummary {
+ comparison:Comparison;
  currency:Currency;month:string;incomeMinor:number;expenseMinor:number;differenceMinor:number;total:number;
  categoryTotals:Array<{categoryId:string|null;amountMinor:number}>;
  categories:Array<{category:string;amountMinor:number}>;days:ReturnType<typeof dailyCashFlow>;

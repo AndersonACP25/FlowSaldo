@@ -1,3 +1,4 @@
+export * from './recurring.ts';
 export * from './planning.ts';
 export type Currency = 'DOP' | 'USD';
 export type MovementType = 'INCOME' | 'EXPENSE' | 'TRANSFER';

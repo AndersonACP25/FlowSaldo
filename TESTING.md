@@ -1,21 +1,25 @@
-# Verificación
+# Verificación enfocada
 
-| Cambio | Comprobaciones requeridas |
-|---|---|
-| Código TypeScript/producto | pnpm db:generate; pnpm check |
-| Dominio monetario | pnpm test, incluyendo monedas, fechas, duplicados y límites relevantes |
-| API/worker/Prisma | Migración y seed PostgreSQL de prueba; node scripts/smoke.mjs |
-| UI web | pnpm test:web con Chromium instalado |
-| Arranque Expo/Metro | pnpm test:dev en Windows y Linux |
-| Cambios nativos | Bundle Android; prueba en dispositivo/emulador cuando aplique |
-| Infraestructura ai/ | pnpm ai:validate; pnpm ai:test; comprobar ai:plan y ai:packet |
-| Solo documentación | Enlaces locales del catálogo y comandos afectados; no inventar ejecución de pruebas del producto |
+## Política permanente
 
-pnpm check ejecuta lint, tipos y dominio, no todas las pruebas de integración o UI. test:web prueba un export; test:dev cubre Metro dev. Consultar README para prerrequisitos. No afirmar Android físico cuando solo se probó viewport móvil web.
+Las unitarias y Playwright cubren lo relevante del CORE, no una matriz de todo el sistema. Antes de añadir un caso, identificar el riesgo o la regresión que evita. No crear un test por helper/componente, revisar cada pantalla ni repetir en UI las combinaciones ya cubiertas por dominio/API. Esta política prevalece al interpretar instrucciones generales de QA.
 
-Cada tarea declara requiredChecks concretos. Registrar command, status (pass/fail/not_run) y evidence. Si falta entorno, informar blocked. El validador de entregas verifica consistencia declarada; el orquestador contrasta la evidencia con logs reales.
+| Capa | Alcance actual | Cuándo ejecutarla |
+|---|---|---|
+| Unitarias de producto | 9 casos CORE en packages/domain/test/core.test.ts: importes, aislamiento monetario, parser, historia de categorías, presupuestos, calendario/confirmación de recurrencias, comparación con base cero y CSV | Cambios de reglas financieras/persistencia |
+| Playwright de producto | 3 recorridos independientes a 390 px: registrar/persistir/exportar; confirmar recurrencia/revisión y abrir su movimiento; exportar los 205 resultados API sin cargar páginas | Cambios en esos recorridos críticos |
+| API/PostgreSQL | Autorización, validación, migraciones con datos previos, asignaciones archivadas, confirmación concurrente, ledger de recurrencias, paginación/agregaciones/exportación y trazabilidad | Cambios API/worker/Prisma |
+| Metro dev | Bundle HTTP 200 y arranque del producto, sin navegar todas las secciones | Cambios de arranque/dependencias; CI Linux/Windows |
+| Export guardian | Contrato real de columnas/archivos CSV y XLSX del tooling | Cambios de exportación |
+| Contratos IA | Catálogo/planes/entregas, independientes de los tests de producto | Cambios ai/ o contratos/instrucciones |
+| Android | Bundle y compatibilidad con SDK instalado; dispositivo para compartir archivos | Cambios nativos |
 
-Cambios v0.5: pnpm text:check; pnpm exports:test (crea y valida Excel/CSV sintéticos); pnpm ai:validate y pnpm ai:test para los doce perfiles. El flujo web cubre vistas previas sin credenciales enviadas, conteo singular y preferencias persistidas.
+## Comandos
 
+- `pnpm db:generate` y `pnpm check`: lint, tipos, 9 casos CORE, patrones lingüísticos y 3 pruebas del guardián de exportación. No incluye toda la integración ni UI.
+- Aplicar migraciones/seed en PostgreSQL de prueba y ejecutar `node scripts/smoke.mjs` para integración. Nunca usar una base de producción.
+- `pnpm test:web`: genera web y ejecuta únicamente los 3 recorridos críticos. El wrapper configura una URL sintética para la API simulada si no existe EXPO_PUBLIC_API_URL; no requiere backend real.
+- `pnpm test:dev`: smoke de Metro separado; no sustituye la exportación web ni Android.
+- `pnpm ai:validate` y `pnpm ai:test`: verificar contratos del catálogo cuando se modifiquen instrucciones.
 
-Entrega 2 v0.6: `scripts/smoke.mjs` incluye migración de categorías con registros previos, API/archivos/historia y asignaciones archivadas; `test:web` incluye actualización de demo, CRUD/archivo, aislamiento/persistencia de presupuestos, calendario y duplicación a 390 px. Las pruebas de dominio se concentran en estas reglas CORE. Ejecutar migraciones antes del smoke; nunca sobre bases de producción.
+Registrar command, status (pass/fail/not_run) y evidence. No afirmar Android físico cuando solo se generó bundle o se verificó viewport móvil web. Si falta un entorno, indicar el límite real en el PR. Las pruebas de compartir archivo en dispositivo quedan pendientes cuando no hay Android disponible.

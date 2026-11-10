@@ -1,6 +1,6 @@
 # FlowSaldo — memoria del proyecto
 
-Última actualización: 2026-10-22. Versión del proyecto y app 0.5.0.
+Última actualización: 2026-11-10. Versión del proyecto y app 0.6.0.
 
 ## Objetivo
 
@@ -47,7 +47,7 @@ Monorepo pnpm: apps/mobile (Expo, React Native, React Query), apps/api (Express,
 
 No hay OAuth Gmail/Outlook, parsers bancarios reales, usuarios ni autenticación de producción. No conectar información bancaria real. Los listados de compatibilidad conservan 200/100 filas; la app utiliza los endpoints paginados y el resumen mensual completo. Los presupuestos no se sincronizan entre dispositivos. No hay gestión de deuda, devoluciones ni conciliación. Restablecer demo no borra PostgreSQL.
 
-La exportación nativa comparte texto CSV; adjuntar un archivo CSV nativo queda pendiente. Confirmar comportamiento en Android físico y generar APK en EAS sigue pendiente.
+La exportación nativa genera un archivo CSV en caché y abre el menú de compartir; su recepción en otra app requiere Android físico. Confirmar comportamiento en Android físico y generar APK en EAS sigue pendiente.
 
 ## Verificación
 
@@ -96,3 +96,14 @@ Catálogo Category en PostgreSQL y demo, con IDs estables, nombre normalizado, a
 Presupuestos por categoría locales al dispositivo, modo/mes/moneda/ID; gasto completo por ID desde summary.categoryTotals en API. Umbrales 80/100 exactos con porcentaje redondeado. Archivo conserva límites, con opción de retirarlos. Sin sincronización multiusuario. Demo mantiene clave v2, migra categorías sin cambiar snapshots ni importes. Registro rápido: fecha actual local si es mes vigente, primer día si es otro mes, calendario, recientes a partir del historial cargado y duplicación como borrador explícito.
 
 Pruebas añadidas de CORE: actualización local idempotente, archivo/renombrado con historia, umbrales, fechas; integración de migración sobre registros previos, catálogo API y revisión con categoría archivada; Playwright de actualización demo, presupuestos aislados/persistidos, calendario y duplicación. Evidencia concreta de ejecución y CI en PR #6. Próxima entrega: comparativas mensuales, recurrencias, trazabilidad revisión → movimiento y archivo CSV nativo.
+
+
+## v0.6 — Entrega 3 y política QA (2026-11-10)
+
+Lote completado: comparación mensual por moneda con base cero explícita; plantillas mensuales con confirmación manual, pausa/reactivación, anchorDay estable y ledger separado; trazabilidad revisión → movimiento; CSV nativo adjunto mediante módulos Expo compatibles con el SDK instalado. Root/mobile/app version 0.6.0. Migración aditiva 20261110010000_recurring, sin reset. Demo agrega recurring/receipts vacíos conservando clave, datos y presupuestos. Confirmación usa día UTC; no procesa futuros, pausa conserva atrasos y editar no altera calendario. version evita confirmar datos obsoletos. Un vencimiento confirmado no se puede registrar otra vez aunque su movimiento sea eliminado. Demo bloquea por vencimiento en una instancia; no garantiza concurrencia entre pestañas.
+
+CSV nativo: archivo temporal con BOM, MIME y nombre correctos; se retiene en caché del SO para permitir que la app receptora lo lea. Bundle Android no equivale a validación de compartir en dispositivo. No se añaden OAuth ni datos reales.
+
+Instrucción explícita del usuario: unitarias y Playwright solo relevantes/CORE. Se sustituyen 20 unitarias dispersas por 9 casos financieros agrupados y los recorridos web extensos por 3 recorridos críticos independientes. Sin matrices de pantallas/preferencias/calendario/CRUD secundario en UI; combinaciones transaccionales y autorización viven en integración API. Smoke Metro solo arranque/bundle. Regla permanente en AGENTS.md, TESTING.md y perfil QA/catálogo. Nuevos tests deben justificar riesgo CORE o regresión concreta, sin duplicación por capa.
+
+Evidencia de instalación, Prisma, checks, integración y CI del commit final en PR #6. Validación en Android físico/APK sigue pendiente.

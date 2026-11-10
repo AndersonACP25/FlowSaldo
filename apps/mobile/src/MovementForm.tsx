@@ -6,7 +6,7 @@ import { DatePicker } from './DatePicker';
 import { styles as s } from './theme';
 export const typeLabels = { INCOME:'Ingreso', EXPENSE:'Gasto', TRANSFER:'Transferencia' };
 export type Draft = Omit<Movement,'id'>;
-export function MovementForm({movement,currency,month,onSave,onCancel,title,categories,recent=[],editing=false}:{categories:Category[];recent?:string[];editing?:boolean;movement?:Movement;currency:Currency;month:string;onSave:(draft:Draft)=>Promise<void>;onCancel:()=>void;title?:string}) {
+export function MovementForm({movement,currency,month,onSave,onCancel,title,categories,recent=[],editing=false,fixedDate=false,saveLabel='Guardar movimiento'}:{saveLabel?:string;fixedDate?:boolean;categories:Category[];recent?:string[];editing?:boolean;movement?:Movement;currency:Currency;month:string;onSave:(draft:Draft)=>Promise<void>;onCancel:()=>void;title?:string}) {
  const [description,setDescription]=useState(movement?.description??'');
  const [amount,setAmount]=useState(movement?String(movement.amountMinor/100):'');
  const today=new Date();const todayLabel=`${today.getFullYear()}-${String(today.getMonth()+1).padStart(2,'0')}-${String(today.getDate()).padStart(2,'0')}`;
@@ -31,14 +31,14 @@ export function MovementForm({movement,currency,month,onSave,onCancel,title,cate
   <Field label="Descripción" value={description} onChangeText={setDescription} maxLength={100}/>
   <Field label="Monto (sin separadores de miles)" value={amount} onChangeText={setAmount} keyboardType="decimal-pad" placeholder="1250.50"/>
   <View style={s.row}>{(['DOP','USD'] as const).map(c=><Choice key={c} label={c} selected={unit===c} onPress={()=>setUnit(c)}/>)}</View>
-  <DatePicker value={date} onChange={setDate}/>
+  {fixedDate?<Text style={s.muted}>Próximo vencimiento: {date}. Editar conserva el calendario original.</Text>:<DatePicker value={date} onChange={setDate}/>}
   <Text style={s.label}>Categoría</Text>
   <Text style={s.muted}>Selecciona una categoría activa. Puedes administrarlas en Configuración.</Text>
   {recent.length>0&&<><Text style={s.label}>Categorías recientes</Text><View style={s.row}>{categories.filter(c=>!c.archived&&recent.includes(c.id)).map(c=><Choice key={c.id} label={`Reciente: ${c.name}`} text={c.name} selected={categoryId===c.id} onPress={()=>setCategoryId(c.id)}/>)}</View></>}
   <View style={s.row}>{categories.filter(c=>!c.archived||(editing&&c.id===movement?.categoryId)).map(c=><Choice key={c.id} label={`Categoría: ${c.name}`} text={c.name+(c.archived?' · Archivada':'')} selected={categoryId===c.id} onPress={()=>setCategoryId(c.id)}/>)}</View>
   {type==='TRANSFER'&&<Text style={s.muted}>Transferencia entre cuentas propias: no cuenta como ingreso ni gasto.</Text>}
   {!!error&&<Text accessibilityRole="alert" style={s.error}>{error}</Text>}
-  <Button label={busy?'Guardando…':'Guardar movimiento'} disabled={busy} onPress={()=>void save()}/>
+  <Button label={busy?'Guardando…':saveLabel} disabled={busy} onPress={()=>void save()}/>
   <Button label="Cancelar" disabled={busy} onPress={onCancel}/>
  </View>;
 }

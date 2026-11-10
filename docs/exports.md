@@ -8,7 +8,7 @@
 4. CSV usa comas, comillas para texto y escape de saltos de línea/comillas. Neutralizar fórmulas en texto no confiable.
 5. Excel .xlsx: primera fila con encabezados, cada dato en su columna, sin celdas combinadas. Cada hoja debe ser tabular. No se acepta guardar «Fecha,Monto» en una celda. Los .xls antiguos deben convertirse antes de validarlos.
 
-La app valida nombre y esquema antes de descargar CSV en web. Android comparte texto CSV con título FlowSaldo; no genera aún un archivo adjunto. La preferencia de ocultar importes no elimina valores del archivo exportado.
+La app valida nombre y esquema antes de descargar CSV en web. Android genera un archivo CSV UTF-8 con BOM en una carpeta temporal de caché y lo comparte con expo-sharing (MIME text/csv); no comparte solo el texto. La preferencia de ocultar importes no elimina valores del archivo exportado.
 
 El guardián CLI inspecciona archivos reales:
 
@@ -18,3 +18,6 @@ pnpm exports:test
 ```
 
 Para otros formatos verifica nombre y existencia, sin analizar contenido. El guardián no comprueba fidelidad financiera contra una fuente externa. El perfil export-guardian revisa esa correspondencia. .xlsx está soportado por el validador de desarrollo; la app no incluye exportación Excel todavía.
+
+
+Implementación nativa separada en shareCsv.native.ts; web descarga mediante Blob. Cada exportación usa una carpeta única y conserva el nombre FlowSaldo-AAAA-MM.csv. El sistema administra la caché; no se elimina al cerrar el selector de compartir para evitar romper la lectura por la app receptora. La preferencia de ocultación visual no elimina importes exportados. Compartir entre apps no ha sido certificado en Android físico.

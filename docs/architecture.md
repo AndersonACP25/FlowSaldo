@@ -1,6 +1,6 @@
 # Arquitectura inicial
 
-Monorepo ppnpm workspaces. Una API y un worker comparten dominio y acceso PostgreSQL. TypeScript se ejecuta mediante tsx en desarrollo; la app usa Metro. Los paquetes internos exportan fuente para evitar compilación previa.
+Monorepo pnpm workspaces. Una API y un worker comparten dominio y acceso PostgreSQL. TypeScript se ejecuta mediante tsx en desarrollo; la app usa Metro. Los paquetes internos exportan fuente para evitar compilación previa.
 
 ```mermaid
 flowchart TD
@@ -47,3 +47,10 @@ Gestor fijado a pnpm 10.34.7; workspaces con enlaces workspace:* y hoisted para 
 AccountSettings conserva solo currency/hideAmounts en flowsaldo.preferences.v1. No cambia la identidad ni autentica. La clave demo v2 permanece compatible. La privacidad es visual, no cifra ni elimina importes en exportaciones/formularios.
 
 CSV ejecuta validadores de nombre/esquema antes de descargar. ExcelJS solo se usa en herramientas Node de desarrollo para inspeccionar .xlsx, nunca en el bundle móvil. LANGUAGE.md y los perfiles language-editor/export-guardian agregan controles al plan IA.
+
+
+## v0.6: recurrencias y pruebas enfocadas
+
+RecurringTemplate conserva calendario mensual y versión; RecurringOccurrence registra confirmaciones con clave única por fecha y FK nullable al movimiento. La transacción bloquea plantilla/categoría, valida versión/vencimiento y crea movimiento, recibo y siguiente fecha de forma atómica. Sin scheduler. Demo aplica la misma regla con recibos persistidos en AsyncStorage; no sincroniza instancias. Summary agrega meses actual/anterior en snapshot común. Importaciones exponen únicamente el ID del movimiento generado para consulta autorizada.
+
+La exportación nativa usa implementación .native.ts con File/Directory/Paths y expo-sharing; web conserva Blob. La caché retiene archivos para recepción externa. Las pruebas se distribuyen por riesgo: reglas financieras en 9 unitarias CORE, integridad transaccional en API y 3 recorridos críticos de Playwright; Metro verifica solo arranque.

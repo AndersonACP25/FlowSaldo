@@ -1,4 +1,4 @@
-# FlowSaldo ↗ · v0.5
+# FlowSaldo ↗ · v0.6
 
 Base Android de finanzas personales: React Native + Expo + TypeScript, Express, worker y PostgreSQL con Prisma.
 
@@ -18,8 +18,6 @@ En PowerShell:
 ```powershell
 git clone https://github.com/AndersonACP25/FlowSaldo.git
 cd FlowSaldo
-# Si el PR de v0.5 no se ha integrado:
-# git switch feature/v5-account-pnpm
 pnpm install --frozen-lockfile
 pnpm start
 ```
@@ -32,7 +30,7 @@ La navegación sigue DESIGN.md: Panel, Movimientos, Por revisar y Conexiones, co
 
 La pantalla inicial es una vista previa de inicio de sesión; permite pasar a registro o pulsar «Explorar demostración». No hay autenticación, creación de cuentas ni envío/persistencia de credenciales. Configuración se abre desde el botón del encabezado y permite guardar moneda predeterminada y ocultación visual de importes. No modifica los archivos exportados.
 
-La demo permite crear, editar y eliminar movimientos con confirmación, buscar por descripción/categoría, filtrar mes/moneda/tipo, ver gastos por categoría, guardar presupuesto por mes/moneda y exportar el conjunto filtrado. En web se descarga CSV; Android comparte el texto CSV mediante el menú nativo. Los movimientos demo y presupuestos persisten con AsyncStorage (almacenamiento sin cifrar, solo datos ficticios), separados de la API. La sesión y token API nunca se guardan. Conexiones permite restablecer la demo con confirmación. Las muestras iniciales se ubican en el mes actual al iniciar una demo nueva.
+La demo permite crear, editar y eliminar movimientos con confirmación, buscar por descripción/categoría, filtrar mes/moneda/tipo, ver gastos por categoría, guardar presupuesto por mes/moneda y exportar el conjunto filtrado. En web se descarga CSV; Android crea un archivo CSV en caché y abre el menú nativo para compartirlo. Los movimientos demo y presupuestos persisten con AsyncStorage (almacenamiento sin cifrar, solo datos ficticios), separados de la API. La sesión y token API nunca se guardan. Conexiones permite restablecer la demo con confirmación. Las muestras iniciales se ubican en el mes actual al iniciar una demo nueva.
 
 Los indicadores se calculan por mes y moneda. En modo API el historial se carga por páginas y los indicadores mensuales se calculan sobre todos los registros del mes seleccionado. Los presupuestos son locales al dispositivo y se separan por modo demo/API, mes y moneda; no se sincronizan con el servidor. La exportación incluye todos los resultados filtrados aunque aún no hayas cargado todas las páginas. Los totales corresponden al mes y moneda seleccionados; no son saldos bancarios. Si Expo Go no soporta este SDK, instala una versión compatible desde https://expo.dev/go o crea un development build. No uses credenciales reales en el prototipo.
 
@@ -86,8 +84,8 @@ pnpm test:web
 pnpm test:dev
 ```
 
-Pruebas de dominio ejecutables sin instalar dependencias: `node --test packages/domain/test/*.test.ts` (Node 24).
-CI verifica instalación con lockfile, Prisma, lint, tipos, dominio, smoke de API/worker contra PostgreSQL y un flujo Playwright web (persistencia, CRUD, filtros, presupuesto y CSV).
+Pruebas de dominio CORE ejecutables sin instalar dependencias: `node --test packages/domain/test/core.test.ts` (Node 24).
+CI verifica instalación con lockfile, Prisma, lint, tipos, dominio, smoke de API/worker contra PostgreSQL y tres recorridos Playwright críticos (registro/persistencia/CSV, confirmación/trazabilidad y exportación API completa).
 
 ## Generar un APK
 
@@ -195,3 +193,18 @@ pnpm db:migrate
 ```
 
 La migración agrega el catálogo y vincula los registros existentes sin borrar sus datos. La demo conserva `flowsaldo.demo.v2` y actualiza su estructura al leerla; categorías y límites se guardan al realizar una acción. No reinicies la demo para actualizar. La sincronización de presupuestos entre dispositivos continúa pendiente.
+
+
+## v0.6 — Entrega 3 y alcance de pruebas
+
+Panel compara ingresos/gastos con el mes anterior de la misma moneda. Muestra variación absoluta y porcentual; una base anterior cero con importe actual positivo se indica como Sin base de comparación. Se comparan totales registrados de ambos meses: el mes actual puede estar en curso. Los totales son completos y las transferencias propias siguen excluidas. Se muestran las cinco principales categorías de gastos.
+
+Movimientos incluye plantillas recurrentes mensuales. Define descripción, importe, tipo, moneda, categoría y fecha inicial; después puedes editar los datos o pausar/reactivar. El día 31 se ajusta al final de febrero y vuelve al 31 en marzo. Las fechas de inicio y el calendario original no cambian al editar. Al reactivar se conservan los vencimientos pendientes. **Registrar vencimiento → Confirmar registro** crea un movimiento con la fecha del vencimiento, nunca de forma automática. Las confirmaciones se registran aparte: eliminar el movimiento no permite repetir un vencimiento confirmado. Si cambian los datos de una plantilla mientras se confirma, se exige revisarlos de nuevo. La API usa el día UTC para disponibilidad de vencimientos.
+
+En revisiones confirmadas, Ver movimiento generado abre el registro vinculado. Si se elimina, se informa que ya no está disponible y no se reconstruye ni se vuelve a contabilizar.
+
+Android comparte un archivo `FlowSaldo-AAAA-MM.csv` mediante expo-file-system y expo-sharing, con MIME text/csv. El archivo temporal permanece en caché administrada por el sistema para que la app receptora pueda leerlo. Web conserva la descarga completa. El comportamiento de compartir entre apps requiere validación en Android físico; generar el bundle no lo certifica.
+
+Para actualizar la API/worker: `pnpm install --frozen-lockfile`, `pnpm db:generate` y `pnpm db:migrate`. Se añade la migración aditiva de plantillas/confirmaciones; no borra movimientos existentes. La demo conserva su clave y añade listas vacías de plantillas/confirmaciones al leer datos anteriores.
+
+Por regla del proyecto, las unitarias y Playwright cubren solo reglas CORE y recorridos críticos. Actualmente hay **9 casos de dominio y 3 recorridos web**, sin revisar cada pantalla ni duplicar las combinaciones de API en UI. El smoke de Metro y las pruebas transaccionales de PostgreSQL son independientes. Ver TESTING.md y AGENTS.md antes de añadir nuevos tests.

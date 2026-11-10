@@ -36,3 +36,12 @@ Diseño Dark Slate, revisión manual, flujo semanal y launcher Expo con prueba M
 - Migración aditiva con categoryId estable; filtros/exportación por ID y gasto mensual completo por categoría.
 - Presupuestos locales por categoría/mes/moneda/modo, disponibles/excesos y avisos 80/100.
 - Fecha actual, calendario, categorías recientes y duplicación editable que requiere guardar.
+
+
+### Entrega 3 — v0.6.0
+
+- Comparativa mensual completa, variaciones y tratamiento explícito de base cero.
+- Plantillas mensuales confirmadas manualmente, con versionado, protección concurrente y ledger independiente de movimientos eliminados.
+- Enlace de revisiones confirmadas al movimiento generado y archivo CSV adjunto en Android.
+- Política QA: 9 casos unitarios CORE y 3 recorridos Playwright críticos; se eliminan recorridos de todo el sistema y duplicaciones de UI.
+- Migración aditiva de recurrencias; nueva demo conserva datos previos. Compartir en Android físico pendiente de validación.

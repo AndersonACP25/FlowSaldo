@@ -1,4 +1,4 @@
-# Contrato API — historial completo (v0.6, entrega 1)
+# Contrato API — FlowSaldo v0.6
 
 Base local: http://127.0.0.1:3000. Todo salvo health requiere `Authorization: Bearer <DEV_API_TOKEN>`. Error de autorización: 401; validación: 400; fallo inesperado: 500 sin detalle sensible. CORS admite WEB_ORIGINS, por defecto http://localhost:8081 y http://127.0.0.1:8081. La preflight no requiere token; las operaciones sí.
 
@@ -30,7 +30,7 @@ POST /imports:
 {"externalId":"demo-001","body":"FLOWSALDO-DEMO|EXPENSE|DOP|1250.50|2026-10-22|Compra de ejemplo"}
 ```
 
-PATCH permite editar categoría y demás campos del movimiento. DELETE elimina el movimiento; no borra el registro de importación ni lo vuelve a encolar. POST /imports/:id/resolve permite corregir y confirmar REVIEW en una transacción con bloqueo de fila. Dos confirmaciones concurrentes generan exactamente un movimiento (201 y 409); no se pueden confirmar descartados. Al resolver/descartar se vacía el cuerpo. No hay endpoints aún para exportar CSV, autenticación OAuth o presupuestos. Exportación y presupuestos se resuelven en el cliente en esta versión. Se añadirá OpenAPI junto con esos contratos antes de una integración externa.
+PATCH permite editar categoría y demás campos del movimiento. DELETE elimina el movimiento; no borra el registro de importación ni lo vuelve a encolar. POST /imports/:id/resolve permite corregir y confirmar REVIEW en una transacción con bloqueo de fila. Dos confirmaciones concurrentes generan exactamente un movimiento (201 y 409); no se pueden confirmar descartados. Al resolver/descartar se vacía el cuerpo. La exportación completa está documentada abajo; los presupuestos siguen locales y OAuth sigue pendiente. Se añadirá OpenAPI junto con esos contratos antes de una integración externa.
 
 
 ## Historial paginado y resumen mensual
@@ -65,3 +65,22 @@ POST/PATCH /movements y POST /imports/:id/resolve aceptan `categoryId`. Se recom
 GET /movements?page=true y /movements/export admiten `categoryId`, incluyendo categorías archivadas. El resumen mensual agrega `categoryTotals:[{categoryId,amountMinor}]` para gastos por ID, independiente de páginas y nombres históricos. `categories` conserva el desglose por etiqueta histórica de la entrega anterior. Transferencias e ingresos no consumen presupuestos de gastos.
 
 Los presupuestos general y por categoría siguen locales al dispositivo. Cada límite por categoría se identifica por modo demo/API, mes, moneda e ID de categoría. No se sincronizan ni crean usuarios. Avisos de 80 % y 100 % utilizan el gasto real; el porcentaje mostrado se redondea sin adelantar el aviso. Archivar conserva un presupuesto y permite retirarlo, pero no asignar uno nuevo a esa categoría.
+
+
+## Entrega 3 — Comparativas, recurrencias y trazabilidad
+
+El resumen mensual agrega `comparison:{previousMonth,income,expense}`, con `{previousMinor,deltaMinor,percentage}` por indicador. Consulta los dos meses en la misma transacción RepeatableRead. Si el mes anterior vale cero, percentage es null cuando el actual es positivo y 0 cuando ambos son cero. Mes/moneda explícitos, sin mezclar transferencias. No compara saldos bancarios.
+
+| Método | Ruta | Contrato |
+|---|---|---|
+| GET | /recurring | Plantillas mensuales ordenadas por nextDate e ID; incluye version |
+| POST | /recurring | description, amountMinor, currency, type, categoryId, startDate=AAAA-MM-DD; categoría opcional como etiqueta; crea plantilla activa, 201, sin contabilizar |
+| PATCH | /recurring/:id | Campos editables anteriores excepto startDate, más active; al menos uno, sin propiedades desconocidas; incrementa version. Conserva startDate, nextDate y anchorDay |
+| POST | /recurring/:id/confirm | `{scheduledFor:"AAAA-MM-DD",expectedVersion:0}`; 201 con `{movement,nextDate}` o 409 si está pausada, futura, ya registrada, cambiaron sus datos/fecha o la categoría está archivada |
+| GET | /movements/:id | Movimiento individual autorizado; 404 si ya no existe |
+
+La plantilla tiene startDate, nextDate, anchorDay y active. Solo se admite periodicidad mensual. El anchorDay se conserva al ajustar meses cortos. No hay scheduler, cargos automáticos, borrado físico de plantillas ni saltos implícitos de vencimientos: pausar/reactivar conserva el próximo pendiente. Cada confirmación usa la fecha del vencimiento a mediodía UTC y el día UTC del servidor como límite. Bloqueo de fila de plantilla, expectedVersion y constraint único (templateId,scheduledFor) evitan duplicados y confirmaciones sobre datos obsoletos. categoryId se valida dentro de esa transacción.
+
+La migración aditiva `20261110010000_recurring` crea RecurringTemplate y RecurringOccurrence, sin modificar movimientos previos. Cada ocurrencia conserva su registro al eliminar el movimiento (movementId pasa a null); la fecha ya confirmada no se vuelve a abrir. En demo se conservan recibos locales y un bloqueo por vencimiento dentro de la instancia de app; no hay sincronización entre pestañas/dispositivos.
+
+GET /imports, el listado paginado y GET /imports/:id incluyen `movement:{id}` o null. Confirmar conserva la relación existente importId; descartar no crea vínculo. Al eliminar un movimiento, el vínculo deja de estar disponible y la importación sigue procesada. Los cuerpos de correo no se agregan a los listados.

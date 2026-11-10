@@ -24,4 +24,4 @@ IA opcional después de validar parsers deterministas. Ningún dato de correo de
 
 1. Entrega 1: historial paginado, agregaciones mensuales, exportación completa y filtros de revisiones. Implementado en este PR; ver validación y límites en su descripción.
 2. Entrega 2: categorías administrables, presupuestos por categoría y registro rápido. Implementado en el mismo PR; ver validación y migración en su descripción.
-3. Comparación mensual, recurrencias, trazabilidad revisión → movimiento y archivo CSV nativo.
+3. Entrega 3: comparación mensual, recurrencias, trazabilidad revisión → movimiento y archivo CSV nativo implementados en el mismo PR. Validación de compartir en Android físico pendiente.

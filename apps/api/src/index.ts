@@ -1,4 +1,5 @@
 import express from 'express';
+import { recurringRoutes } from './recurring';
 import { categoryRoutes,assignCategory,CategoryError } from './categories';
 import { history } from './history';
 import helmet from 'helmet';
@@ -24,6 +25,7 @@ app.use((req, res, next) => {
 });
 app.use(history);
 app.use(categoryRoutes);
+app.use(recurringRoutes);
 const movementSchema = z.object({ amountMinor: z.number().int().positive().max(2147483647), currency: z.enum(['DOP','USD']), type: z.enum(['INCOME','EXPENSE','TRANSFER']), description: z.string().trim().min(1).max(100), categoryId:z.string().min(1).max(200).nullish(), category: z.string().trim().min(1).max(60).default('Sin categorizar'), occurredAt: z.iso.datetime() });
 app.get('/movements', async (req, res) => {
  const filter = z.object({ currency: z.enum(['DOP','USD']).optional(), month: z.string().regex(/^\d{4}-\d{2}$/).refine(v => validDate(v+'-01')).optional() }).parse(req.query);
@@ -31,6 +33,11 @@ app.get('/movements', async (req, res) => {
  const to = from ? new Date(from) : undefined;
  if(to) to.setUTCMonth(to.getUTCMonth()+1);
  res.json(await db.movement.findMany({ where: { currency: filter.currency, ...(from ? {occurredAt:{gte:from,lt:to}} : {}) }, orderBy: [{ occurredAt: 'desc' },{id:'asc'}], take: 200 }));
+});
+app.get('/movements/:id',async(req,res)=>{
+ const item=await db.movement.findUnique({where:{id:req.params.id}});
+ if(!item){res.status(404).json({error:'Movimiento no encontrado'});return;}
+ res.json(item);
 });
 app.post('/movements', async (req, res) => {
  const data = movementSchema.parse(req.body);
@@ -63,7 +70,7 @@ app.post('/imports', async (req, res) => {
  res.status(202).json({ id: item.id, status: item.status });
 });
 app.get('/imports/:id', async (req,res)=>{
- const item=await db.mailImport.findUnique({where:{id:req.params.id},select:{id:true,body:true,status:true,externalId:true}});
+ const item=await db.mailImport.findUnique({where:{id:req.params.id},select:{id:true,body:true,status:true,externalId:true,movement:{select:{id:true}}}});
  if(!item){res.status(404).json({error:'Importación no encontrada'});return;}
  res.json(item);
 });
@@ -86,10 +93,10 @@ app.post('/imports/:id/dismiss',async(req,res)=>{
  if(!result.count){res.status(409).json({error:'El correo no está pendiente de revisión'});return;}
  res.status(204).end();
 });
-app.get('/imports', async (_req, res) => res.json(await db.mailImport.findMany({ select: { id: true, externalId: true, status: true, reason: true, parserVersion: true, createdAt: true }, orderBy: { createdAt: 'desc' }, take: 100 })));
+app.get('/imports', async (_req, res) => res.json(await db.mailImport.findMany({ select: { id: true, externalId: true, status: true, reason: true, parserVersion: true, createdAt: true,movement:{select:{id:true}} }, orderBy: { createdAt: 'desc' }, take: 100 })));
 app.use((error: unknown, _req: express.Request, res: express.Response, _next: express.NextFunction) => {
  if(error instanceof CategoryError){res.status(error.status).json({error:error.message});return;}
- if(typeof error==='object'&&error!==null&&'code' in error&&error.code==='P2002'){res.status(409).json({error:'Ya existe una categoría con ese nombre.'});return;}
+ if(typeof error==='object'&&error!==null&&'code' in error&&error.code==='P2002'){res.status(409).json({error:'El registro ya existe; actualiza la lista antes de reintentar.'});return;}
  if (error instanceof SyntaxError) { res.status(400).json({ error: 'JSON inválido' }); return; }
  if (error instanceof z.ZodError) { res.status(400).json({ error: 'Datos inválidos', issues: error.issues.map(i => ({ path: i.path, message: i.message })) }); return; }
  res.status(500).json({ error: 'Error interno' });

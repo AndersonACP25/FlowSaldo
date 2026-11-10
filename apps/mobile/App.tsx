@@ -2,9 +2,11 @@ import React, { useEffect, useRef, useState } from 'react';
 import { StatusBar } from 'expo-status-bar';
 import { SafeAreaView, ScrollView, View, Text, ActivityIndicator, Pressable } from 'react-native';
 import { QueryClient, QueryClientProvider, useQuery, useInfiniteQuery } from '@tanstack/react-query';
-import { upgradeCategories,selectedCategory,categoryName,categoryKey,movementDate,validDate, countLabel, pendingMailMessage, categoryExpenses, demoMovements, filterMovements, parseAmount, summarize, type Category,type Movement, type Currency, type MovementType } from '@flowsaldo/domain';
+import { prepareOccurrence,changeSince,previousMonth,upgradeCategories,selectedCategory,categoryName,categoryKey,movementDate,validDate, countLabel, pendingMailMessage, categoryExpenses, demoMovements, filterMovements, parseAmount, summarize, type RecurringTemplate,type Category,type Movement, type Currency, type MovementType } from '@flowsaldo/domain';
 import { styles as s, palette } from './src/theme';
 import { Button, Choice, Field } from './src/ui';
+import { MonthlyComparison } from './src/MonthlyComparison';
+import { RecurringPanel } from './src/RecurringPanel';
 import { CategoryManager } from './src/CategoryManager';
 import { CategoryBudgets,BudgetProgress } from './src/CategoryBudgets';
 import { MovementForm, type Draft, typeLabels } from './src/MovementForm';
@@ -21,8 +23,9 @@ const client=new QueryClient();
 const formatMoney=(minor:number,currency:Currency)=>`${currency} ${(minor/100).toLocaleString('es-DO',{minimumFractionDigits:2,maximumFractionDigits:2})}`;
 function currentMonth() { const d=new Date(); return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}`; }
 function shiftMonth(month:string,delta:number) { const [year,m]=month.split('-').map(Number); const d=new Date(year,m-1+delta,1);return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}`; }
-function initialData():LocalData { return {...upgradeCategories(demoMovements.map(m=>({...m,occurredAt:currentMonth()+m.occurredAt.slice(7)}))),categoryBudgets:{},budgets:{},reviews:demoReviews()}; }
+function initialData():LocalData { return {...upgradeCategories(demoMovements.map(m=>({...m,occurredAt:currentMonth()+m.occurredAt.slice(7)}))),recurring:[],receipts:[],categoryBudgets:{},budgets:{},reviews:demoReviews()}; }
 function Home({onAuth}:{onAuth:(route:AuthRoute)=>void}) {
+ const confirming=useRef(new Set<string>());
  const [preferences,setPreferences]=useState<Preferences>(defaultPreferences);
  useEffect(()=>{void loadPreferences().then(value=>{setPreferences(value);setCurrency(value.currency);}).catch(()=>setError('No se pudieron cargar las preferencias locales.'));},[]);
  const money=(minor:number,unit:Currency)=>preferences.hideAmounts?`${unit} ••••`:formatMoney(minor,unit);
@@ -48,6 +51,8 @@ function Home({onAuth}:{onAuth:(route:AuthRoute)=>void}) {
   return response.status===204?null:response.json();
  }
  const catalog=useQuery({queryKey:['categories',connected],enabled:connected,retry:false,queryFn:async():Promise<Category[]>=>request('/categories')});
+ const recurringQuery=useQuery({queryKey:['recurring',connected],enabled:connected,retry:false,queryFn:async():Promise<RecurringTemplate[]>=>request('/recurring')});
+ const recurring=connected?(recurringQuery.data??[]):local.recurring;
  const categoryCatalog=connected?(catalog.data??[]):local.categories;
  const catalogReady=!connected||catalog.isSuccess;
  const params=movementParams(month,currency,type,search,categoryFilter);
@@ -65,6 +70,8 @@ function Home({onAuth}:{onAuth:(route:AuthRoute)=>void}) {
  const period=filterMovements(local.movements,{currency,month});
  const visible=connected?(query.data?.pages.flatMap(p=>p.items)??[]):filterMovements(local.movements,{currency,month,type,search,categoryId:categoryFilter||undefined});
  const summary=connected?(totals.data??{incomeMinor:0,expenseMinor:0,differenceMinor:0}):summarize(period,currency);
+ const priorMonth=previousMonth(month);const priorSummary=summarize(filterMovements(local.movements,{currency,month:priorMonth}),currency);
+ const comparison=connected?totals.data?.comparison:{previousMonth:priorMonth,income:changeSince(summary.incomeMinor,priorSummary.incomeMinor),expense:changeSince(summary.expenseMinor,priorSummary.expenseMinor)};
  const categories=connected?(totals.data?.categories??[]):categoryExpenses(period);
  async function refreshMovements(){await Promise.all([client.invalidateQueries({queryKey:['movements']}),client.invalidateQueries({queryKey:['summary']})]);}
  async function exportAll(){
@@ -97,6 +104,34 @@ function Home({onAuth}:{onAuth:(route:AuthRoute)=>void}) {
   if(value===null)delete budgets[key];else budgets[key]=value;
   await persist({...localRef.current,categoryBudgets:budgets});
  }
+ async function saveRecurring(draft:Draft,id?:string){
+  const data={description:draft.description,amountMinor:draft.amountMinor,currency:draft.currency,type:draft.type,categoryId:draft.categoryId,category:draft.category};
+  if(connected){await request(id?`/recurring/${id}`:'/recurring',{method:id?'PATCH':'POST',body:JSON.stringify({...data,...(id?{}:{startDate:draft.occurredAt.slice(0,10)})})});await recurringQuery.refetch();}
+  else {
+   const existing=localRef.current.recurring.find(t=>t.id===id);
+   const category=selectedCategory(localRef.current.categories,draft.categoryId??undefined,draft.category,existing?{...existing,occurredAt:existing.nextDate+'T12:00:00.000Z'}:undefined);
+   const startDate=draft.occurredAt.slice(0,10);
+   const item:RecurringTemplate={...data,...category,version:existing?existing.version+1:0,id:id??`recurring-${Date.now()}-${Math.random().toString(36).slice(2)}`,startDate:existing?.startDate??startDate,nextDate:existing?.nextDate??startDate,anchorDay:existing?.anchorDay??Number(startDate.slice(8)),active:existing?.active??true};
+   await persist({...localRef.current,recurring:id?localRef.current.recurring.map(t=>t.id===id?item:t):[...localRef.current.recurring,item]});
+  }
+  setCurrency(draft.currency);
+ }
+ async function toggleRecurring(id:string,active:boolean){
+  if(connected){await request(`/recurring/${id}`,{method:'PATCH',body:JSON.stringify({active})});await recurringQuery.refetch();}
+  else await persist({...localRef.current,recurring:localRef.current.recurring.map(t=>t.id===id?{...t,active,version:t.version+1}:t)});
+ }
+ async function confirmRecurring(template:RecurringTemplate){
+  const key=JSON.stringify([template.id,template.nextDate]);if(confirming.current.has(key))throw new Error('Este vencimiento ya se está procesando.');
+  confirming.current.add(key);try{
+  if(connected){await request(`/recurring/${template.id}/confirm`,{method:'POST',body:JSON.stringify({scheduledFor:template.nextDate,expectedVersion:template.version})});await Promise.all([recurringQuery.refetch(),refreshMovements()]);}
+  else {
+   const existing=localRef.current.recurring.find(t=>t.id===template.id);if(!existing)throw new Error('Plantilla no encontrada.');if(existing.version!==template.version)throw new Error('La plantilla cambió. Revisa sus datos antes de confirmar.');
+   const occurrence=prepareOccurrence(existing,template.nextDate,new Date().toISOString().slice(0,10),localRef.current.receipts);
+   const movement:Movement={...occurrence.movement,...selectedCategory(localRef.current.categories,existing.categoryId,existing.category),id:`occurrence-${Date.now()}-${Math.random().toString(36).slice(2)}`};
+   await persist({...localRef.current,movements:[movement,...localRef.current.movements],recurring:localRef.current.recurring.map(t=>t.id===existing.id?{...t,nextDate:occurrence.nextDate,version:t.version+1}:t),receipts:[...localRef.current.receipts,{templateId:existing.id,scheduledFor:template.nextDate,movementId:movement.id}]});
+  }
+  }finally{confirming.current.delete(key);}
+ }
  async function action(work:()=>Promise<void>) {setBusy(true);setError('');setNotice('');try{await work();}catch(e){setError(e instanceof Error?e.message:'No se pudo completar la acción.');}finally{setBusy(false);}}
  async function saveMovement(draft:Draft) {
   const edit=editor&&editor!=='new'?editor:null;
@@ -106,7 +141,7 @@ function Home({onAuth}:{onAuth:(route:AuthRoute)=>void}) {
  }
  async function remove(id:string) {
   if(connected){await request(`/movements/${id}`,{method:'DELETE'});await refreshMovements();}
-  else await persist({...localRef.current,movements:localRef.current.movements.filter(m=>m.id!==id)});
+  else await persist({...localRef.current,movements:localRef.current.movements.filter(m=>m.id!==id),receipts:localRef.current.receipts.map(r=>r.movementId===id?{...r,movementId:null}:r),reviews:localRef.current.reviews.map(r=>r.movement?.id===id?{...r,movement:null}:r)});
   setDeleteId(null);setNotice('Movimiento eliminado.');
  }
  async function resolveReview(id:string,draft:Draft) {
@@ -114,7 +149,7 @@ function Home({onAuth}:{onAuth:(route:AuthRoute)=>void}) {
   else {
    const review=localRef.current.reviews.find(i=>i.id===id);
    if(review?.status!=='REVIEW') throw new Error('Este correo ya fue revisado.');
-   await persist({...localRef.current,movements:[{...draft,...selectedCategory(localRef.current.categories,draft.categoryId??undefined,draft.category),id:`reviewed-${id}`},...localRef.current.movements],reviews:localRef.current.reviews.map(i=>i.id===id?{...i,status:'PARSED' as const,body:''}:i)});
+   await persist({...localRef.current,movements:[{...draft,...selectedCategory(localRef.current.categories,draft.categoryId??undefined,draft.category),id:`reviewed-${id}`},...localRef.current.movements],reviews:localRef.current.reviews.map(i=>i.id===id?{...i,status:'PARSED' as const,body:'',movement:{id:`reviewed-${id}`}}:i)});
   }
   setNotice('Revisión confirmada. Movimiento registrado.');
  }
@@ -143,6 +178,7 @@ function Home({onAuth}:{onAuth:(route:AuthRoute)=>void}) {
     <View style={s.hero}><Text style={s.white}>Diferencia registrada · {month}</Text><Text style={s.heroValue}>{money(summary.differenceMinor,currency)}</Text><Text style={s.white}>Ingresos menos gastos. No equivale al saldo del banco.</Text></View>
     <View style={s.metrics}><View style={s.metric}><Text style={s.muted}>Ingresos</Text><Text style={s.income}>{money(summary.incomeMinor,currency)}</Text></View><View style={s.metric}><Text style={s.muted}>Gastos</Text><Text style={s.expense}>{money(summary.expenseMinor,currency)}</Text></View><View style={s.metric}><Text style={s.muted}>Movimientos</Text><Text style={s.amount}>{connected?totals.data?.total:period.length}</Text></View></View>
     {pending>0&&<View style={[s.card,{borderColor:'#53412b'}]}><View style={s.between}><Text style={s.text}>{pendingMailMessage(pending)}</Text><Button label="Ir a revisiones" onPress={()=>setScreen('Por revisar')}/></View><Text style={s.muted}>Revisa los datos antes de incorporarlos a tus movimientos.</Text></View>}
+    {comparison&&<MonthlyComparison comparison={comparison} money={money} currency={currency}/>}
     {preferences.hideAmounts?<View style={s.card}><Text style={s.muted}>Flujo semanal oculto por tu preferencia de privacidad.</Text></View>:<WeeklyFlow rows={period} month={month} currency={currency} days={connected?totals.data?.days:undefined}/>}
     <View style={s.card}><Text style={s.title}>Tu presupuesto mensual</Text><Text style={s.muted}>Límite de gastos para {month} en {currency}. Guardado en este dispositivo para el modo actual.</Text>
      {budget>0&&<BudgetProgress spent={summary.expenseMinor} limit={budget} money={money} currency={currency}/>}
@@ -150,7 +186,7 @@ function Home({onAuth}:{onAuth:(route:AuthRoute)=>void}) {
      <View style={s.row}><Button label="Guardar presupuesto" disabled={busy} onPress={()=>void action(async()=>{const value=parseAmount(budgetInput);await persist({...localRef.current,budgets:{...localRef.current.budgets,[budgetKey]:value}});setBudgetInput('');setNotice('Presupuesto guardado.');})}/>{budget>0&&<Button label="Quitar límite" disabled={busy} onPress={()=>void action(async()=>{const budgets={...localRef.current.budgets};delete budgets[budgetKey];await persist({...localRef.current,budgets});})}/>}</View>
     </View>
     {catalogReady&&<CategoryBudgets key={budgetKey} items={categoryCatalog} budgets={categoryBudgets} expenses={categoryTotals} onSave={saveCategoryBudget} money={money} currency={currency}/>}
-    <View style={s.card}><Text style={s.title}>¿En qué estás gastando?</Text>{!categories.length&&<Text style={s.muted}>Todavía no hay gastos este mes en esta moneda.</Text>}{categories.map(c=><View key={c.category} style={{gap:8}}><View style={s.between}><Text style={s.text}>{c.category}</Text><Text style={s.text}>{money(c.amountMinor,currency)}</Text></View><View style={s.track}><View style={[s.fill,{width:`${Math.round(c.amountMinor/summary.expenseMinor*100)}%`}]}/></View></View>)}</View>
+    <View style={s.card}><Text style={s.title}>Principales categorías de gastos</Text>{!categories.length&&<Text style={s.muted}>Todavía no hay gastos este mes en esta moneda.</Text>}{categories.slice(0,5).map(c=><View key={c.category} style={{gap:8}}><View style={s.between}><Text style={s.text}>{c.category}</Text><Text style={s.text}>{money(c.amountMinor,currency)}</Text></View><View style={s.track}><View style={[s.fill,{width:`${Math.round(c.amountMinor/summary.expenseMinor*100)}%`}]}/></View></View>)}</View>
     <Text style={s.muted}>Las transferencias propias se excluyen de ingresos y gastos. Los indicadores incluyen todos los movimientos del mes y la moneda seleccionados.</Text>
    </>}
    {screen==='Movimientos'&&<>
@@ -165,6 +201,8 @@ function Home({onAuth}:{onAuth:(route:AuthRoute)=>void}) {
      {deleteId===m.id&&<><Text style={s.error}>¿Eliminar este movimiento? Esta acción no se puede deshacer.</Text><View style={s.row}><Button label="Confirmar eliminación" disabled={busy} onPress={()=>void action(()=>remove(m.id))}/><Button label="Cancelar eliminación" disabled={busy} onPress={()=>setDeleteId(null)}/></View></>}
     </View>)}
    </>}
+   {screen==='Movimientos'&&catalogReady&&(!connected||recurringQuery.isSuccess)&&<RecurringPanel key={currency} items={recurring.filter(t=>t.currency===currency)} categories={categoryCatalog} currency={currency} month={month} onSave={saveRecurring} onToggle={toggleRecurring} onConfirm={confirmRecurring} money={money}/>}
+   {screen==='Movimientos'&&connected&&recurringQuery.error&&<View style={s.card}><Text style={s.error}>No se pudieron cargar las plantillas.</Text><Button label="Reintentar plantillas" onPress={()=>void recurringQuery.refetch()}/></View>}
    {screen==='Movimientos'&&connected&&query.hasNextPage&&<Button label={query.isFetchingNextPage?'Cargando movimientos…':'Cargar más movimientos'} disabled={query.isFetching} onPress={()=>void query.fetchNextPage()}/>}
    {screen==='Configuración'&&catalogReady&&<CategoryManager items={categoryCatalog} onSave={saveCategory} onArchive={archiveCategory}/>}
    {screen==='Configuración'&&<AccountSettings preferences={preferences} onAuth={onAuth} onSave={async value=>{await savePreferences(value);setPreferences(value);setCurrency(value.currency);}}/>}
@@ -177,7 +215,7 @@ function Home({onAuth}:{onAuth:(route:AuthRoute)=>void}) {
     {connected&&imports.isFetching&&<ActivityIndicator color={palette.primary}/>}
     {connected&&imports.error&&<Text style={s.error}>{imports.error.message}</Text>}
     {connected&&<Button label="Actualizar revisiones" onPress={()=>void imports.refetch()}/>}
-    {!reviewDateError&&(!connected||imports.isSuccess)&&<ReviewInbox categories={categoryCatalog} key={reviewParams} total={connected?imports.data?.pages[0]?.total:reviews.length} showHistory={reviewStatus!=='REVIEW'} items={reviews} month={month} currency={currency} onResolve={resolveReview} onDiscard={discardReview} onOriginal={async id=>(await request(`/imports/${id}`)).body}/>}
+    {!reviewDateError&&(!connected||imports.isSuccess)&&<ReviewInbox money={money} onMovement={async id=>connected?request(`/movements/${id}`):(localRef.current.movements.find(m=>m.id===id)??null)} categories={categoryCatalog} key={reviewParams} total={connected?imports.data?.pages[0]?.total:reviews.length} showHistory={reviewStatus!=='REVIEW'} items={reviews} month={month} currency={currency} onResolve={resolveReview} onDiscard={discardReview} onOriginal={async id=>(await request(`/imports/${id}`)).body}/>}
    </>}
    {screen==='Por revisar'&&connected&&imports.hasNextPage&&<Button label={imports.isFetchingNextPage?'Cargando revisiones…':'Cargar más revisiones'} disabled={imports.isFetching} onPress={()=>void imports.fetchNextPage()}/>}
    {screen==='Conexiones'&&<>
@@ -190,7 +228,7 @@ function Home({onAuth}:{onAuth:(route:AuthRoute)=>void}) {
     </View>
     {connected&&<View style={s.card}><Text style={s.title}>Laboratorio de correo sintético</Text><Text style={s.muted}>Envía un aviso de prueba al worker. Un formato desconocido aparecerá en Por revisar cuando el worker lo procese.</Text><Field label="Identificador del correo de prueba" value={sampleId} onChangeText={setSampleId} maxLength={200}/><Field label="Contenido sintético" value={sampleBody} onChangeText={setSampleBody} maxLength={10000} multiline/><Button label="Encolar correo de prueba" disabled={busy||!sampleId.trim()||!sampleBody.trim()} onPress={()=>void action(async()=>{await request('/imports',{method:'POST',body:JSON.stringify({externalId:sampleId.trim(),body:sampleBody})});await client.invalidateQueries({queryKey:['imports']});setNotice('Correo encolado. Espera al worker y actualiza revisiones.');})}/></View>}
     <View style={s.card}><Text style={s.title}>Datos de demostración</Text><Text style={s.muted}>Restablece movimientos y presupuestos locales. Los datos de PostgreSQL no se eliminan.</Text><Button label={resetConfirm?'Confirmar restablecimiento local':'Restablecer demo'} disabled={busy||connected} onPress={()=>resetConfirm?void action(reset):setResetConfirm(true)}/>{resetConfirm&&<Button label="Cancelar restablecimiento" onPress={()=>setResetConfirm(false)}/>}</View>
-    <View style={s.card}><Text style={s.title}>FlowSaldo 0.5</Text><Text style={s.muted}>Dark Slate, esmeralda y cian, según DESIGN.md. Una base personal para aprender, registrar y revisar tus movimientos. La sincronización bancaria, OAuth y conciliación siguen pendientes.</Text></View>
+    <View style={s.card}><Text style={s.title}>FlowSaldo 0.6</Text><Text style={s.muted}>Dark Slate, esmeralda y cian, según DESIGN.md. Una base personal para aprender, registrar y revisar tus movimientos. La sincronización bancaria, OAuth y conciliación siguen pendientes.</Text></View>
    </>}
   </>}
  </ScrollView>

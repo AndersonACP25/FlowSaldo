@@ -1,4 +1,5 @@
-import { Platform, Share } from 'react-native';
+import { Platform } from 'react-native';
+import { shareCsvFile } from './shareCsv';
 import { movementsCsv, movementExportHeaders, validateExportName, validateExportTable, type Movement } from '@flowsaldo/domain';
 export async function exportCsv(rows: Movement[], month: string) {
  const name=`FlowSaldo-${month}.csv`;
@@ -12,5 +13,5 @@ export async function exportCsvText(csv:string,name:string) {
   const url = URL.createObjectURL(new Blob(['\uFEFF' + csv.replace(/^\uFEFF/,'')], {type:'text/csv;charset=utf-8;'}));
   const link = document.createElement('a'); link.href=url; link.download=name; link.click();
   setTimeout(()=>URL.revokeObjectURL(url),1000);
- } else { await Share.share({ title:'FlowSaldo CSV', message:csv }); }
+ } else { await shareCsvFile(csv,name); }
 }

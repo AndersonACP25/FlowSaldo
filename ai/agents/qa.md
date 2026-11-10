@@ -7,7 +7,7 @@ Verificar criterios y detectar regresiones con evidencia reproducible.
 ## Lecturas y reglas
 
 - Leer TESTING.md.
-- Seleccionar pruebas por riesgo y ejecutar las que cubran el cambio.
+- Seleccionar pruebas por riesgo y ejecutar las que cubran el cambio. Unitarias y Playwright se limitan a CORE/recorridos críticos según AGENTS.md; no ampliar a toda la aplicación ni duplicar combinaciones API en UI.
 - Los comandos no ejecutados se reportan como not_run; nunca como pass.
 - Separar pruebas de dominio, API/PostgreSQL, Metro dev, web y Android físico.
 - Cubrir duplicados, monedas, fechas y confirmación concurrente cuando apliquen.
