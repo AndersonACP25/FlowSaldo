@@ -83,7 +83,10 @@
 
 ### 4. Navegación Global (Shell)
 - **Header**: Logo tipográfico FlowSaldo con glifo distintivo cian/esmeralda, indicador de estado de conexión activo y avatar de usuario.
-- **Bottom Navigation Bar**: 4 accesos fijos (`Panel`, `Movimientos`, `Por Revisar` con badge de conteo pendiente en rojo/rosa, y `Conexiones`).
+- **Bottom Navigation Bar**: 4 accesos fijos (`Inicio`, `Movimientos`, `Por revisar` con badge de conteo pendiente en rojo/rosa, y `Conexiones`).
+- **Inicio** muestra el resumen mensual. Presupuestos y Análisis se abren desde Inicio y conservan el mes y la moneda seleccionados.
+- **Configuración** abre una pantalla independiente desde el avatar. Volver restaura la pestaña anterior.
+- **Marca** usa el símbolo de barras y flecha de `apps/mobile/assets/flowsaldo.svg` en la portada, el acceso, el encabezado, el favicon y el icono de Android.
 
 ## 6. Extensiones v0.5
 

@@ -1,0 +1,20 @@
+.brand-mark {
+  align-items: center;
+  color: #fff;
+  display: flex;
+  gap: 10px;
+}
+
+.brand-mark__name {
+  font-size: 22px;
+  font-weight: 800;
+}
+
+.brand-mark--cover {
+  flex-direction: column;
+  gap: 18px;
+}
+
+.brand-mark--cover .brand-mark__name {
+  font-size: 36px;
+}

@@ -118,6 +118,7 @@ Aplicar `20261110030000_personal_access`: crea AppOwner singleton (id=1), Access
 | POST | /auth/setup | Authorization Bearer DEV_API_TOKEN, cuerpo name/email/password; 201 con owner; 409 si ya existe; singleton protegido también contra creación concurrente |
 | POST | /auth/login | Público, email/password; 200 con token, expiresAt, sessionId y owner; error genérico 401; rate limit 429 |
 | GET | /auth/me | Sesión vigente; owner, expiresAt, sessionId |
+| PATCH | /auth/me | Sesión vigente y contraseña actual; cuerpo name/email/currentPassword; 200 con owner actualizado. El correo se normaliza y se usa en el siguiente acceso. |
 | POST | /auth/logout | Sesión vigente; revoca la actual, 204 |
 | GET | /auth/sessions | Sesión vigente; solo id/createdAt/expiresAt/current, nunca token ni hash |
 | POST | /auth/sessions/revoke-others | Sesión vigente; revoca otras, devuelve revoked |

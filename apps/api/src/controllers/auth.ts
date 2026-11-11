@@ -5,6 +5,7 @@ import {db} from '@flowsaldo/database';
 export class AuthError extends Error{constructor(message:string,public status=401){super(message);}}
 const publicOwner={id:true,name:true,email:true} as const;
 const password=z.string().min(15).max(128);
+const name=z.string().trim().min(1).max(60);
 const email=z.string().trim().email().max(120).transform(v=>v.toLowerCase());
 const sessionLifetime=24*60*60*1000;
 export const tokenDigest=(token:string)=>createHash('sha256').update(token).digest('hex');
@@ -46,7 +47,7 @@ export function createAuth(bootstrapSecret:string){
  publicRoutes.get('/auth/status',async(_req,res)=>res.json({configured:!!await db.appOwner.findUnique({where:{id:1},select:{id:true}})}));
  publicRoutes.post('/auth/setup',throttle('setup',5),async(req,res)=>{
   if(!bootstrapMatches(bearer(req.headers.authorization),bootstrapSecret))throw new AuthError('Token de configuración no válido.');
-  const data=z.object({name:z.string().trim().min(1).max(60),email,password}).parse(req.body);
+  const data=z.object({name,email,password}).parse(req.body);
   if(await db.appOwner.findUnique({where:{id:1},select:{id:true}}))throw new AuthError('Esta instalación ya tiene una cuenta personal.',409);
   const passwordHash=await hashPassword(data.password);
   try{const owner=await db.appOwner.create({data:{id:1,name:data.name,email:data.email,passwordHash},select:publicOwner});res.status(201).json({owner});}
@@ -83,6 +84,19 @@ export function createAuth(bootstrapSecret:string){
  });
  sessionRoutes.use('/auth',requireSession);
  sessionRoutes.get('/auth/me',(_req,res)=>{const s=res.locals.accessSession;res.json({owner:s.owner,expiresAt:s.expiresAt,sessionId:s.id});});
+ sessionRoutes.patch('/auth/me',throttle('profile',5),async(req,res)=>{
+  const {name:displayName,email:address,currentPassword}=z.object({name,email,currentPassword:z.string().min(1).max(128)}).strict().parse(req.body);
+  const session=res.locals.accessSession;
+  const existing=await db.appOwner.findUniqueOrThrow({where:{id:session.owner.id}});
+  if(!await verify(currentPassword,existing.passwordHash))throw new AuthError('La contraseña actual no es correcta.');
+  const owner=await db.$transaction(async tx=>{
+   const result=await tx.appOwner.updateMany({where:{id:existing.id,passwordHash:existing.passwordHash,
+    sessions:{some:{id:session.id,revokedAt:null,expiresAt:{gt:new Date()}}}},data:{name:displayName,email:address}});
+   if(!result.count)throw new AuthError('La sesión cambió. Inicia sesión nuevamente.');
+   return tx.appOwner.findUniqueOrThrow({where:{id:existing.id},select:publicOwner});
+  });
+  res.json({owner});
+ });
  sessionRoutes.post('/auth/logout',async(_req,res)=>{await db.accessSession.updateMany({where:{id:res.locals.accessSession.id,revokedAt:null},data:{revokedAt:new Date()}});res.status(204).end();});
  sessionRoutes.get('/auth/sessions',async(_req,res)=>{const sessions=await db.accessSession.findMany({where:{ownerId:1,revokedAt:null,expiresAt:{gt:new Date()}},select:{id:true,createdAt:true,expiresAt:true},orderBy:{createdAt:'desc'}});res.json(sessions.map(s=>({...s,current:s.id===res.locals.accessSession.id})));});
  sessionRoutes.post('/auth/sessions/revoke-others',async(_req,res)=>{const result=await db.accessSession.updateMany({where:{ownerId:1,id:{not:res.locals.accessSession.id},revokedAt:null},data:{revokedAt:new Date()}});res.json({revoked:result.count});});

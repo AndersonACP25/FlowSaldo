@@ -24,6 +24,9 @@ export async function checkCoreFlows(browser) {
   await page.reload({waitUntil:'networkidle'});await loginAsTestAccount(page);await button('Movimientos').click();
   await page.getByLabel('Buscar descripción o categoría',{exact:true}).fill('Compra CORE');await page.getByText('1 movimiento',{exact:true}).waitFor();
   const waiting=page.waitForEvent('download');await button('Exportar CSV').click();const file=await waiting;assert.equal(file.suggestedFilename(),`FlowSaldo-${month}.csv`);
+  await button('Configuración').getByText('UD',{exact:true}).waitFor();
+  await button('Cerrar sesión').click();
+  await page.getByText('Iniciar sesión',{exact:true}).waitFor();
   const csv=parseCsv(await readFile(await file.path(),'utf8'));assert.equal(csv.length,2);assert.equal(csv[1][3],'100.29');assert.equal(csv[1][4],'Compra CORE');
  });
  const legacy={movements:[],budgets:{},reviews:[{id:'review-core',externalId:'Aviso CORE',status:'REVIEW',reason:'Revisar importe',body:'Aviso sintético',suggestion:{id:'suggestion',description:'Compra revisada CORE',amountMinor:1250,currency:'DOP',type:'EXPENSE',category:'Servicios',occurredAt:today+'T12:00:00.000Z'}}]};
@@ -35,7 +38,7 @@ export async function checkCoreFlows(browser) {
   assert.equal((await stored()).movements.length,1);assert.equal((await stored()).receipts.length,1);
   await page.reload({waitUntil:'networkidle'});await loginAsTestAccount(page);await button('Movimientos').click();assert.ok(await button('Registrar vencimiento Alquiler CORE').isDisabled());
   await button('Por revisar').click();await button('Revisar y confirmar').click();await button('Guardar movimiento').click();await page.getByText('Revisión confirmada. Movimiento registrado.',{exact:true}).waitFor();
-  await button('Confirmados').click();await button('Ver movimiento generado').click();await page.getByText('Movimiento generado',{exact:true}).waitFor();await page.getByText(/Referencia: reviewed-review-core/).waitFor();
+  await button('Confirmados').click();assert.equal(await button('Confirmados').getAttribute('aria-pressed'),'true');await button('Ver movimiento generado').click();await page.getByText('Movimiento generado',{exact:true}).waitFor();await page.getByText(/Referencia: reviewed-review-core/).waitFor();
   assert.equal((await stored()).movements.length,2);
  },legacy);
  if(!process.env.EXPO_PUBLIC_API_URL)throw new Error('Exporta con EXPO_PUBLIC_API_URL para el recorrido CORE API.');

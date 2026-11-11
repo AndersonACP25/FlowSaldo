@@ -6,7 +6,11 @@
     "orientation": "portrait",
     "userInterfaceStyle": "dark",
     "android": {
-      "package": "com.andersonacp.flowsaldo"
+      "package": "com.andersonacp.flowsaldo",
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/adaptive-icon.png",
+        "backgroundColor": "#101d28"
+      }
     },
     "plugins": [
       "expo-secure-store"
@@ -16,6 +20,10 @@
       "eas": {
         "projectId": "a87c673f-62bd-49ed-b84c-63fe190098e0"
       }
+    },
+    "icon": "./assets/icon.png",
+    "web": {
+      "favicon": "./assets/favicon.png"
     }
   }
 }

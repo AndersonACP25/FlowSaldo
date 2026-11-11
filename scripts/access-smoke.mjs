@@ -26,6 +26,14 @@ export async function checkPersonalAccess(bootstrapToken,connectionString){
   const stored=await db.accessSession.findUniqueOrThrow({where:{id:first.sessionId}});assert.equal(stored.tokenHash,digest(first.token));assert.notEqual(stored.tokenHash,first.token);
   const sessions=await (await call('/auth/sessions',undefined,first.token)).json();assert.equal(sessions.length,2);assert.equal(sessions.filter(s=>s.current).length,1);assert.ok(sessions.every(s=>!('tokenHash' in s)&&!('token' in s)));
   assert.equal((await call('/auth/sessions/revoke-others',{},first.token)).status,200);assert.equal((await call('/movements',undefined,second.token)).status,401);assert.equal((await call('/auth/me',undefined,first.token)).status,200);
+  const profile={name:'Perfil actualizado',email:credentials.email.toUpperCase(),currentPassword:credentials.password};
+  assert.equal((await call('/auth/me',profile,second.token,'PATCH')).status,401);
+  assert.equal((await call('/auth/me',{...profile,currentPassword:'wrong'},first.token,'PATCH')).status,401);
+  const edit=await call('/auth/me',profile,first.token,'PATCH');
+  assert.equal(edit.status,200);
+  const expected={id:1,name:profile.name,email:credentials.email};
+  assert.deepEqual(await edit.json(),{owner:expected});
+  assert.deepEqual((await (await call('/auth/me',undefined,first.token)).json()).owner,expected);
   await checkNativeTls(first.token,second.token);
   assert.equal((await call('/auth/password',{currentPassword:credentials.password,newPassword:nextPassword},first.token)).status,204);
   assert.equal((await call('/auth/me',undefined,first.token)).status,401);assert.equal((await call('/auth/login',{email:credentials.email,password:credentials.password})).status,401);

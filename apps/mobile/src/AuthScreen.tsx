@@ -1,5 +1,7 @@
 import React,{useState} from 'react';
 import {SafeAreaView,ScrollView,Text,View} from 'react-native';
+import {BrandMark} from './BrandMark';
+import {topInset} from './ScreenChrome';
 import {StatusBar} from 'expo-status-bar';
 import {Button,Field,Choice} from './ui';
 import {styles as s} from './theme';
@@ -15,8 +17,8 @@ export function AuthScreen({route,onRoute,onTestLogin,onSession,onRecovered,noti
   else if(isTestAccount(email,password)){setPassword('');onTestLogin();}
   else {const session:PersonalSession=await accessRequest('/auth/login',{email,password});setPassword('');await onSession(session);}
  }catch(e){setError(e instanceof Error?e.message:'No se pudo completar el acceso.');}finally{setBusy(false);}}
- return <SafeAreaView style={s.root}><StatusBar style="light"/><ScrollView keyboardShouldPersistTaps="handled" contentContainerStyle={[s.content,{maxWidth:520,paddingTop:48}]}>
- <Text style={s.brand}>FlowSaldo ⤴</Text><Text style={s.muted}>Tus finanzas, en orden.</Text>
+ return <SafeAreaView style={s.root}><StatusBar style="light"/><ScrollView keyboardShouldPersistTaps="handled" contentContainerStyle={[s.content,{maxWidth:520,paddingTop:topInset+32}]}>
+ <BrandMark/><Text style={s.muted}>Tus finanzas, en orden.</Text>
  <View style={s.banner}><Text style={s.text}>Acceso personal</Text><Text style={s.muted}>Una cuenta por instalación. El proyecto sigue usando datos ficticios; las conexiones bancarias y la recuperación por correo están pendientes.</Text></View>
  {!!notice&&<Text style={s.muted}>{notice}</Text>}
  <View style={s.card}><Text style={s.title}>{register?'Registro':recover?'Recuperar cuenta':'Iniciar sesión'}</Text>

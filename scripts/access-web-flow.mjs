@@ -9,7 +9,7 @@ export async function checkAccessFlow(browser){
  const button=name=>page.getByRole('button',{name,exact:true});
  const errors=[];page.on('pageerror',e=>errors.push(e.message));
  await page.route(process.env.EXPO_PUBLIC_API_URL+'/**',async route=>{
-  const url=new URL(route.request().url());const headers={'Access-Control-Allow-Origin':'*','Access-Control-Allow-Headers':'authorization,content-type'};
+  const url=new URL(route.request().url());const headers={'Access-Control-Allow-Origin':'*','Access-Control-Allow-Headers':'authorization,content-type','Access-Control-Allow-Methods':'GET,POST,PATCH,OPTIONS'};
   if(route.request().method()==='OPTIONS'){await route.fulfill({headers,status:204});return;}
   let data;
   if(url.pathname==='/auth/setup'){
@@ -22,6 +22,11 @@ export async function checkAccessFlow(browser){
   }else if(url.pathname==='/auth/recover'){const body=route.request().postDataJSON();assert.equal(body.code,recoveryCode);assert.equal(body.newPassword,recoveredPassword);recovered=true;await route.fulfill({headers,status:204});return;}else if(url.pathname==='/auth/recovery-codes'){data={codes:[recoveryCode],expiresAt:new Date(Date.now()+86400000).toISOString()};}
   else if(url.pathname==='/auth/data/retention/preview'){data={previewId:'synthetic-preview',cutoff:new Date().toISOString(),reviewBodies:1,failedBodies:0,hasMore:false,totalEligible:1,lastCleanup:null};}
   else if(url.pathname==='/auth/data/retention/apply'){const body=route.request().postDataJSON();assert.equal(body.previewId,'synthetic-preview');assert.equal(body.confirmation,'ELIMINAR CONTENIDO');assert.equal(body.currentPassword,password);data={reviewBodies:1,failedBodies:0};}
+  else if(url.pathname==='/auth/me'&&route.request().method()==='PATCH'){
+   assert.equal(route.request().headers().authorization,'Bearer '+token);
+   const body=route.request().postDataJSON();assert.equal(body.currentPassword,password);
+   owner.name=body.name;owner.email=body.email;data={owner};
+  }
   else if(url.pathname==='/auth/password'){assert.equal(route.request().postDataJSON().newPassword,updated);changed=true;await route.fulfill({headers,status:204});return;}
   else if(url.pathname==='/auth/logout'){assert.equal(route.request().headers().authorization,'Bearer '+(changed?nextToken:token));loggedOut=true;await route.fulfill({headers,status:204});return;}
   else if(url.pathname==='/budgets')data={version:0,limitMinor:null,categoryLimits:[]};
@@ -47,9 +52,16 @@ export async function checkAccessFlow(browser){
   await page.getByText('Cuenta personal creada. Ahora inicia sesión.',{exact:true}).waitFor();
   await button('Ir a iniciar sesión').click();
   await page.getByLabel('Correo electrónico',{exact:true}).fill(owner.email);await page.getByLabel('Contraseña',{exact:true}).fill('Incorrect-Synthetic-Passphrase');await button('Entrar').click();await page.getByText('Correo o contraseña incorrectos.',{exact:true}).waitFor();
-  await page.getByLabel('Contraseña',{exact:true}).fill(password);await button('Entrar').click();await page.getByText('Tu presupuesto mensual',{exact:true}).waitFor();
+  await page.getByLabel('Contraseña',{exact:true}).fill(password);await button('Entrar').click();await page.getByRole('button',{name:'Ver presupuestos',exact:true}).waitFor();
   const persisted=await page.evaluate(()=>JSON.stringify({local:{...localStorage},session:{...sessionStorage}}));assert.ok(!persisted.includes(token)&&!persisted.includes(password),'Browser credentials stay out of web storage');
   await button('Configuración').click();await page.getByText('Cuenta personal',{exact:true}).waitFor();
+  await button('Editar perfil').click();
+  await page.getByLabel('Nombre de la cuenta',{exact:true}).fill('Anderson Castillo');
+  await page.getByLabel('Correo de la cuenta',{exact:true}).fill('nuevo@correo.test');
+  await page.getByLabel('Contraseña actual para editar perfil',{exact:true}).fill(password);
+  await button('Guardar perfil').click();await page.getByText('Perfil actualizado.',{exact:true}).waitFor();
+  await page.getByText('Anderson Castillo · nuevo@correo.test',{exact:true}).waitFor();
+  await button('Volver').click();await button('Configuración').getByText('AC',{exact:true}).waitFor();await button('Configuración').click();
   await page.getByLabel('Contraseña para gestionar códigos',{exact:true}).fill(password);await button('Generar códigos de recuperación').click();await page.getByText(recoveryCode,{exact:true}).waitFor();assert.ok(!(await page.evaluate(()=>JSON.stringify({...localStorage,...sessionStorage}))).includes(recoveryCode));await button('Ocultar códigos').click();
   await button('Previsualizar limpieza').click();await page.getByText('Por revisar: 1 · Con error: 0',{exact:true}).waitFor();assert.equal(await button('Confirmar limpieza de contenido').isDisabled(),true);await page.getByLabel('Contraseña para confirmar limpieza',{exact:true}).fill(password);await page.getByLabel('Escribe ELIMINAR CONTENIDO',{exact:true}).fill('ELIMINAR CONTENIDO');await button('Confirmar limpieza de contenido').click();await page.getByText('Contenido eliminado: 1 por revisar y 0 con error. Movimientos conservados.',{exact:true}).waitFor();
   await button('Cerrar sesión').click();await page.getByText('Sesión cerrada.',{exact:true}).waitFor();
