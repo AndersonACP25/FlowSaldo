@@ -36,6 +36,8 @@ pnpm dlx eas-cli@latest build --platform android --profile preview
 
 Si EAS solicita credenciales de firma, usa las del proyecto Android existente o deja que EAS genere la primera clave. Conserva la misma clave para actualizar el APK sobre una instalación previa. El perfil `preview` de `eas.json` genera un APK. El perfil `production` genera un AAB para distribución.
 
+El perfil `preview` fija pnpm 10.34.7, la misma versión declarada por el workspace. Si un build anterior falló con `ERR_PNPM_IGNORED_BUILDS`, inicia un build desde el clon actualizado para que EAS lea este perfil. En los logs, comprueba que la versión de pnpm sea 10.34.7 y que `Install dependencies` termine correctamente antes de revisar la compilación de Android.
+
 Abre el enlace del build terminado en Android, descarga el APK e instálalo. Si Android lo solicita, permite instalar desde la app que abrió el archivo. Abre FlowSaldo sin Metro. Para un APK de demo, selecciona **Explorar demostración**. Para el piloto conectado, registra el build, el modelo y la versión de Android y ejecuta la siguiente lista.
 
 | Prueba | Resultado esperado |
