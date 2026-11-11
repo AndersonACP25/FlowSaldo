@@ -6,6 +6,10 @@
     "node": ">=24.11 <25"
   },
   "scripts": {
+    "dev": "node scripts/dev.mjs web",
+    "dev:android": "node scripts/dev.mjs android",
+    "dev:phone": "node scripts/dev.mjs go",
+    "db:setup": "pnpm db:generate && pnpm exec prisma migrate deploy --config packages/database/prisma.config.ts",
     "start": "node scripts/expo.mjs go",
     "web": "node scripts/expo.mjs web",
     "android": "node scripts/expo.mjs android",
@@ -19,7 +23,6 @@
     "lint": "eslint .",
     "test": "node --test packages/domain/test/core.test.ts",
     "check": "pnpm lint && pnpm typecheck && pnpm test && pnpm text:check && pnpm exports:test",
-    "dev:mobile": "pnpm start",
     "test:web": "node scripts/test-web.mjs",
     "test:dev": "node scripts/dev-smoke.mjs",
     "ai:validate": "node scripts/ai.mjs validate",

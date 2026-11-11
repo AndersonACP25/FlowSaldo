@@ -5,14 +5,18 @@ import {demoCategoryCatalog} from '../packages/domain/src/index.ts';
 export async function checkAccessFlow(browser){
  const context=await browser.newContext({viewport:{width:390,height:844}});const page=await context.newPage();page.setDefaultTimeout(10000);
  const owner={id:1,name:'Cuenta CORE',email:'owner@correo.test'};const token='fs_'+'a'.repeat(43);const nextToken='fs_'+'b'.repeat(43);
- const password='Synthetic-Passphrase-Initial-2026';const updated='Synthetic-Passphrase-Updated-2026';let changed=false;let recovered=false;let loggedOut=false;const recoveredPassword='Synthetic-Recovered-Passphrase-2026';const recoveryCode='fr_'+'c'.repeat(32);
+ const password='Synthetic-Passphrase-Initial-2026';const updated='Synthetic-Passphrase-Updated-2026';const setupToken='synthetic-registration-token-2026';let changed=false;let recovered=false;let loggedOut=false;const recoveredPassword='Synthetic-Recovered-Passphrase-2026';const recoveryCode='fr_'+'c'.repeat(32);
  const button=name=>page.getByRole('button',{name,exact:true});
  const errors=[];page.on('pageerror',e=>errors.push(e.message));
  await page.route(process.env.EXPO_PUBLIC_API_URL+'/**',async route=>{
   const url=new URL(route.request().url());const headers={'Access-Control-Allow-Origin':'*','Access-Control-Allow-Headers':'authorization,content-type'};
   if(route.request().method()==='OPTIONS'){await route.fulfill({headers,status:204});return;}
   let data;
-  if(url.pathname==='/auth/login'){
+  if(url.pathname==='/auth/setup'){
+   assert.equal(route.request().headers().authorization,'Bearer '+setupToken);
+   assert.deepEqual(route.request().postDataJSON(),{name:owner.name,email:owner.email,password});
+   await route.fulfill({headers,status:201,json:{owner}});return;
+  }else if(url.pathname==='/auth/login'){
    const body=route.request().postDataJSON();if(body.password!==(changed?updated:recovered?recoveredPassword:password)){await route.fulfill({headers,status:401,json:{error:'Correo o contraseña incorrectos.'}});return;}
    data={token:changed?nextToken:token,owner,sessionId:changed?'session-b':'session-a',expiresAt:new Date(Date.now()+86400000).toISOString()};
   }else if(url.pathname==='/auth/recover'){const body=route.request().postDataJSON();assert.equal(body.code,recoveryCode);assert.equal(body.newPassword,recoveredPassword);recovered=true;await route.fulfill({headers,status:204});return;}else if(url.pathname==='/auth/recovery-codes'){data={codes:[recoveryCode],expiresAt:new Date(Date.now()+86400000).toISOString()};}
@@ -33,6 +37,15 @@ export async function checkAccessFlow(browser){
  });
  try{
   await page.goto('http://127.0.0.1:8082',{waitUntil:'networkidle'});
+  await button('Registrarse').click();
+  await page.getByLabel('Nombre',{exact:true}).fill(owner.name);
+  await page.getByLabel('Correo electrónico',{exact:true}).fill(owner.email);
+  await page.getByLabel('Contraseña',{exact:true}).fill(password);
+  await page.getByLabel('Confirmar contraseña',{exact:true}).fill(password);
+  await page.getByLabel('Token de configuración inicial',{exact:true}).fill(setupToken);
+  await button('Crear cuenta personal').click();
+  await page.getByText('Cuenta personal creada. Ahora inicia sesión.',{exact:true}).waitFor();
+  await button('Ir a iniciar sesión').click();
   await page.getByLabel('Correo electrónico',{exact:true}).fill(owner.email);await page.getByLabel('Contraseña',{exact:true}).fill('Incorrect-Synthetic-Passphrase');await button('Entrar').click();await page.getByText('Correo o contraseña incorrectos.',{exact:true}).waitFor();
   await page.getByLabel('Contraseña',{exact:true}).fill(password);await button('Entrar').click();await page.getByText('Tu presupuesto mensual',{exact:true}).waitFor();
   const persisted=await page.evaluate(()=>JSON.stringify({local:{...localStorage},session:{...sessionStorage}}));assert.ok(!persisted.includes(token)&&!persisted.includes(password),'Browser credentials stay out of web storage');

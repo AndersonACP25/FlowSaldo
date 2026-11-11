@@ -5,7 +5,7 @@
       "distribution": "internal"
     },
     "preview": {
-      "pnpm": "10.34.7",
+      "pnpm": "12.18.0",
       "environment": "preview",
       "distribution": "internal",
       "android": {

@@ -26,7 +26,7 @@ allowBuilds:
 
 En la PC, ejecuta `pnpm web` y abre la URL que muestra Expo. En Android físico, ejecuta `pnpm start`, conecta ambos dispositivos a la misma red y escanea el QR con Expo Go compatible con la versión de Expo de `apps/mobile/package.json`. Para un emulador Android ya iniciado, ejecuta `pnpm android`.
 
-Pulsa **Explorar demostración**. Los movimientos de prueba se guardan localmente. La demo puede ejecutarse sin API ni PostgreSQL.
+Inicia sesión con el usuario de prueba `prueba@flowsaldo.test` y la contraseña `FlowSaldo-Prueba-2026`. Los movimientos de prueba se guardan localmente. Este acceso funciona sin API ni PostgreSQL.
 
 ## 3. Arrancar la API y el worker
 
@@ -42,27 +42,30 @@ docker compose ps
 Espera a que PostgreSQL aparezca `healthy`. Revisa la columna **PORTS**. Si ves `127.0.0.1:5433->5432/tcp`, usa `DATABASE_URL=postgresql://flowsaldo:flowsaldo_local@127.0.0.1:5433/flowsaldo` en el `.env` raíz. Si Compose publica el puerto 5432, usa ese puerto en la URL. El puerto `PORT=3000` de la API es independiente.
 
 ```powershell
-pnpm db:generate
-pnpm exec prisma migrate deploy --config packages/database/prisma.config.ts
+pnpm db:setup
 # Opcional: insertar movimientos de ejemplo en una base de pruebas.
 pnpm db:seed
 ```
 
 Copia las plantillas solo si aún no tienes esos archivos. Antes de arrancar la API, cambia `DEV_API_TOKEN` en el `.env` de la raíz por un secreto aleatorio de al menos 24 caracteres. Usa la base local de Compose o ajusta `DATABASE_URL` si ya tienes PostgreSQL.
 
-| Terminal | Comando desde la raíz |
-|---|---|
-| API | `pnpm dev:api` |
-| Worker de importaciones | `pnpm dev:worker` |
-| Interfaz web o Android | `pnpm web` o `pnpm start` |
+Desde la raíz, ejecuta `pnpm dev` para arrancar la web, la API y el worker en una terminal. Usa Ctrl+C para detener los tres procesos. PostgreSQL se administra por separado con Docker Compose.
 
-Desde PowerShell, comprueba la API con `Invoke-RestMethod http://127.0.0.1:3000/health`. Para la web local, cambia `EXPO_PUBLIC_API_URL` en `apps/mobile/.env` a `http://127.0.0.1:3000`. Si Expo usa un puerto distinto al autorizado, ajusta `WEB_ORIGINS` en el `.env` de la API con el origen exacto de la web.
+| Comando | Qué inicia |
+|---|---|
+| `pnpm dev` | Web, API y worker |
+| `pnpm dev:phone` | Expo Go por QR, API y worker |
+| `pnpm dev:android` | Expo en un emulador iniciado, API y worker |
+| `pnpm web` | Solo la web |
+| `pnpm dev:api` / `pnpm dev:worker` | Solo el servicio indicado |
+
+Desde PowerShell, comprueba la API con `Invoke-RestMethod http://127.0.0.1:3000/health`. Si copiaste la plantilla de la app para la web local, cambia `EXPO_PUBLIC_API_URL` en `apps/mobile/.env` a `http://127.0.0.1:3000`. Si Expo usa un puerto distinto al autorizado, ajusta `WEB_ORIGINS` en el `.env` de la API con el origen exacto de la web.
 
 En un teléfono o emulador, `localhost` apunta al propio dispositivo. Para probar por Wi-Fi con datos ficticios, usa la IPv4 LAN de la PC en `EXPO_PUBLIC_API_URL`, cambia `HOST` a `0.0.0.0` y permite el puerto 3000 en la red privada. Reinicia la API y Expo después de cambiar su configuración. Para un APK conectado al servidor de pruebas, configura HTTPS según la [guía del piloto](pilot.md).
 
 ## 4. Crear la cuenta de prueba
 
-1. En la app, pulsa **Configurar cuenta inicial**. Usa un nombre y correo ficticios, una contraseña de al menos 15 caracteres y el secreto de `DEV_API_TOKEN` como token inicial.
+1. En la app, pulsa **Registrarse**. Usa un nombre y correo ficticios, una contraseña de al menos 15 caracteres y el secreto de `DEV_API_TOKEN` como token inicial.
 2. Pulsa **Ir a iniciar sesión** y entra con la cuenta creada. Desde ese momento, la API autentica los datos mediante la sesión personal.
 3. En **Conexiones**, usa el importador sintético para probar el worker. Los avisos que requieren confirmación aparecen en **Por revisar**.
 

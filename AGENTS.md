@@ -9,6 +9,7 @@
 - Mantener una cuenta personal por instalación; no desplegar como aplicación multiusuario. Tras configurar AppOwner, el token inicial deja de autorizar datos.
 - Leer MEMORY.md al retomar y actualizarlo ante cambios de alcance o decisiones. No almacenar secretos ni datos personales.
 - Comandos de interfaz desde raíz: pnpm start (Expo Go), pnpm web (PC), pnpm android (emulador).
+- Backend MVC: controladores HTTP en apps/api/src/controllers, modelos Prisma y operaciones de datos en apps/api/src/models, respuestas JSON en apps/api/src/views. index.ts configura y monta la aplicación.
 - Leer DESIGN.md antes de modificar interfaz; usar sus tokens y cuatro accesos de navegación.
 - Ante cambios del arranque web ejecutar pnpm test:dev además de exportar: un bundle de producción no cubre Metro dev.
 
@@ -20,7 +21,7 @@ Comandos: pnpm ai:validate, pnpm ai:test y pnpm ai:plan --task "Objetivo" --scop
 
 - Revisar LANGUAGE.md y usar concordancia 0/1/N. El revisor lingüístico es language-editor.
 - Archivos exportados: nombre y encabezados con mayúscula inicial; CSV/Excel deben separar campos en columnas. Consultar docs/exports.md y export-guardian.
-- Gestor único: pnpm 10.34.7, con pnpm-lock.yaml y pnpm-workspace.yaml. No generar package-lock.json.
+- Gestor único: la versión de pnpm declarada en packageManager, con pnpm-lock.yaml y pnpm-workspace.yaml. No generar package-lock.json.
 
 
 ## Alcance de pruebas (regla permanente)

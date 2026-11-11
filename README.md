@@ -31,11 +31,11 @@ pnpm install --frozen-lockfile
 pnpm web
 ```
 
-Abre la dirección que muestra Expo y pulsa **Explorar demostración**. Para usar Expo Go en un teléfono compatible, ejecuta `pnpm start`. Para un emulador Android iniciado, ejecuta `pnpm android`.
+Abre la dirección que muestra Expo e inicia sesión con el usuario de prueba `prueba@flowsaldo.test` y la contraseña `FlowSaldo-Prueba-2026`. Estos datos se guardan en el dispositivo. Para usar Expo Go en un teléfono compatible, ejecuta `pnpm start`. Para un emulador Android iniciado, ejecuta `pnpm android`.
 
 ## Conectar tu propia instalación
 
-Docker Compose ejecuta PostgreSQL. La API y el worker se arrancan desde el clon. La [guía de instalación](docs/setup.md) indica cómo configurar los archivos `.env`, preparar las tablas, arrancar los servicios y crear tu primera cuenta. Si el APK debe conectarse desde un teléfono, prepara una URL HTTPS accesible y configúrala antes de compilar. [Guía del piloto Android](docs/pilot.md)
+Docker Compose ejecuta PostgreSQL. Después de configurar la base, `pnpm db:setup` prepara las tablas y `pnpm dev` arranca la web, la API y el worker juntos. Usa **Registrarse** para crear tu cuenta personal. La [guía de instalación](docs/setup.md) indica cómo configurar los archivos `.env`, preparar las tablas, arrancar los servicios y crear tu primera cuenta. Si el APK debe conectarse desde un teléfono, prepara una URL HTTPS accesible y configúrala antes de compilar. [Guía del piloto Android](docs/pilot.md)
 
 Los saldos son registros que introduces en FlowSaldo. El importador actual trabaja con avisos sintéticos. Gmail y los avisos bancarios reales siguen pendientes.
 

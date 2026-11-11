@@ -1,3 +1,4 @@
+import {loginAsTestAccount} from './test-account-flow.mjs';
 import {URL} from 'node:url';
 import assert from 'node:assert/strict';
 import {demoCategoryCatalog} from '../packages/domain/src/index.ts';
@@ -24,7 +25,7 @@ export async function checkFinanceFlow(browser){
   else throw new Error('Unexpected finance path '+url.pathname);
   await route.fulfill({headers,status,json:data});
  });
- async function connect(){await button('Explorar demostración').click();await button('Conexiones').click();await page.getByLabel('Token de desarrollo',{exact:true}).fill('synthetic-finance-token-123456789');await button('Conectar API').click();await page.getByText('Tu presupuesto mensual',{exact:true}).waitFor();}
+ async function connect(){await loginAsTestAccount(page);await button('Conexiones').click();await page.getByLabel('Token de desarrollo',{exact:true}).fill('synthetic-finance-token-123456789');await button('Conectar API').click();await page.getByText('Tu presupuesto mensual',{exact:true}).waitFor();}
  try{
   await page.goto('http://127.0.0.1:8082',{waitUntil:'networkidle'});await connect();await button('Configuración').click();await button('Administrar cuentas y conciliación').click();await page.getByText('Crear cuenta',{exact:true}).waitFor();
   await page.getByLabel('Nombre de la nueva cuenta',{exact:true}).fill('Banco CORE');await page.getByLabel('Saldo inicial de la cuenta',{exact:true}).fill('1000');await button('Crear cuenta financiera').click();await page.getByText('Cuenta financiera creada.',{exact:true}).waitFor();

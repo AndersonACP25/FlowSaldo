@@ -40,7 +40,7 @@ Si EAS solicita credenciales de firma, usa las del proyecto Android existente o 
 
 Antes de compilar, comprueba que `build.preview.pnpm` en `eas.json` coincida con `packageManager` del `package.json` raíz. Si tu clon usa pnpm 12.18.0, usa también 12.18.0 en el perfil y comprueba que `pnpm install --frozen-lockfile` termine en la raíz. Si Prisma o esbuild quedan bloqueados, consulta la [configuración de pnpm](setup.md#1-instalar-dependencias).
 
-Abre el enlace del build terminado en Android, descarga el APK e instálalo. Si Android lo solicita, permite instalar desde la app que abrió el archivo. Abre FlowSaldo sin Metro. Para un APK de demo, selecciona **Explorar demostración**. Para el piloto conectado, registra el build, el modelo y la versión de Android y ejecuta la siguiente lista.
+Abre el enlace del build terminado en Android, descarga el APK e instálalo. Si Android lo solicita, permite instalar desde la app que abrió el archivo. Abre FlowSaldo sin Metro. Para probar el APK generado desde este código, inicia sesión con `prueba@flowsaldo.test` y `FlowSaldo-Prueba-2026`. Para el piloto conectado, registra el build, el modelo y la versión de Android y ejecuta la siguiente lista.
 
 | Prueba | Resultado esperado |
 |---|---|

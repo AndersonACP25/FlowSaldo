@@ -287,5 +287,5 @@ export default function App(){
  function openAuth(next:AuthRoute){client.clear();setRoute(next);}
  return <QueryClientProvider client={client}>{restoring?<SafeAreaView style={s.root}><ActivityIndicator color={palette.primary}/><Text style={s.muted}>Validando sesión guardada…</Text></SafeAreaView>:route==='demo'||route==='personal'?<Home key={personal?.sessionId??'demo'} onAuth={openAuth} personal={route==='personal'?personal:undefined} onLogout={logout} onExpired={()=>forget('Tu sesión terminó. Inicia sesión nuevamente.')} accessNotice={notice}/>:<>
  {canRetry&&<Button label="Reintentar sesión guardada" onPress={()=>void restore()}/>}
- <AuthScreen key={route} route={route} onRoute={setRoute} onDemo={()=>{client.clear();setRoute('demo');}} onSession={acceptSession} onRecovered={()=>forget('Contraseña restablecida. Inicia sesión con la nueva contraseña.')} notice={notice}/></>}</QueryClientProvider>;
+ <AuthScreen key={route} route={route} onRoute={setRoute} onTestLogin={()=>{client.clear();setRoute('demo');}} onSession={acceptSession} onRecovered={()=>forget('Contraseña restablecida. Inicia sesión con la nueva contraseña.')} notice={notice}/></>}</QueryClientProvider>;
 }

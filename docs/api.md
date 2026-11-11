@@ -180,3 +180,5 @@ Presupuestos se separan por mes/moneda para la única instalación personal. Bor
 ### HTTPS directo
 
 Configura juntos `TLS_CERT_FILE` y `TLS_KEY_FILE` para servir HTTPS en `HOST:PORT`. La API lee los archivos PEM al arrancar. El modo `TRUST_PROXY_LOOPBACK=1` requiere un listener HTTP en `127.0.0.1` o `::1`. Consulta la [guía del piloto](pilot.md) para las dos configuraciones.
+
+El formulario **Registrarse** usa el endpoint existente `POST /auth/setup` y su token de configuración. El usuario de prueba opera localmente en el cliente. Sus credenciales públicas no crean una sesión de API.

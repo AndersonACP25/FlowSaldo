@@ -155,3 +155,7 @@ API con TLS directo opcional mediante par PEM, configuración proxy limitada a l
 ### Guías de arranque y prompts
 
 El README enlaza a docs/setup.md para ejecutar desde un clon y a docs/pilot.md para generar el APK. Perfiles, flujos y prompt inicial usan seis secciones comunes. Los comandos de planificación, contexto y entrega conservan sus contratos JSON.
+
+## Arranque conjunto, acceso y MVC
+
+`pnpm dev` inicia API, worker y web. `pnpm db:setup` genera Prisma y aplica migraciones en la base configurada. El registro conserva la cuenta personal única y su token de configuración. Las credenciales públicas de prueba solo abren los datos ficticios del dispositivo. El backend organiza los controladores, modelos y vistas JSON según MVC.
