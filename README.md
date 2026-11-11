@@ -89,16 +89,7 @@ CI verifica instalación con lockfile, Prisma, lint, tipos, dominio, smoke de AP
 
 ## Generar un APK
 
-```powershell
-cd apps/mobile
-pnpm dlx eas-cli@latest login
-pnpm dlx eas-cli@latest build:configure
-pnpm dlx eas-cli@latest build --platform android --profile preview
-```
-
-EAS pedirá vincular el proyecto y configurar firma. Abre el enlace final en Android y descarga el APK. El perfil preview no necesita Metro ni la PC encendida para mostrar la demo. Con API conectada, necesita acceso al servidor. La compilación no se ha ejecutado como parte de esta entrega.
-
-Para un development build primero instala `expo-dev-client` mediante `pnpm exec expo install expo-dev-client`; luego compila con `--profile development`. No contiene aún OAuth bancario ni permisos especiales.
+El perfil EAS `preview` genera un APK instalable. Configura `EXPO_PUBLIC_API_URL` en el entorno `preview` de EAS con la URL HTTPS de la API de pruebas si quieres validar el acceso personal. Consulta la [guía del piloto Android y HTTPS](docs/pilot.md) para preparar el servidor, firmar el APK y registrar las pruebas en un teléfono.
 
 ## Organización
 
@@ -230,7 +221,7 @@ Se mantienen 9 unitarias CORE y 3 recorridos Playwright; el recorrido API existe
 
 Una cuenta por instalación. Los movimientos/importaciones/categorías anteriores se mantienen; la demo continúa separada. No existe registro abierto multiusuario. Las sesiones duran 24 horas y se pueden revocar. Web conserva el token solo en memoria, así que recargar exige iniciar sesión. Android/iOS usa SecureStore y valida la sesión antes de restaurarla; su comportamiento en dispositivo físico sigue pendiente de validación.
 
-El cliente bloquea HTTP público; permite localhost/IPv4 privada para desarrollo. En modo producción la API exige HTTPS; el despliegue TLS real y la preparación para datos financieros reales continúan pendientes. No reutilices contraseñas reales en esta fase. Ver SECURITY.md para los límites y la configuración de proxy confiable.
+El cliente bloquea HTTP público; permite localhost/IPv4 privada para desarrollo. En modo producción la API exige HTTPS; HTTPS directo está disponible con archivos PEM; falta desplegarlo con un certificado público. No reutilices contraseñas reales en esta fase. Ver SECURITY.md para los límites y la configuración de proxy confiable.
 
 Las unitarias siguen en 9 casos CORE. Se añade solo un cuarto recorrido Playwright de acceso/cambio/cierre, justificado por el nuevo riesgo de credenciales y revocación; el resto de combinaciones de seguridad se valida en API/PostgreSQL.
 

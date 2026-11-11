@@ -176,3 +176,7 @@ Saldo inicial + ingresos − gastos − transferencias salientes + entrantes, si
 Los cambios financieros de API se serializan mediante FinanceLock. Una mutación vinculada incrementa revision en todas las cuentas afectadas. Conciliar verifica revision y diferencia cero bajo el mismo bloqueo y fija reconciledThrough; no permite crear, editar, desvincular o eliminar movimientos dentro del período protegido, ni alterar una transferencia protegida por cualquiera de sus cuentas. Los saldos GET usan snapshot RepeatableRead. Archivar conserva historial, no permite nuevas asignaciones ni modificaciones de movimientos asignados hasta reactivar; eliminación de movimientos posteriores a la conciliación sigue posible.
 
 Presupuestos se separan por mes/moneda para la única instalación personal. Borrar límites conserva versión (tombstone), evitando sobrescrituras desde clientes antiguos. Categorías deben existir; límite archivado puede conservarse sin cambios o retirarse, no crearse/modificarse. No hay unión automática de datos locales ni sincronización offline: copiar límites es explícito y solo con versión 0. Demo continúa local. Conflicto 409 se muestra y se vuelve a consultar; nunca se reintenta silenciosamente sobrescribiendo.
+
+### HTTPS directo
+
+Configura juntos `TLS_CERT_FILE` y `TLS_KEY_FILE` para servir HTTPS en `HOST:PORT`. La API lee los archivos PEM al arrancar. El modo `TRUST_PROXY_LOOPBACK=1` requiere un listener HTTP en `127.0.0.1` o `::1`. Consulta la [guía del piloto](pilot.md) para las dos configuraciones.

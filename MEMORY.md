@@ -147,3 +147,7 @@ Versiones 0.10.0. Pruebas: siguen 9 casos CORE ampliando precisión/saldos; un q
 ### Punto #5 — Mantenimiento de datos (2026-11-11)
 
 Retención automática opcional con AUTO_RETENTION_DAYS, 7–365, lote de 1000 cada hora por worker y bloqueo para procesar filas elegibles sin duplicar la limpieza. Cubre REVIEW/FAILED antiguos sin movimiento, conserva la clave externa y registra conteos. Operaciones de borrado y respaldo/restauración son CLI de operador. El borrado exige base exacta y servicios detenidos; conserva migraciones y repone categorías base. El respaldo excluye sesiones, códigos, limitadores y vistas previas. Restauración de copia confiable en base vacía verifica SHA-256 y usa transacción. CI ensaya contra una base restaurada aislada.
+
+### Piloto Android y HTTPS
+
+API con TLS directo opcional mediante par PEM, configuración proxy limitada a loopback, integración con certificado temporal y sesiones activa/revocada. Perfil EAS APK preview con entorno explícito y guía de despliegue y pruebas físicas. El dominio/certificado público, la firma EAS y el dispositivo se validan en el entorno del piloto.

@@ -75,3 +75,10 @@ Android físico/APK, TLS operativo y correo real siguen pendientes.
 ### Punto #5 — Mantenimiento de datos
 
 El worker admite retención automática opcional de cuerpos de avisos. El operador puede respaldar, restaurar y borrar la cuenta y sus datos mediante comandos de mantenimiento. La integración restaura en una base aislada, verifica los datos y borra esa copia de prueba.
+
+
+## Piloto Android y HTTPS
+
+- HTTPS directo admite certificado y clave PEM. La integración prueba acceso y revocación contra el servidor HTTPS usando un certificado temporal de confianza.
+- El perfil APK preview selecciona el entorno de EAS. La [guía del piloto](pilot.md) define las comprobaciones de SecureStore, CSV y accesibilidad.
+- Pendientes externos: desplegar con un dominio y certificado público, generar el APK firmado y probarlo en Android físico. La integración de correo requiere elegir proveedor y banco y obtener muestras anonimizadas.
