@@ -24,6 +24,8 @@ Usa una instancia de pruebas con datos ficticios, un nombre DNS accesible desde 
 
 Instala primero las dependencias desde la raíz con `pnpm install --frozen-lockfile`. Puedes generar un APK para explorar la demo o uno conectado a la API. Para el segundo, define `EXPO_PUBLIC_API_URL` con la URL HTTPS de pruebas en el entorno **preview** del proyecto EAS. La URL se incorpora al compilar. Cambiarla requiere otro build.
 
+Si vas a compilar un fork con tu cuenta Expo, vincula esa copia a un proyecto de EAS que controles. Si `apps/mobile/app.json` conserva `extra.eas.projectId` del proyecto original, elimina solo esa propiedad de tu copia antes de vincularla.
+
 En PowerShell, desde la raíz:
 
 ```powershell
@@ -36,7 +38,7 @@ pnpm dlx eas-cli@latest build --platform android --profile preview
 
 Si EAS solicita credenciales de firma, usa las del proyecto Android existente o deja que EAS genere la primera clave. Conserva la misma clave para actualizar el APK sobre una instalación previa. El perfil `preview` de `eas.json` genera un APK. El perfil `production` genera un AAB para distribución.
 
-El perfil `preview` fija pnpm 10.34.7, la misma versión declarada por el workspace. Si un build anterior falló con `ERR_PNPM_IGNORED_BUILDS`, inicia un build desde el clon actualizado para que EAS lea este perfil. En los logs, comprueba que la versión de pnpm sea 10.34.7 y que `Install dependencies` termine correctamente antes de revisar la compilación de Android.
+Antes de compilar, comprueba que `build.preview.pnpm` en `eas.json` coincida con `packageManager` del `package.json` raíz. Si tu clon usa pnpm 12.18.0, usa también 12.18.0 en el perfil y comprueba que `pnpm install --frozen-lockfile` termine en la raíz. Si Prisma o esbuild quedan bloqueados, consulta la [configuración de pnpm](setup.md#1-instalar-dependencias).
 
 Abre el enlace del build terminado en Android, descarga el APK e instálalo. Si Android lo solicita, permite instalar desde la app que abrió el archivo. Abre FlowSaldo sin Metro. Para un APK de demo, selecciona **Explorar demostración**. Para el piloto conectado, registra el build, el modelo y la versión de Android y ejecuta la siguiente lista.
 

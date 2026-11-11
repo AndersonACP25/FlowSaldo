@@ -4,16 +4,23 @@ Los comandos están escritos para PowerShell en Windows. Abre la carpeta clonada
 
 ## 1. Instalar dependencias
 
-Requisitos del repositorio: Node.js 24.11 o posterior dentro de la serie 24 y pnpm 10.34.7.
+Usa Node.js 24.11 o posterior dentro de la serie 24. La versión de pnpm que usa tu clon aparece en `packageManager` del `package.json` raíz. Si necesitas instalarla, por ejemplo para un clon que declara `pnpm@12.18.0`, ejecuta `npm install --global pnpm@12.18.0`.
 
 ```powershell
 node --version
-npm install --global pnpm@10.34.7
 pnpm --version
 pnpm install --frozen-lockfile
 ```
 
-Si pnpm ya está en esa versión, omite su instalación. Usa pnpm para las dependencias del proyecto.
+Si pnpm 12 devuelve `ERR_PNPM_IGNORED_BUILDS` y el archivo `pnpm-workspace.yaml` contiene valores `set this to true or false`, sustituye esos valores y el bloque anterior `onlyBuiltDependencies` por este bloque. Conserva `packages` y `nodeLinker`. Vuelve a ejecutar la instalación.
+
+```yaml
+allowBuilds:
+  '@prisma/client': true
+  '@prisma/engines': true
+  esbuild: true
+  prisma: true
+```
 
 ## 2. Abrir la demo
 
@@ -30,7 +37,11 @@ if (-not (Test-Path .env)) { Copy-Item .env.example .env }
 if (-not (Test-Path apps/mobile/.env)) { Copy-Item apps/mobile/.env.example apps/mobile/.env }
 docker compose up -d
 docker compose ps
-# Espera a que PostgreSQL aparezca healthy antes de aplicar las migraciones.
+```
+
+Espera a que PostgreSQL aparezca `healthy`. Revisa la columna **PORTS**. Si ves `127.0.0.1:5433->5432/tcp`, usa `DATABASE_URL=postgresql://flowsaldo:flowsaldo_local@127.0.0.1:5433/flowsaldo` en el `.env` raíz. Si Compose publica el puerto 5432, usa ese puerto en la URL. El puerto `PORT=3000` de la API es independiente.
+
+```powershell
 pnpm db:generate
 pnpm exec prisma migrate deploy --config packages/database/prisma.config.ts
 # Opcional: insertar movimientos de ejemplo en una base de pruebas.
