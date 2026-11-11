@@ -31,8 +31,13 @@ jobs:
    - run: pnpm check
    - run: pnpm db:seed
    - run: node scripts/smoke.mjs
-   - run: pnpm exec playwright install --with-deps chromium
+   - run: bash scripts/data-admin-smoke.sh
+     env:
+      PG_CONTAINER: ${{ job.services.postgres.id }}
+   - run: pnpm exec playwright install chromium
    - run: pnpm test:web
+     env:
+      EXPO_PUBLIC_API_URL: http://127.0.0.1:3000
 
  dev-web:
   timeout-minutes: 10

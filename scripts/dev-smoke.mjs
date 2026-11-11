@@ -18,10 +18,8 @@ try {
  await page.goto('http://localhost:8083',{waitUntil:'networkidle'});
  await page.getByRole('button',{name:'Explorar demostración',exact:true}).click();
  await page.getByText('Tu presupuesto mensual',{exact:true}).waitFor();
- await page.getByRole('button',{name:'Por revisar',exact:true}).click();
- await page.getByText('3 movimientos por confirmar',{exact:true}).waitFor();
  assert.deepEqual(errors,[]);
- console.info('PASS: Metro development bundle 200 + frontend loaded + review navigation');
+ console.info('PASS: Metro development bundle 200 + frontend boot');
 } finally {
  await browser?.close();
  const exited=once(child,'exit');

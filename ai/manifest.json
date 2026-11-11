@@ -83,7 +83,7 @@
     {
       "id": "qa",
       "profile": "ai/agents/qa.md",
-      "purpose": "Verificar criterios y detectar regresiones con evidencia reproducible.",
+      "purpose": "Verificar CORE financiero, acceso y cuentas/conciliación por riesgo, con evidencia reproducible y sin ampliar pruebas a todo el sistema.",
       "writablePaths": [
         "scripts/",
         "packages/domain/test/"

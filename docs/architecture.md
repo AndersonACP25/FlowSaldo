@@ -1,6 +1,6 @@
 # Arquitectura inicial
 
-Monorepo ppnpm workspaces. Una API y un worker comparten dominio y acceso PostgreSQL. TypeScript se ejecuta mediante tsx en desarrollo; la app usa Metro. Los paquetes internos exportan fuente para evitar compilación previa.
+Monorepo pnpm workspaces. Una API y un worker comparten dominio y acceso PostgreSQL. TypeScript se ejecuta mediante tsx en desarrollo; la app usa Metro. Los paquetes internos exportan fuente para evitar compilación previa.
 
 ```mermaid
 flowchart TD
@@ -16,13 +16,13 @@ flowchart TD
 ## Decisiones
 
 - Dinero en centavos enteros, moneda obligatoria, sin conversiones implícitas.
-- Transferencias propias no participan en ingresos y gastos. Todavía no se modelan cuentas, deuda, devoluciones ni conciliación.
+- Transferencias propias no participan en ingresos y gastos. Desde v0.10 se modelan cuentas/deuda y conciliación manual; devoluciones e intereses automáticos siguen pendientes.
 - externalId único evita reimportar el mismo mensaje. No deduplica mensajes distintos sobre una misma operación: esa capacidad está pendiente.
 - SELECT FOR UPDATE SKIP LOCKED mantiene un mensaje bloqueado mientras se procesa. Crear movimiento y actualizar importación ocurre en una sola transacción; un fallo revierte ambas acciones. importId único añade protección.
-- Errores transitorios reintentan cada dos segundos. No hay contador/backoff ni dead-letter: implementar antes del piloto real.
-- API de desarrollo para una sola persona con token compartido. No hay usuarios ni aislamiento multiusuario. Health es público; los demás endpoints exigen Bearer.
-- La app limita la lista remota a 200 registros del mes y moneda seleccionados e identifica ese alcance. El endpoint summary usa todos los registros; no tiene filtros mensuales todavía; la app filtra por mes mediante GET /movements y calcula sus propios indicadores sobre ese subconjunto.
-- No se almacena token en disco ni en EXPO_PUBLIC_*. La sesión del móvil vive en memoria.
+- Desde v0.7 hay reservas durables, backoff e intentos limitados; FAILED permite reintento manual. Ver el contrato de recuperación al final.
+- API personal: desde v0.8 hay un único propietario y sesiones revocables, sin aislamiento multiusuario. El token inicial solo funciona antes de configurar la cuenta. Health y las rutas acotadas de acceso tienen la política descrita en SECURITY.md.
+- Desde v0.6 el historial remoto es paginado y summary calcula todos los registros por mes/moneda, con comparación mensual. Las rutas legacy conservan sus límites solo para compatibilidad.
+- No se guarda token en AsyncStorage ni EXPO_PUBLIC_*. Desde v0.8 web lo mantiene en memoria y nativo usa SecureStore con validación al restaurar.
 
 ## Próxima arquitectura de correo
 
@@ -47,3 +47,38 @@ Gestor fijado a pnpm 10.34.7; workspaces con enlaces workspace:* y hoisted para 
 AccountSettings conserva solo currency/hideAmounts en flowsaldo.preferences.v1. No cambia la identidad ni autentica. La clave demo v2 permanece compatible. La privacidad es visual, no cifra ni elimina importes en exportaciones/formularios.
 
 CSV ejecuta validadores de nombre/esquema antes de descargar. ExcelJS solo se usa en herramientas Node de desarrollo para inspeccionar .xlsx, nunca en el bundle móvil. LANGUAGE.md y los perfiles language-editor/export-guardian agregan controles al plan IA.
+
+
+## v0.6: recurrencias y pruebas enfocadas
+
+RecurringTemplate conserva calendario mensual y versión; RecurringOccurrence registra confirmaciones con clave única por fecha y FK nullable al movimiento. La transacción bloquea plantilla/categoría, valida versión/vencimiento y crea movimiento, recibo y siguiente fecha de forma atómica. Sin scheduler. Demo aplica la misma regla con recibos persistidos en AsyncStorage; no sincroniza instancias. Summary agrega meses actual/anterior en snapshot común. Importaciones exponen únicamente el ID del movimiento generado para consulta autorizada.
+
+La exportación nativa usa implementación .native.ts con File/Directory/Paths y expo-sharing; web conserva Blob. La caché retiene archivos para recepción externa. Las pruebas se distribuyen por riesgo: reglas financieras en 9 unitarias CORE, integridad transaccional en API y 3 recorridos críticos de Playwright; Metro verifica solo arranque.
+
+
+## v0.7: reserva durable y recuperación
+
+La reclamación es una transacción corta: selecciona PENDING elegible o PROCESSING vencido con SKIP LOCKED, incrementa intentos y persiste token/expiración. La finalización verifica el token bajo bloqueo y crea movimiento/cambia estado en una transacción. Un dueño antiguo no puede finalizar una reserva recuperada. Ante fallo se agenda otro intento o FAILED; al recuperar un quinto intento interrumpido se detiene el ciclo. La idempotencia mantiene externalId e importId únicos.
+
+Los códigos de resultado son públicos y acotados; el token de propietario solo vive en PostgreSQL/worker. Stats usa snapshot consistente y la UI lo describe como estado de importaciones, sin simular conectividad. El reencolado manual es explícito, limitado a FAILED sin movimiento y con protección concurrente. No se añade un scheduler externo ni servicios adicionales.
+
+
+## v0.8: propietario único y sesiones
+
+AppOwner id=1 conserva la instalación personal sin reescribir filas financieras. La creación inicial exige el secreto de configuración y el constraint impide un segundo propietario aun con solicitudes concurrentes. Crear AppOwner desactiva el acceso a datos con DEV_API_TOKEN. No se añade un ownerId ficticio a cada tabla ni se anuncia soporte multiusuario.
+
+AuthThrottle persiste ventanas por IP/acción. Contraseñas usan scrypt y la emisión de sesión se serializa con cambios de contraseña; AccessSession guarda hashes de tokens opacos y permite expirar/revocar. Cambiar la contraseña revoca todas las sesiones. Los endpoints solo retornan DTOs públicos. El middleware vuelve a validar sesión en cada solicitud y marca respuestas no-store.
+
+AuthScreen reemplaza la vista previa. Web mantiene credenciales solo en memoria; la implementación nativa de accessVault usa SecureStore con URL ligada y /auth/me antes de restaurar. Un 401 de datos en sesión personal limpia credenciales/caché y vuelve al acceso. La demo sigue abriendo sin API. No se cifran los datos demo/presupuestos ni se implementa recuperación por correo.
+
+Production rechaza HTTP; un proxy TLS local requiere confianza loopback explícita. El despliegue TLS real y la validación física de SecureStore siguen pendientes. QA agrega solo un cuarto recorrido crítico de acceso/cambio/salida; las combinaciones de seguridad quedan en integración.
+
+
+## v0.9: recuperación y limpieza manual
+
+RecoveryCode guarda hashes de códigos offline; AppOwner serializa generación/consumo/cambio de contraseña. Recuperar elimina el lote completo y revoca sesiones. CleanupPreview conserva un conjunto limitado de IDs con cutoff y expiración; DataCleanup guarda auditoría de cantidades. Aplicar exige reautenticación/confirmación y revalida elegibilidad dentro de la transacción, sin borrar movimientos ni ampliar el conjunto previsualizado. No incorpora correo de recuperación, borrado total ni tareas automáticas de retención.
+
+
+## v0.10 — Ledger de cuentas y planificación
+
+Movement agrega origen/destino opcionales, sin reasignar registros previos. FinancialAccount guarda metadatos/saldo inicial; el saldo se calcula desde movimientos vinculados. Una transferencia es una fila con dos extremos de misma moneda. La reserva de requestKey en MovementRequest sobrevive al borrado del movimiento. FinanceLock serializa modificaciones de cuentas/movimientos vinculados/conciliación y presupuestos; los workers/recurrencias siguen creando registros sin cuenta. Reconciliation confirma snapshot por revision y fija un corte histórico protegido. BudgetPeriod/BudgetCategory guardan límites por mes/moneda con versión optimista y tombstone. Se conserva una instalación personal, sin multiusuario ni bancos reales.

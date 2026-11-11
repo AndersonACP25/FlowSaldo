@@ -1,25 +1,20 @@
-import { db } from '@flowsaldo/database';
-import { parseDemoMail } from '@flowsaldo/domain';
-let stopped = false;
-process.on('SIGINT', () => { stopped = true; });
-process.on('SIGTERM', () => { stopped = true; });
-try {
- while (!stopped) {
-  try {
-   await db.$transaction(async tx => {
-    // Row lock + SKIP LOCKED allows recovery on rollback and multiple worker processes.
-    const rows = await tx.$queryRaw<Array<{ id: string; body: string }>>`SELECT id, body FROM "MailImport" WHERE status = 'PENDING' ORDER BY "createdAt" FOR UPDATE SKIP LOCKED LIMIT 1`;
-    const item = rows[0];
-    if (!item) return;
-    const result = parseDemoMail(item.body);
-    if (result.status === 'PARSED' && result.movement.amountMinor <= 2147483647) {
-     await tx.movement.create({ data: { ...result.movement, importId: item.id } });
-     await tx.mailImport.update({ where: { id: item.id }, data: { status: 'PARSED', body: '', reason: null } });
-    } else {
-     await tx.mailImport.update({ where: { id: item.id }, data: { status: 'REVIEW', reason: result.status === 'REVIEW' ? result.reason : 'Monto fuera de rango' } });
-    }
-   });
-  } catch { console.error('Falló el ciclo del worker; se reintentará sin registrar contenido sensible'); }
-  await new Promise(resolve => setTimeout(resolve, 2000));
+import {db} from '@flowsaldo/database';
+import {runImport} from './jobs.ts';
+import {retentionDays,runRetention} from './retention.ts';
+const days=retentionDays(process.env.AUTO_RETENTION_DAYS);
+let nextRetention=0;
+let stopped=false;let databaseFailures=0;
+process.on('SIGINT',()=>{stopped=true;});process.on('SIGTERM',()=>{stopped=true;});
+try{
+ while(!stopped){
+  if (days !== null && Date.now() >= nextRetention) {
+   nextRetention=Date.now()+3600000;
+   try { await runRetention(db,days); }
+   catch { console.error('Falló la retención automática. Se reintentará en el próximo ciclo.'); }
+  }
+  let delay=1000;
+  try{const worked=await runImport(db);databaseFailures=0;delay=worked?0:1000;}
+  catch{databaseFailures=Math.min(databaseFailures+1,5);delay=Math.min(30000,1000*2**databaseFailures);console.error('No se pudo acceder a la cola. Se aplicará espera antes de reintentar.');}
+  if(delay)await new Promise(resolve=>setTimeout(resolve,delay));
  }
-} finally { await db.$disconnect(); }
+}finally{await db.$disconnect();}

@@ -1,5 +1,14 @@
+import {checkFinance} from './finance-smoke.mjs';
+import {checkAccessTransport} from './access-transport-smoke.mjs';
+import {checkPersonalAccess} from './access-smoke.mjs';
+import {once} from 'node:events';
+import {checkImportRecovery} from './import-recovery-smoke.mjs';
 import { spawn } from 'node:child_process';
 import assert from 'node:assert/strict';
+import { checkCategoryMigration } from './category-migration-smoke.mjs';
+import { checkRecurring } from './recurring-smoke.mjs';
+import { checkCategories } from './categories-smoke.mjs';
+import { checkHistory } from './history-smoke.mjs';
 const api = spawn('node', ['--import', 'tsx', '--env-file=.env', 'apps/api/src/index.ts'], { stdio: 'inherit' });
 const worker = spawn('node', ['--import', 'tsx', '--env-file=.env', 'apps/worker/src/index.ts'], { stdio: 'inherit' });
 const { readFile } = await import('node:fs/promises');
@@ -44,6 +53,7 @@ try {
  const confirmed={amountMinor:350000,currency:'DOP',type:'TRANSFER',description:'Manual review smoke',category:'Transferencias',occurredAt:'2026-10-22T12:00:00.000Z'};
  const resolutions=await Promise.all([1,2].map(()=>request('/imports/'+review.id+'/resolve',{method:'POST',body:JSON.stringify(confirmed)})));
  assert.deepEqual(resolutions.map(r=>r.status).sort(),[201,409]);
+ const trace=await (await request('/imports/'+review.id)).json();assert.ok(trace.movement?.id);assert.equal((await (await request('/movements/'+trace.movement.id)).json()).importId,review.id);
  const afterReview=await (await request('/movements')).json();assert.equal(afterReview.filter(x=>x.importId===review.id).length,1);
  assert.equal((await (await request('/imports/'+review.id)).json()).body,'');
  await request('/imports',{method:'POST',body:JSON.stringify({externalId:'ci-discard',body:'Formato desconocido para descartar'})});
@@ -53,5 +63,14 @@ try {
  assert.equal((await request('/imports/'+discard.id+'/dismiss',{method:'POST'})).status,204);
  assert.equal((await request('/imports/'+discard.id+'/resolve',{method:'POST',body:JSON.stringify(confirmed)})).status,409);
  assert.equal((await (await request('/imports/'+discard.id)).json()).status,'DISMISSED');
+ await checkCategoryMigration(/^DATABASE_URL=(.+)$/m.exec(env)?.[1]);
+ await checkCategories(request);
+ await checkRecurring(request);
+ await checkHistory(request,/^DATABASE_URL=(.+)$/m.exec(env)?.[1]);
+ const workerExit=once(worker,'exit');worker.kill('SIGTERM');await workerExit;
+ await checkImportRecovery(request,/^DATABASE_URL=(.+)$/m.exec(env)?.[1]);
+ await checkFinance(request);
+ await checkPersonalAccess(token,/^DATABASE_URL=(.+)$/m.exec(env)?.[1]);
+ await checkAccessTransport();
  console.info('Smoke: auth, validation, persistence, idempotency and review passed');
 } finally { api.kill('SIGTERM'); worker.kill('SIGTERM'); }

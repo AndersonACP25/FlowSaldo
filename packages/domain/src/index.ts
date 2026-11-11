@@ -1,6 +1,9 @@
+export * from './recurring.ts';
+export * from './planning.ts';
+export * from './finance.ts';
 export type Currency = 'DOP' | 'USD';
 export type MovementType = 'INCOME' | 'EXPENSE' | 'TRANSFER';
-export interface Movement { id: string; amountMinor: number; currency: Currency; type: MovementType; description: string; occurredAt: string; category: string }
+export interface Movement { id: string; amountMinor: number; currency: Currency; type: MovementType; description: string; occurredAt: string; category: string; categoryId?:string|null; accountId?:string|null; targetAccountId?:string|null; requestKey?:string|null }
 export interface MailInput { externalId: string; body: string }
 export type ParseResult = { status: 'PARSED'; movement: Omit<Movement, 'id'> } | { status: 'REVIEW'; reason: string };
 // Only a synthetic, strict fixture format. Real banks need separate versioned parsers.
@@ -45,9 +48,9 @@ export function validDate(value: string): boolean {
   const stamp = Date.parse(value + 'T12:00:00.000Z');
   return Number.isFinite(stamp) && new Date(stamp).toISOString().slice(0,10) === value;
 }
-export function filterMovements(rows: Movement[], filter: { currency: Currency; month: string; type?: MovementType | 'ALL'; search?: string }): Movement[] {
+export function filterMovements(rows: Movement[], filter: { currency: Currency; month: string; type?: MovementType | 'ALL'; search?: string;categoryId?:string }): Movement[] {
   const search = (filter.search ?? '').trim().toLocaleLowerCase('es');
-  return rows.filter(m => m.currency === filter.currency && m.occurredAt.startsWith(filter.month) && (!filter.type || filter.type === 'ALL' || m.type === filter.type) && (!search || `${m.description} ${m.category}`.toLocaleLowerCase('es').includes(search))).sort((a,b) => b.occurredAt.localeCompare(a.occurredAt));
+  return rows.filter(m => m.currency === filter.currency && m.occurredAt.startsWith(filter.month) && (!filter.categoryId || m.categoryId===filter.categoryId) && (!filter.type || filter.type === 'ALL' || m.type === filter.type) && (!search || `${m.description} ${m.category}`.toLocaleLowerCase('es').includes(search))).sort((a,b) => b.occurredAt.localeCompare(a.occurredAt));
 }
 export function categoryExpenses(rows: Movement[]): Array<{ category: string; amountMinor: number }> {
   const totals = new Map<string, number>();

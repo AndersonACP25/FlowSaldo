@@ -6,6 +6,8 @@ datasource db {
 }
 enum ImportStatus {
  PENDING
+ PROCESSING
+ FAILED
  PARSED
  REVIEW
  DISMISSED
@@ -26,9 +28,18 @@ model MailImport {
  status ImportStatus @default(PENDING)
  reason String?
  parserVersion String @default("demo-v1")
+ attempts Int @default(0)
+ manualRetries Int @default(0)
+ nextAttemptAt DateTime @default(now())
+ lastAttemptAt DateTime?
+ lockedUntil DateTime?
+ lockToken String?
+ lastErrorCode String?
+ processedAt DateTime?
  createdAt DateTime @default(now())
  movement Movement?
  @@index([status, createdAt])
+ @@index([status, nextAttemptAt])
 }
 model Movement {
  id String @id @default(cuid())
@@ -37,9 +48,172 @@ model Movement {
  type MovementType
  description String
  category String @default("Sin categorizar")
+ categoryId String?
+ categoryRef Category? @relation(fields: [categoryId], references: [id], onDelete: Restrict)
  occurredAt DateTime
  createdAt DateTime @default(now())
  importId String? @unique
+ accountId String?
+ account FinancialAccount? @relation("Outgoing", fields: [accountId], references: [id], onDelete: Restrict)
+ targetAccountId String?
+ targetAccount FinancialAccount? @relation("Incoming", fields: [targetAccountId], references: [id], onDelete: Restrict)
+ requestKey String? @unique
+ requestReceipt MovementRequest?
+ recurrenceOccurrence RecurringOccurrence?
  source MailImport? @relation(fields: [importId], references: [id])
  @@index([currency, occurredAt])
+ @@index([categoryId])
+ @@index([accountId, occurredAt])
+ @@index([targetAccountId, occurredAt])
+}
+
+model Category {
+ id String @id @default(cuid())
+ name String
+ normalizedName String @unique
+ archived Boolean @default(false)
+ system Boolean @default(false)
+ movements Movement[]
+ recurringTemplates RecurringTemplate[]
+ budgetLimits BudgetCategory[]
+}
+
+model RecurringTemplate {
+ id String @id @default(cuid())
+ version Int @default(0)
+ description String
+ amountMinor Int
+ currency Currency
+ type MovementType
+ category String
+ categoryId String
+ categoryRef Category @relation(fields: [categoryId], references: [id], onDelete: Restrict)
+ startDate String
+ nextDate String
+ anchorDay Int
+ active Boolean @default(true)
+ occurrences RecurringOccurrence[]
+}
+model RecurringOccurrence {
+ id String @id @default(cuid())
+ templateId String
+ template RecurringTemplate @relation(fields: [templateId], references: [id], onDelete: Restrict)
+ scheduledFor String
+ movementId String? @unique
+ movement Movement? @relation(fields: [movementId], references: [id], onDelete: SetNull)
+ confirmedAt DateTime @default(now())
+ @@unique([templateId,scheduledFor])
+}
+
+model AppOwner {
+ id Int @id @default(1)
+ name String
+ email String @unique
+ passwordHash String
+ createdAt DateTime @default(now())
+ sessions AccessSession[]
+ recoveryCodes RecoveryCode[]
+ cleanups DataCleanup[]
+ cleanupPreview CleanupPreview?
+}
+model AccessSession {
+ id String @id @default(cuid())
+ ownerId Int
+ owner AppOwner @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+ tokenHash String @unique
+ createdAt DateTime @default(now())
+ expiresAt DateTime
+ revokedAt DateTime?
+ @@index([ownerId, expiresAt])
+}
+model AuthThrottle {
+ key String @id
+ startedAt DateTime
+ attempts Int
+}
+
+model RecoveryCode {
+ id String @id @default(cuid())
+ ownerId Int
+ owner AppOwner @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+ codeHash String @unique
+ createdAt DateTime @default(now())
+ expiresAt DateTime
+ usedAt DateTime?
+ @@index([ownerId, expiresAt])
+}
+model DataCleanup {
+ id String @id @default(cuid())
+ ownerId Int
+ owner AppOwner @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+ cutoff DateTime
+ reviewBodies Int
+ failedBodies Int
+ accessRecords Int
+ createdAt DateTime @default(now())
+}
+model CleanupPreview {
+ ownerId Int @id
+ owner AppOwner @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+ id String @unique
+ cutoff DateTime
+ importIds String[]
+ expiresAt DateTime
+}
+
+
+enum AccountKind {
+ BANK
+ CASH
+ CREDIT_CARD
+ LOAN
+}
+model FinanceLock {
+ id Int @id
+}
+model FinancialAccount {
+ id String @id @default(cuid())
+ name String
+ currency Currency
+ kind AccountKind
+ openingMinor Int
+ creditLimitMinor Int?
+ archived Boolean @default(false)
+ revision Int @default(0)
+ reconciledThrough String?
+ outgoing Movement[] @relation("Outgoing")
+ incoming Movement[] @relation("Incoming")
+ reconciliations Reconciliation[]
+}
+model Reconciliation {
+ id String @id @default(cuid())
+ accountId String
+ account FinancialAccount @relation(fields: [accountId], references: [id], onDelete: Restrict)
+ asOf String
+ balanceMinor BigInt
+ createdAt DateTime @default(now())
+ @@unique([accountId, asOf])
+}
+model BudgetPeriod {
+ id String @id @default(cuid())
+ month String
+ currency Currency
+ version Int @default(1)
+ limitMinor Int?
+ categories BudgetCategory[]
+ @@unique([month, currency])
+}
+model BudgetCategory {
+ periodId String
+ period BudgetPeriod @relation(fields: [periodId], references: [id], onDelete: Cascade)
+ categoryId String
+ category Category @relation(fields: [categoryId], references: [id], onDelete: Restrict)
+ limitMinor Int
+ @@id([periodId, categoryId])
+}
+
+model MovementRequest {
+ key String @id
+ movementId String? @unique
+ movement Movement? @relation(fields: [movementId], references: [id], onDelete: SetNull)
 }
