@@ -4,92 +4,23 @@ Base Android de finanzas personales: React Native + Expo + TypeScript, Express, 
 
 **Estado:** prototipo personal de desarrollo. La app abre en modo demo sin backend. No conecta Gmail/Outlook ni interpreta correos bancarios reales. El parser solo reconoce el formato sintético documentado. No usar datos financieros reales ni exponer esta API a Internet.
 
-## Requisitos
+## Arranque rápido
 
-- Node.js 24 LTS (>=24.11), pnpm 10.34.7 y Git. Puedes instalar pnpm con `npm install --global pnpm@10.34.7` (solo para instalar el gestor).
-- VS Code y Expo Go compatible con el SDK indicado en `apps/mobile/package.json`.
-- Docker Desktop con Compose para la API; también puedes usar PostgreSQL local.
-- Cuenta Expo solo para compilar en EAS. Android Studio es opcional con teléfono físico y compilación en la nube.
-
-## Primer arranque: Android o PC
-
-En PowerShell:
+Desde el clon, con Node 24.11+ de la serie 24 y pnpm 10.34.7:
 
 ```powershell
-git clone https://github.com/AndersonACP25/FlowSaldo.git
-cd FlowSaldo
 pnpm install --frozen-lockfile
-pnpm start
+pnpm web
 ```
 
-Conecta PC y Android al mismo Wi-Fi, abre Expo Go y escanea el QR. Si la red impide conectar: `pnpm --filter @flowsaldo/mobile exec expo start --go --tunnel`.
+Pulsa **Explorar demostración**. En Android usa `pnpm start` con Expo Go o `pnpm android` con un emulador iniciado.
 
-Para abrir en la PC: `pnpm web`. Para Expo Go: `pnpm start`. Para un emulador Android encendido: `pnpm android`. Ejecuta todo desde la raíz. Las dependencias web ya están incluidas.
+- [Guía desde el clon](docs/setup.md) para preparar PostgreSQL, arrancar API y worker y configurar la cuenta.
+- [Generar el APK preview](docs/pilot.md#compilar-e-instalar-el-apk) para compilar con EAS, instalar en el teléfono y probar la conexión HTTPS.
+- [Pruebas](TESTING.md) para checks locales y CI.
+- [Prompts y orquestación](ai/README.md) para preparar tareas y contexto de agentes.
 
-La navegación sigue DESIGN.md: Panel, Movimientos, Por revisar y Conexiones, con una paleta Dark Slate/esmeralda/cian. Panel muestra el flujo de los últimos siete días. Por revisar permite confirmar datos manualmente o descartar correos sintéticos; solo los confirmados generan movimientos. Conexiones muestra el estado real del prototipo y permite encolar avisos sintéticos al worker cuando conectas la API. Gmail y Outlook están marcados como próximos, sin conexión ni IA activa.
-
-La pantalla inicial permite iniciar sesión en la cuenta personal, configurar la cuenta inicial o pulsar «Explorar demostración». La demo sigue funcionando sin API. Configuración se abre desde el botón del encabezado y permite guardar moneda predeterminada y ocultación visual de importes. No modifica los archivos exportados.
-
-La demo permite crear, editar y eliminar movimientos con confirmación, buscar por descripción/categoría, filtrar mes/moneda/tipo, ver gastos por categoría, guardar presupuesto por mes/moneda y exportar el conjunto filtrado. En web se descarga CSV; Android crea un archivo CSV en caché y abre el menú nativo para compartirlo. Los movimientos demo y presupuestos persisten con AsyncStorage (almacenamiento sin cifrar, solo datos ficticios), separados de la API. La sesión y token API nunca se guardan. Conexiones permite restablecer la demo con confirmación. Las muestras iniciales se ubican en el mes actual al iniciar una demo nueva.
-
-Los indicadores se calculan por mes y moneda. En modo API el historial se carga por páginas y los indicadores mensuales se calculan sobre todos los registros del mes seleccionado. Los presupuestos de demo son locales; en modo API se guardan en el servidor por mes y moneda, con versión para detectar cambios de otro dispositivo. La exportación incluye todos los resultados filtrados aunque aún no hayas cargado todas las páginas. Los totales corresponden al mes y moneda seleccionados; no son saldos bancarios. Si Expo Go no soporta este SDK, instala una versión compatible desde https://expo.dev/go o crea un development build. No uses credenciales reales en el prototipo.
-
-## API, base de datos y worker
-
-Desde la raíz:
-
-```powershell
-Copy-Item .env.example .env
-# Cambia DEV_API_TOKEN por un secreto aleatorio de 24 caracteres o más.
-docker compose up -d
-pnpm db:generate
-pnpm db:migrate --name initial
-pnpm db:seed
-pnpm dev:api
-```
-
-En otra terminal: `pnpm dev:worker`. Ejecuta cada comando desde la raíz. Si usas PostgreSQL instalado, omite Docker y ajusta DATABASE_URL. Las credenciales del compose son exclusivamente locales.
-
-Para conectar el teléfono:
-
-1. Copia `apps/mobile/.env.example` a `apps/mobile/.env`.
-2. Cambia EXPO_PUBLIC_API_URL por la IP LAN de tu PC (consulta `ipconfig`). `localhost` desde Android es el teléfono.
-3. Cambia HOST a `0.0.0.0` en `.env` y reinicia API; permite el puerto 3000 solo en tu red privada si Windows lo requiere.
-4. Reinicia Expo. En Conexiones escribe el mismo DEV_API_TOKEN y pulsa Conectar.
-
-El token queda solo en memoria. EXPO_PUBLIC_* es público: nunca pongas secretos allí. HTTP LAN y token compartido son únicamente para datos sintéticos en una red confiable. El APK definitivo requiere HTTPS y autenticación individual. Esta base admite una cuenta personal por instalación; no incluye login multiusuario. Para web usa `http://localhost:3000` en EXPO_PUBLIC_API_URL y el puerto Expo predeterminado 8081. La API permite CORS exclusivamente desde WEB_ORIGINS (localhost:8081 por defecto). Si cambias puerto u origen, actualiza esa variable. El permiso CORS no sustituye el token.
-
-## Probar una importación (PowerShell)
-
-```powershell
-$token = 'EL_TOKEN_QUE_CONFIGURASTE'
-$headers = @{ Authorization = "Bearer $token" }
-$body = @{ externalId = 'demo-mail-001'; body = 'FLOWSALDO-DEMO|EXPENSE|DOP|2450.50|2026-10-21|Supermercado' } | ConvertTo-Json
-Invoke-RestMethod -Method Post -Uri http://localhost:3000/imports -Headers $headers -ContentType application/json -Body $body
-Invoke-RestMethod -Uri http://localhost:3000/imports -Headers $headers
-Invoke-RestMethod -Uri http://localhost:3000/movements -Headers $headers
-```
-
-Repetir externalId no crea otro trabajo. El worker transforma PENDING en PARSED o REVIEW. Los desconocidos no se contabilizan. Los correos sintéticos procesados correctamente se vacían; los pendientes de revisión conservan el cuerpo para investigación local. Falta definir retención y eliminación antes de usar correos reales. El límite por movimiento es 2,147,483,647 centavos.
-
-## Calidad
-
-```powershell
-pnpm db:generate
-pnpm check
-# Opcional: prueba de interfaz web (instala Chromium una vez)
-pnpm exec playwright install chromium
-pnpm test:web
-# Prueba el servidor de desarrollo y la URL del bundle reportada
-pnpm test:dev
-```
-
-Pruebas de dominio CORE ejecutables sin instalar dependencias: `node --test packages/domain/test/core.test.ts` (Node 24).
-CI verifica instalación con lockfile, Prisma, lint, tipos, dominio, smoke de API/worker contra PostgreSQL y tres recorridos Playwright críticos (registro/persistencia/CSV, confirmación/trazabilidad y exportación API completa).
-
-## Generar un APK
-
-El perfil EAS `preview` genera un APK instalable. Configura `EXPO_PUBLIC_API_URL` en el entorno `preview` de EAS con la URL HTTPS de la API de pruebas si quieres validar el acceso personal. Consulta la [guía del piloto Android y HTTPS](docs/pilot.md) para preparar el servidor, firmar el APK y registrar las pruebas en un teléfono.
+La demo guarda movimientos y presupuestos ficticios en el dispositivo. El modo API ofrece historial paginado, presupuestos en servidor y sesiones personales. Web guarda la sesión en memoria y Android usa SecureStore. En ambos modos, el CSV incluye todos los resultados del filtro. Los avisos sintéticos desconocidos pasan a revisión y requieren confirmación antes de generar movimientos.
 
 ## Organización
 

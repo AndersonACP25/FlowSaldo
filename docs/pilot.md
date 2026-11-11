@@ -4,8 +4,8 @@ Usa una instancia de pruebas con datos ficticios, un nombre DNS accesible desde 
 
 ## Preparar la API
 
-1. Prepara PostgreSQL y aplica las migraciones con `pnpm exec prisma migrate deploy --config packages/database/prisma.config.ts`.
-2. Configura `DATABASE_URL` y `DEV_API_TOKEN` en el entorno privado del servidor. Genera Prisma con `pnpm db:generate`.
+1. Prepara PostgreSQL y configura `DATABASE_URL` y `DEV_API_TOKEN` en el entorno privado del servidor.
+2. Genera Prisma con `pnpm db:generate` y aplica las migraciones con `pnpm exec prisma migrate deploy --config packages/database/prisma.config.ts`.
 3. Elige un puerto accesible desde Android. Para HTTPS directo, apunta los archivos PEM a la cadena completa y a la clave privada, con acceso restringido al usuario del servicio. Ejemplo de configuración en el `.env` del servidor:
 
    ```dotenv
@@ -22,15 +22,21 @@ Usa una instancia de pruebas con datos ficticios, un nombre DNS accesible desde 
 
 ## Compilar e instalar el APK
 
-Desde `apps/mobile`, inicia sesión en EAS y vincula el proyecto si aún no está asociado. En el entorno `preview` del proyecto en Expo, establece `EXPO_PUBLIC_API_URL` con la URL HTTPS de la API, incluido el puerto si corresponde. Esa variable queda visible en la compilación. Configura la firma del APK con EAS y ejecuta:
+Instala primero las dependencias desde la raíz con `pnpm install --frozen-lockfile`. Puedes generar un APK para explorar la demo o uno conectado a la API. Para el segundo, define `EXPO_PUBLIC_API_URL` con la URL HTTPS de pruebas en el entorno **preview** del proyecto EAS. La URL se incorpora al compilar. Cambiarla requiere otro build.
 
-```sh
+En PowerShell, desde la raíz:
+
+```powershell
+Set-Location apps/mobile
 pnpm dlx eas-cli@latest login
+# Solo para la primera vinculación o configuración del proyecto.
 pnpm dlx eas-cli@latest build:configure
 pnpm dlx eas-cli@latest build --platform android --profile preview
 ```
 
-Instala el APK del build en el dispositivo. Registra el identificador del build, el modelo del teléfono y su versión de Android.
+Si EAS solicita credenciales de firma, usa las del proyecto Android existente o deja que EAS genere la primera clave. Conserva la misma clave para actualizar el APK sobre una instalación previa. El perfil `preview` de `eas.json` genera un APK. El perfil `production` genera un AAB para distribución.
+
+Abre el enlace del build terminado en Android, descarga el APK e instálalo. Si Android lo solicita, permite instalar desde la app que abrió el archivo. Abre FlowSaldo sin Metro. Para un APK de demo, selecciona **Explorar demostración**. Para el piloto conectado, registra el build, el modelo y la versión de Android y ejecuta la siguiente lista.
 
 | Prueba | Resultado esperado |
 |---|---|
@@ -42,4 +48,4 @@ Instala el APK del build en el dispositivo. Registra el identificador del build,
 
 La prueba automatizada de HTTPS usa OpenSSL para crear un certificado temporal y verifica una sesión activa y otra revocada en la API. El certificado público, el APK firmado y la prueba física se verifican en el entorno del piloto.
 
-Referencia de configuración de EAS: [Variables de entorno en Expo](https://docs.expo.dev/eas/environment-variables/).
+Referencias oficiales de Expo. [Compilar APK](https://docs.expo.dev/build-reference/apk/) · [Variables de entorno](https://docs.expo.dev/eas/environment-variables/)

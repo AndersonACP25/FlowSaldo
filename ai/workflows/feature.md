@@ -1,5 +1,15 @@
 # Feature
 
+## Rol y objetivo
+
+El orquestador coordina el flujo. Implementar una mejora y comprobar sus criterios de aceptación.
+
+## Contexto y entradas
+
+Solicitud, alcance, exclusiones, rutas reservadas y checks requeridos.
+
+## Procedimiento
+
 1. Orquestador: objetivo, criterios, exclusiones, alcance y archivos reservados.
 2. Arquitectura: impacto en API/datos/diseño. ADR si hay decisión estructural.
 3. Implementadores: cambios acotados respetando dependencias; no modificar la misma ruta en paralelo.
@@ -10,3 +20,15 @@
 Terminado exige criterios cubiertos, checks requeridos pass con evidencia y ningún hallazgo high/critical abierto. El CLI no ejecuta estos pasos por sí mismo; el host realiza y supervisa las tareas del plan.
 
 Antes de documentación/revisión final: language-editor revisa textos (incluidos 0/1/N) y export-guardian revisa el contrato y los archivos efectivamente generados. Sus hallazgos se corrigen por el dueño del área.
+
+## Restricciones
+
+Aplica `ai/policies.md`, los permisos del host y las instrucciones de área.
+
+## Criterios de aceptación
+
+Los criterios están cubiertos, los checks requeridos pasan con evidencia y los hallazgos graves están resueltos.
+
+## Formato de salida
+
+Entrega los cambios, hallazgos, comprobaciones y bloqueos según `ai/templates/handoff.json`.

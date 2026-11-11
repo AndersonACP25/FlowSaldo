@@ -151,3 +151,7 @@ Retención automática opcional con AUTO_RETENTION_DAYS, 7–365, lote de 1000 c
 ### Piloto Android y HTTPS
 
 API con TLS directo opcional mediante par PEM, configuración proxy limitada a loopback, integración con certificado temporal y sesiones activa/revocada. Perfil EAS APK preview con entorno explícito y guía de despliegue y pruebas físicas. El dominio/certificado público, la firma EAS y el dispositivo se validan en el entorno del piloto.
+
+### Guías de arranque y prompts
+
+El README enlaza a docs/setup.md para ejecutar desde un clon y a docs/pilot.md para generar el APK. Perfiles, flujos y prompt inicial usan seis secciones comunes. Los comandos de planificación, contexto y entrega conservan sus contratos JSON.
