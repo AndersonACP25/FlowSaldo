@@ -1,6 +1,6 @@
 import {Router} from 'express';
 import {db} from '@flowsaldo/database';
-import {CategoryError} from './categories';
+import {CategoryError} from '../models/categories';
 export const importRoutes=Router();
 export const importMetadata={attempts:true,manualRetries:true,nextAttemptAt:true,lastAttemptAt:true,lastErrorCode:true,processedAt:true,lockedUntil:true} as const;
 importRoutes.get('/imports/stats',async(_req,res)=>{

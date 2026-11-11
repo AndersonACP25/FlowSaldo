@@ -1,3 +1,4 @@
+import {loginAsTestAccount} from './test-account-flow.mjs';
 import { spawn } from 'node:child_process';
 import { once } from 'node:events';
 import { fileURLToPath, URL } from 'node:url';
@@ -16,8 +17,8 @@ try {
  browser=await chromium.launch({headless:true,...(process.env.CHROMIUM_EXECUTABLE_PATH?{executablePath:process.env.CHROMIUM_EXECUTABLE_PATH,args:['--no-sandbox','--no-zygote','--single-process','--disable-dev-shm-usage']}: {})});
  const page=await browser.newPage(); const errors=[];page.on('pageerror',e=>errors.push(e.message));
  await page.goto('http://localhost:8083',{waitUntil:'networkidle'});
- await page.getByRole('button',{name:'Explorar demostración',exact:true}).click();
- await page.getByText('Tu presupuesto mensual',{exact:true}).waitFor();
+ await loginAsTestAccount(page);
+ await page.getByRole('button',{name:'Ver presupuestos',exact:true}).waitFor();
  assert.deepEqual(errors,[]);
  console.info('PASS: Metro development bundle 200 + frontend boot');
 } finally {

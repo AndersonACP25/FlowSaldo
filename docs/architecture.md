@@ -82,3 +82,7 @@ RecoveryCode guarda hashes de códigos offline; AppOwner serializa generación/c
 ## v0.10 — Ledger de cuentas y planificación
 
 Movement agrega origen/destino opcionales, sin reasignar registros previos. FinancialAccount guarda metadatos/saldo inicial; el saldo se calcula desde movimientos vinculados. Una transferencia es una fila con dos extremos de misma moneda. La reserva de requestKey en MovementRequest sobrevive al borrado del movimiento. FinanceLock serializa modificaciones de cuentas/movimientos vinculados/conciliación y presupuestos; los workers/recurrencias siguen creando registros sin cuenta. Reconciliation confirma snapshot por revision y fija un corte histórico protegido. BudgetPeriod/BudgetCategory guardan límites por mes/moneda con versión optimista y tombstone. Se conserva una instalación personal, sin multiusuario ni bancos reales.
+
+## Backend MVC
+
+`apps/api/src/index.ts` monta middleware y controladores. Los controladores validan entradas y coordinan la respuesta HTTP. El esquema Prisma define las entidades y `apps/api/src/models` reúne operaciones reutilizables, como las transacciones de movimientos y revisión de avisos. Las vistas representan respuestas JSON. `apps/api/src/views/errors.ts` centraliza el formato de error.

@@ -1,3 +1,4 @@
+import {loginAsTestAccount} from './test-account-flow.mjs';
 import {URL} from 'node:url';
 import assert from 'node:assert/strict';
 import {demoCategoryCatalog} from '../packages/domain/src/index.ts';
@@ -24,15 +25,15 @@ export async function checkFinanceFlow(browser){
   else throw new Error('Unexpected finance path '+url.pathname);
   await route.fulfill({headers,status,json:data});
  });
- async function connect(){await button('Explorar demostración').click();await button('Conexiones').click();await page.getByLabel('Token de desarrollo',{exact:true}).fill('synthetic-finance-token-123456789');await button('Conectar API').click();await page.getByText('Tu presupuesto mensual',{exact:true}).waitFor();}
+ async function connect(){await loginAsTestAccount(page);await button('Conexiones').click();await page.getByLabel('Token de desarrollo',{exact:true}).fill('synthetic-finance-token-123456789');await button('Conectar API').click();await page.getByRole('button',{name:'Ver presupuestos',exact:true}).waitFor();}
  try{
   await page.goto('http://127.0.0.1:8082',{waitUntil:'networkidle'});await connect();await button('Configuración').click();await button('Administrar cuentas y conciliación').click();await page.getByText('Crear cuenta',{exact:true}).waitFor();
   await page.getByLabel('Nombre de la nueva cuenta',{exact:true}).fill('Banco CORE');await page.getByLabel('Saldo inicial de la cuenta',{exact:true}).fill('1000');await button('Crear cuenta financiera').click();await page.getByText('Cuenta financiera creada.',{exact:true}).waitFor();
   await page.getByLabel('Nombre de la nueva cuenta',{exact:true}).fill('Tarjeta CORE');await button('Tarjeta de crédito').click();await page.getByLabel('Saldo inicial de la cuenta',{exact:true}).fill('-500');await button('Crear cuenta financiera').click();await page.getByText('Tarjeta CORE',{exact:true}).waitFor();
-  await button('+ Nuevo movimiento').click();await page.getByLabel('Descripción',{exact:true}).fill('Pago tarjeta CORE');await page.getByLabel('Monto (sin separadores de miles)',{exact:true}).fill('250.29');await button('Transferencia').first().click();await button('Cuenta: Banco CORE').click();await button('Destino: Tarjeta CORE').click();await button('Guardar movimiento').click();await page.getByText('Movimiento guardado.',{exact:true}).waitFor();assert.equal(movements.length,1);assert.equal(accounts[1].debtMinor,24971);
+  await button('Volver').click();await button('+ Nuevo movimiento').click();await page.getByLabel('Descripción',{exact:true}).fill('Pago tarjeta CORE');await page.getByLabel('Monto (sin separadores de miles)',{exact:true}).fill('250.29');await button('Transferencia').first().click();await button('Cuenta: Banco CORE').click();await button('Destino: Tarjeta CORE').click();await button('Guardar movimiento').click();await page.getByText('Movimiento guardado.',{exact:true}).waitFor();assert.equal(movements.length,1);assert.equal(accounts[1].debtMinor,24971);
   await button('Configuración').click();await button('Gestionar Banco CORE').click();await page.getByLabel('Fecha de conciliación (AAAA-MM-DD)',{exact:true}).fill(today);await page.getByLabel('Saldo del estado de cuenta',{exact:true}).fill('749.71');await button('Comparar saldos').click();await button('Confirmar conciliación y proteger período').click();await page.getByText('Conciliación confirmada. El período quedó protegido.',{exact:true}).waitFor();assert.equal(reconciled,true);
-  await button('Panel').click();await page.getByLabel('Nuevo límite mensual',{exact:true}).fill('900');await button('Guardar presupuesto').click();await page.getByText('Presupuesto guardado.',{exact:true}).waitFor();assert.equal(budget.limitMinor,90000);
-  await page.reload({waitUntil:'networkidle'});await connect();await page.getByText('0% utilizado · DOP 900.00',{exact:true}).waitFor();assert.equal(budget.version,1);assert.deepEqual(errors,[]);
+  await button('Volver').click();await button('Inicio').click();await button('Ver presupuestos').click();await page.getByLabel('Nuevo límite mensual',{exact:true}).fill('900');await button('Guardar presupuesto').click();await page.getByText('Presupuesto guardado.',{exact:true}).waitFor();assert.equal(budget.limitMinor,90000);
+  await page.reload({waitUntil:'networkidle'});await connect();await button('Ver presupuestos').click();await page.getByText('0% utilizado · DOP 900.00',{exact:true}).waitFor();assert.equal(budget.version,1);assert.deepEqual(errors,[]);
   console.info('PASS CORE FINANCE UI: create cash/debt accounts → pay card once → compare/confirm reconciliation → persist server budget across reload');
  }finally{await context.close();}
 }

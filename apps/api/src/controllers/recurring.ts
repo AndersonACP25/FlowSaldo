@@ -2,7 +2,7 @@ import { Router } from 'express';
 import { z } from 'zod';
 import { db } from '@flowsaldo/database';
 import { prepareOccurrence,validDate,type RecurringTemplate } from '@flowsaldo/domain';
-import {assignCategory,CategoryError} from './categories';
+import {assignCategory,CategoryError} from '../models/categories';
 const fields=z.object({description:z.string().trim().min(1).max(100),amountMinor:z.number().int().positive().max(2147483647),currency:z.enum(['DOP','USD']),type:z.enum(['INCOME','EXPENSE','TRANSFER']),categoryId:z.string().min(1).max(200),category:z.string().trim().min(1).max(60).default('Sin categorizar')});
 const date=z.string().refine(validDate);
 export const recurringRoutes=Router();

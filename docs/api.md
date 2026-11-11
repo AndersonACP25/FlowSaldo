@@ -118,6 +118,7 @@ Aplicar `20261110030000_personal_access`: crea AppOwner singleton (id=1), Access
 | POST | /auth/setup | Authorization Bearer DEV_API_TOKEN, cuerpo name/email/password; 201 con owner; 409 si ya existe; singleton protegido también contra creación concurrente |
 | POST | /auth/login | Público, email/password; 200 con token, expiresAt, sessionId y owner; error genérico 401; rate limit 429 |
 | GET | /auth/me | Sesión vigente; owner, expiresAt, sessionId |
+| PATCH | /auth/me | Sesión vigente y contraseña actual; cuerpo name/email/currentPassword; 200 con owner actualizado. El correo se normaliza y se usa en el siguiente acceso. |
 | POST | /auth/logout | Sesión vigente; revoca la actual, 204 |
 | GET | /auth/sessions | Sesión vigente; solo id/createdAt/expiresAt/current, nunca token ni hash |
 | POST | /auth/sessions/revoke-others | Sesión vigente; revoca otras, devuelve revoked |
@@ -180,3 +181,5 @@ Presupuestos se separan por mes/moneda para la única instalación personal. Bor
 ### HTTPS directo
 
 Configura juntos `TLS_CERT_FILE` y `TLS_KEY_FILE` para servir HTTPS en `HOST:PORT`. La API lee los archivos PEM al arrancar. El modo `TRUST_PROXY_LOOPBACK=1` requiere un listener HTTP en `127.0.0.1` o `::1`. Consulta la [guía del piloto](pilot.md) para las dos configuraciones.
+
+El formulario **Registrarse** usa el endpoint existente `POST /auth/setup` y su token de configuración. El usuario de prueba opera localmente en el cliente. Sus credenciales públicas no crean una sesión de API.
