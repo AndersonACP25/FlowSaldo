@@ -1,3 +1,4 @@
+import {checkNativeTls} from './tls-pilot-smoke.mjs';
 import assert from 'node:assert/strict';
 import {checkRecoveryRetention} from './recovery-retention-smoke.mjs';
 import {PrismaClient} from '@prisma/client';
@@ -25,6 +26,7 @@ export async function checkPersonalAccess(bootstrapToken,connectionString){
   const stored=await db.accessSession.findUniqueOrThrow({where:{id:first.sessionId}});assert.equal(stored.tokenHash,digest(first.token));assert.notEqual(stored.tokenHash,first.token);
   const sessions=await (await call('/auth/sessions',undefined,first.token)).json();assert.equal(sessions.length,2);assert.equal(sessions.filter(s=>s.current).length,1);assert.ok(sessions.every(s=>!('tokenHash' in s)&&!('token' in s)));
   assert.equal((await call('/auth/sessions/revoke-others',{},first.token)).status,200);assert.equal((await call('/movements',undefined,second.token)).status,401);assert.equal((await call('/auth/me',undefined,first.token)).status,200);
+  await checkNativeTls(first.token,second.token);
   assert.equal((await call('/auth/password',{currentPassword:credentials.password,newPassword:nextPassword},first.token)).status,204);
   assert.equal((await call('/auth/me',undefined,first.token)).status,401);assert.equal((await call('/auth/login',{email:credentials.email,password:credentials.password})).status,401);
   const changed=await login(nextPassword);assert.equal((await call('/auth/logout',{},changed.token)).status,204);assert.equal((await call('/movements',undefined,changed.token)).status,401);

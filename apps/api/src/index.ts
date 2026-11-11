@@ -1,3 +1,5 @@
+import {readFileSync} from 'node:fs';
+import {createServer as createHttpsServer} from 'node:https';
 import express from 'express';
 import {createAuth,AuthError} from './auth';
 import {importRoutes,importMetadata} from './imports';
@@ -13,6 +15,18 @@ import { db } from '@flowsaldo/database';
 import { summarize, type Movement } from '@flowsaldo/domain';
 const token = process.env.DEV_API_TOKEN;
 if (!token || token.length < 24) throw new Error('Configura DEV_API_TOKEN con al menos 24 caracteres');
+const certificatePath = process.env.TLS_CERT_FILE;
+const privateKeyPath = process.env.TLS_KEY_FILE;
+if (Boolean(certificatePath) !== Boolean(privateKeyPath)) {
+ throw new Error('Configura TLS_CERT_FILE y TLS_KEY_FILE juntos.');
+}
+const tls = certificatePath && privateKeyPath
+ ? {cert: readFileSync(certificatePath), key: readFileSync(privateKeyPath)}
+ : null;
+const host = process.env.HOST ?? '127.0.0.1';
+if (process.env.TRUST_PROXY_LOOPBACK === '1' && (tls || !['127.0.0.1','::1'].includes(host))) {
+ throw new Error('El modo proxy TLS requiere una API HTTP ligada a 127.0.0.1 o ::1.');
+}
 const app = express();
 app.use(helmet());
 if(process.env.TRUST_PROXY_LOOPBACK==='1')app.set('trust proxy','loopback');
@@ -116,5 +130,6 @@ app.use((error: unknown, _req: express.Request, res: express.Response, _next: ex
  res.status(500).json({ error: 'Error interno' });
 });
 const port = z.coerce.number().int().min(1).max(65535).parse(process.env.PORT ?? 3000);
-const server = app.listen(port, process.env.HOST ?? '127.0.0.1', () => console.info('FlowSaldo API lista en puerto', port));
+const listener = tls ? createHttpsServer(tls, app) : app;
+const server = listener.listen(port, host, () => console.info('FlowSaldo API lista en puerto', port));
 process.on('SIGTERM', () => server.close(() => { void db.$disconnect(); }));
