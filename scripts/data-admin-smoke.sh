@@ -2,7 +2,8 @@
 set -euo pipefail
 test -n "${PG_CONTAINER:?}"
 work=$(mktemp -d)
-trap 'rm -rf "$work"' EXIT
+trap 'status=$?; if [[ $status != 0 && -f "$work/postgres.log" ]]; then cat "$work/postgres.log"; fi; rm -rf "$work"' EXIT
+export PG_SMOKE_LOG="$work/postgres.log"
 mkdir "$work/bin"
 cat > "$work/bin/pg-tool" <<'WRAPPER'
 #!/usr/bin/env bash
@@ -12,11 +13,19 @@ args=("$@")
 if [[ "$tool" == pg_restore ]]; then
  last=$(("${#args[@]}" - 1))
  remote=$(docker exec "$PG_CONTAINER" mktemp)
- trap 'docker exec "$PG_CONTAINER" rm -f "$remote"' EXIT
+ remote_list=
+ trap 'docker exec "$PG_CONTAINER" rm -f "$remote" ${remote_list:+"$remote_list"}' EXIT
  docker cp "${args[$last]}" "$PG_CONTAINER:$remote" >/dev/null
  args[$last]=$remote
+ for i in "${!args[@]}"; do
+  if [[ "${args[$i]}" == --use-list=* ]]; then
+   remote_list=$(docker exec "$PG_CONTAINER" mktemp)
+   docker cp "${args[$i]#--use-list=}" "$PG_CONTAINER:$remote_list" >/dev/null
+   args[$i]=--use-list=$remote_list
+  fi
+ done
 fi
-docker exec -i -e PGHOST -e PGPORT -e PGDATABASE -e PGUSER -e PGPASSWORD -e PGSSLMODE "$PG_CONTAINER" "$tool" "${args[@]}"
+docker exec -i -e PGHOST -e PGPORT -e PGDATABASE -e PGUSER -e PGPASSWORD -e PGSSLMODE "$PG_CONTAINER" "$tool" "${args[@]}" 2>>"$PG_SMOKE_LOG"
 WRAPPER
 chmod +x "$work/bin/pg-tool"
 for tool in pg_dump pg_restore psql; do ln -s pg-tool "$work/bin/$tool"; done

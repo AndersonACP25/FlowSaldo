@@ -123,7 +123,10 @@ async function main() {
    SELECT 1 FROM pg_stat_activity WHERE datname=current_database() AND pid<>pg_backend_pid() AND backend_type='client backend'
   );`);
   if (occupied!=='f') throw new Error('La restauración requiere una base vacía y sin otros clientes.');
-  await postgres('pg_restore',['-w','--dbname='+env.PGDATABASE,'--exit-on-error','--single-transaction','--no-owner','--no-privileges',snapshot],env);
+  // A fresh PostgreSQL database already has a public schema.
+  const toc=join(temp,'restore.list');
+  await writeFile(toc,list.split('\n').filter(line=>!/^\d+;\s+\d+\s+\d+\s+SCHEMA - public(?:\s|$)/.test(line)).join('\n')+'\n',{mode:0o600});
+  await postgres('pg_restore',['-w','--dbname='+env.PGDATABASE,'--exit-on-error','--single-transaction','--no-owner','--no-privileges','--use-list='+toc,snapshot],env);
   console.log('Respaldo verificado y restaurado. Inicia sesión nuevamente.');
  } finally { await rm(temp,{recursive:true,force:true}); }
 }
