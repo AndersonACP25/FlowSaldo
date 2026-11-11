@@ -1,3 +1,4 @@
+import {runRetention,retentionDays} from '../apps/worker/src/retention.ts';
 import assert from 'node:assert/strict';
 import {createHash} from 'node:crypto';
 export async function checkRecoveryRetention(call,db,currentPassword){
@@ -41,6 +42,17 @@ export async function checkRecoveryRetention(call,db,currentPassword){
   assert.equal((await call('/auth/me',undefined,recovered.token)).status,200);assert.ok(await db.recoveryCode.findUnique({where:{id:prefix+'-code-active'}}));assert.equal(await db.recoveryCode.findUnique({where:{id:prefix+'-code-expired'}}),null);
   assert.ok(await db.dataCleanup.findUnique({where:{id:cleanup.id}}));
   assert.equal((await call('/auth/data/retention/apply',body,recovered.token)).status,409,'Preview is single use');
+  assert.equal(retentionDays(undefined),null);
+  assert.equal(retentionDays('30'),30);
+  assert.throws(()=>retentionDays('6'));
+  await Promise.all([runRetention(db,30,today),runRetention(db,30,today)]);
+  const automaticallyDiscarded=await db.mailImport.findUniqueOrThrow({where:{id:prefix+'-after-preview'}});
+  assert.equal(automaticallyDiscarded.body,'');
+  assert.equal(automaticallyDiscarded.status,'DISMISSED');
+  for(const suffix of ['fresh','pending','processing','protected'])assert.ok((await db.mailImport.findUniqueOrThrow({where:{id:prefix+'-'+suffix}})).body);
+  assert.equal(await db.movement.count(),before);
+  assert.equal(await runRetention(db,30,today),0);
+  console.info('PASS CORE AUTO RETENTION: optional policy, eligible bodies cleared once, live queue and movements preserved');
  }finally{await db.movement.deleteMany({where:{importId:{startsWith:prefix}}});await db.mailImport.deleteMany({where:{id:{startsWith:prefix}}});await db.recoveryCode.deleteMany({where:{id:{startsWith:prefix}}});}
  console.info('PASS CORE RECOVERY/RETENTION: hashed/rotated/expired single-use codes, concurrent reset/session revocation, preview/reauth/confirmation, cleanup preserves financial/live data and audit');
 }

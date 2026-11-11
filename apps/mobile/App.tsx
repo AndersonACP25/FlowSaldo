@@ -2,7 +2,7 @@ import React, { useEffect, useRef, useState } from 'react';
 import { StatusBar } from 'expo-status-bar';
 import { SafeAreaView, ScrollView, View, Text, ActivityIndicator, Pressable } from 'react-native';
 import { QueryClient, QueryClientProvider, useQuery, useInfiniteQuery } from '@tanstack/react-query';
-import { prepareOccurrence,changeSince,previousMonth,upgradeCategories,selectedCategory,categoryName,categoryKey,movementDate,validDate, countLabel, pendingMailMessage, categoryExpenses, demoMovements, filterMovements, parseAmount, summarize, type RecurringTemplate,type Category,type Movement, type Currency, type MovementType } from '@flowsaldo/domain';
+import { formatMinorAmount,prepareOccurrence,changeSince,previousMonth,upgradeCategories,selectedCategory,categoryName,categoryKey,movementDate,validDate, countLabel, pendingMailMessage, categoryExpenses, demoMovements, filterMovements, parseAmount, summarize, type RecurringTemplate,type Category,type Movement, type Currency, type MovementType } from '@flowsaldo/domain';
 import { styles as s, palette } from './src/theme';
 import { Button, Choice, Field } from './src/ui';
 import {ImportQueue,type ImportStats} from './src/ImportQueue';
@@ -27,7 +27,7 @@ import { defaultPreferences, loadPreferences, savePreferences, type Preferences 
 import { exportCsv, exportCsvText } from './src/exportCsv';
 import { movementParams, type Page, type MonthlySummary } from './src/history';
 const client=new QueryClient();
-const formatMoney=(minor:number,currency:Currency)=>`${currency} ${(minor/100).toLocaleString('es-DO',{minimumFractionDigits:2,maximumFractionDigits:2})}`;
+const formatMoney=(minor:number,currency:Currency)=>`${currency} ${formatMinorAmount(minor)}`;
 function currentMonth() { const d=new Date(); return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}`; }
 function shiftMonth(month:string,delta:number) { const [year,m]=month.split('-').map(Number); const d=new Date(year,m-1+delta,1);return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}`; }
 function initialData():LocalData { return {...upgradeCategories(demoMovements.map(m=>({...m,occurredAt:currentMonth()+m.occurredAt.slice(7)}))),recurring:[],receipts:[],categoryBudgets:{},budgets:{},reviews:demoReviews()}; }

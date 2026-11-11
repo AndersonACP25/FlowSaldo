@@ -61,7 +61,7 @@ Lotes adicionales completados: v0.7 recuperación de cola, v0.8 cuenta personal/
 | Proveedor y banco | Elegir Gmail u Outlook y un banco; obtener muestras anonimizadas y requisitos OAuth |
 | Correo real | OAuth, conector incremental/cursores, parsers versionados y deduplicación entre avisos de la misma operación |
 | Modelo financiero ampliado | Implementado en v0.10: cuentas, tarjetas/préstamos, conciliación manual y presupuestos en servidor |
-| Política completa de datos | Eliminación de cuenta/finanzas, retención automática, copias de seguridad y restauración verificable |
+| Política de datos | Implementada mediante retención opcional y comandos de mantenimiento |
 
 Siguiente lote recomendado: preparación y checklist ejecutable del piloto Android/HTTPS. La conexión bancaria real requiere primero proveedor/banco y muestras; no se inventarán formatos ni credenciales. Multiusuario e IA opcional no forman parte del plan original.
 
@@ -70,4 +70,8 @@ Siguiente lote recomendado: preparación y checklist ejecutable del piloto Andro
 
 Cuentas y deuda con saldos explícitos por moneda, transferencias internas sin doble gasto, conciliación manual con período protegido y presupuestos del modo API guardados en servidor con control de versiones. UI disponible desde Configuración y Movimientos; demo local conservada. No calcula intereses/cuotas ni conecta saldos bancarios en línea. El historial anterior no se reasigna automáticamente.
 
-Siguiente lote autorizado en el mismo PR: punto #5, eliminación completa de cuenta/datos, retención automática y respaldo/restauración verificable. La limpieza manual v0.9 no sustituye esas funciones. Android físico/APK, TLS operativo y correo real siguen pendientes.
+Android físico/APK, TLS operativo y correo real siguen pendientes.
+
+### Punto #5 — Mantenimiento de datos
+
+El worker admite retención automática opcional de cuerpos de avisos. El operador puede respaldar, restaurar y borrar la cuenta y sus datos mediante comandos de mantenimiento. La integración restaura en una base aislada, verifica los datos y borra esa copia de prueba.

@@ -10,3 +10,9 @@ export function ledgerBalance(opening:number,income:number,outgoing:number,incom
  const n=BigInt(opening)+BigInt(income)-BigInt(outgoing)+BigInt(incomingTransfers);
  const result=Number(n);if(!Number.isSafeInteger(result))throw new Error('Saldo fuera de rango.');return result;
 }
+
+export function formatMinorAmount(minor:number):string {
+ if(!Number.isSafeInteger(minor))throw new Error('Monto fuera de rango.');
+ const n=BigInt(minor);const magnitude=n<0n?-n:n;
+ return (n<0n?'-':'')+(magnitude/100n).toString().replace(/\B(?=(\d{3})+(?!\d))/g,',')+'.'+(magnitude%100n).toString().padStart(2,'0');
+}

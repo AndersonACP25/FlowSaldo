@@ -13,6 +13,7 @@
     "dev:worker": "pnpm --filter @flowsaldo/worker dev",
     "db:generate": "pnpm --filter @flowsaldo/database generate",
     "db:migrate": "pnpm --filter @flowsaldo/database migrate",
+    "data:admin": "node --env-file-if-exists=.env scripts/data-admin.mjs",
     "db:seed": "pnpm --filter @flowsaldo/database seed",
     "typecheck": "pnpm -r --if-present typecheck",
     "lint": "eslint .",
