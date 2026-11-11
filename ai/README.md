@@ -35,9 +35,9 @@ No existe una relación de herencia mágica: un subagente es el mismo perfil eje
 
 No se crean CLAUDE.md, GEMINI.md, .opencode ni otras copias que puedan divergir. Si un proveedor necesita adaptador, deberá apuntar aquí y mantener esta fuente única. No se configura MCP sin una necesidad y permisos concretos.
 
-## Estado v0.4
+## Alcance del sistema
 
-Infraestructura de IA para desarrollar el proyecto. La app mantiene la funcionalidad v0.3. No incluye IA financiera, conexión de correo real ni ejecución automática de agentes. Los perfiles orientan; no garantizan comportamiento de un LLM. El validador comprueba estructura/enlaces/contratos, no la veracidad de lo que declara un agente.
+Infraestructura de IA para desarrollar el proyecto. La app mantiene su evolución funcional independiente. No incluye IA financiera, conexión de correo real ni ejecución automática de agentes. Los perfiles orientan; no garantizan comportamiento de un LLM. El validador comprueba estructura/enlaces/contratos, no la veracidad de lo que declara un agente.
 
 ## Validar una entrega
 
@@ -49,9 +49,11 @@ pnpm ai:handoff --task-file ai/runs/task.json --file ai/runs/handoff.json
 
 Las plantillas tienen esquemas JSON en templates/*.schema.json para editores. El CLI usa validadores propios y comprobaciones cruzadas; no incorpora un motor JSON Schema general. Una entrega blocked con motivo puede ser consistente sin estar terminada. Solo done exige checks obligatorios pass y ausencia de bloqueos o hallazgos graves. El validador no ejecuta los comandos ni verifica la autenticidad del texto de evidencia.
 
-## Iniciar una sesión en cualquier host
+## Usar los prompts de ingeniería
 
-Usa ai/prompts/start.md o pega: «Lee AGENTS.md, MEMORY.md y ai/README.md. Actúa como el orquestador de ai/agents/orchestrator.md para esta tarea: [objetivo]. Genera un plan, respeta scopes y contratos y usa solo las herramientas autorizadas del host. Si no tienes subagentes, ejecuta secuencialmente y declara esa limitación».
+Abre [el prompt inicial](prompts/start.md), completa la solicitud, el estado actual, los criterios observables y las exclusiones. Cada perfil y flujo comparte seis secciones: rol y objetivo, contexto y entradas, procedimiento, restricciones, criterios de aceptación y formato de salida. El perfil define instrucciones reutilizables. El contrato JSON aporta los datos concretos de cada tarea.
+
+El orquestador convierte esas entradas en un plan. `ai:packet` entrega el perfil Markdown, las tareas JSON y los documentos autorizados. Antes de ejecutar, sustituye los criterios genéricos del borrador por resultados comprobables. Al cerrar cada tarea, usa `ai:handoff` con evidencias reales. El host controla si hay delegación y qué herramientas están disponibles.
 
 ## Referencias de formato
 
