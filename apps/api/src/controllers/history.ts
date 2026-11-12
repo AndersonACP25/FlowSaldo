@@ -56,16 +56,18 @@ history.get('/movements/export',async(req,res)=>{
 });
 history.get('/summary',async(req,res,next)=>{
  if(req.query.month===undefined){next();return;}
- const {month,currency}=filters.extend({month:monthSchema,currency:z.enum(['DOP','USD']).default('DOP')}).parse(req.query);
+ const {month,currency,weekEnd}=filters.extend({
+  month:monthSchema,currency:z.enum(['DOP','USD']).default('DOP'),weekEnd:dateSchema.optional(),
+ }).refine(value=>!value.weekEnd||value.weekEnd.startsWith(value.month),{message:'El fin de semana debe pertenecer al mes consultado.'}).parse(req.query);
  const where={currency,occurredAt:monthRange(month)};const priorMonth=previousMonth(month);
  const today=new Date().toISOString().slice(0,10);
- const end=today.startsWith(month)?today:new Date(monthRange(month).lt.getTime()-86400000).toISOString().slice(0,10);
+ const end=weekEnd??(today.startsWith(month)?today:new Date(monthRange(month).lt.getTime()-86400000).toISOString().slice(0,10));
  const start=new Date(end+'T00:00:00.000Z'); start.setUTCDate(start.getUTCDate()-6);
  const result=await db.$transaction(async tx=>{
   const [types,categories,daily,total,categoryTotals,prior]=await Promise.all([
    tx.movement.groupBy({by:['type'],where,_sum:{amountMinor:true}}),
    tx.movement.groupBy({by:['category'],where:{...where,type:'EXPENSE'},_sum:{amountMinor:true},orderBy:{_sum:{amountMinor:'desc'}}}),
-   tx.$queryRaw<Array<{day:string;type:string;amount:bigint}>>`SELECT to_char("occurredAt", 'YYYY-MM-DD') AS day, type, SUM("amountMinor") AS amount FROM "Movement" WHERE currency::text=${currency} AND "occurredAt">=${start} AND "occurredAt"<${new Date(Date.parse(end+'T00:00:00.000Z')+86400000)} AND "occurredAt">=${where.occurredAt.gte} GROUP BY day,type`,
+   tx.$queryRaw<Array<{day:string;type:string;amount:bigint}>>`SELECT to_char("occurredAt", 'YYYY-MM-DD') AS day, type, SUM("amountMinor") AS amount FROM "Movement" WHERE currency::text=${currency} AND "occurredAt">=${start} AND "occurredAt"<${new Date(Date.parse(end+'T00:00:00.000Z')+86400000)} AND "occurredAt">=${weekEnd?start:where.occurredAt.gte} GROUP BY day,type`,
    tx.movement.count({where}),
    tx.movement.groupBy({by:['categoryId'],where:{...where,type:'EXPENSE'},_sum:{amountMinor:true}}),
    tx.movement.groupBy({by:['type'],where:{currency,occurredAt:monthRange(priorMonth)},_sum:{amountMinor:true}})

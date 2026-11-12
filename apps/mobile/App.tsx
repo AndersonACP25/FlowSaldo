@@ -1,3 +1,6 @@
+import {RatesScreen} from './src/RatesScreen';
+import {localToday, PeriodPicker} from './src/PeriodPicker';
+import {IconButton} from './src/IconButton';
 import {BrandMark} from './src/BrandMark';
 import {AccountActions, FilterChip, filterStyles, OpeningCover, topInset} from './src/ScreenChrome';
 import {testAccount} from './src/testAccount';
@@ -31,8 +34,7 @@ import { exportCsv, exportCsvText } from './src/exportCsv';
 import { movementParams, type Page, type MonthlySummary } from './src/history';
 const client=new QueryClient();
 const formatMoney=(minor:number,currency:Currency)=>`${currency} ${formatMinorAmount(minor)}`;
-function currentMonth() { const d=new Date(); return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}`; }
-function shiftMonth(month:string,delta:number) { const [year,m]=month.split('-').map(Number); const d=new Date(year,m-1+delta,1);return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}`; }
+const currentMonth=()=>localToday().slice(0,7);
 function initialData():LocalData { return {...upgradeCategories(demoMovements.map(m=>({...m,occurredAt:currentMonth()+m.occurredAt.slice(7)}))),recurring:[],receipts:[],categoryBudgets:{},budgets:{},reviews:demoReviews()}; }
 function Home({onAuth,personal,onLogout,onExpired,onProfileChanged,accessNotice}:{onAuth:(route:AuthRoute)=>void;personal?:PersonalSession;onLogout:()=>Promise<void>;onExpired:()=>Promise<void>;onProfileChanged:(owner:Owner)=>void;accessNotice?:string}) {
  const confirming=useRef(new Set<string>());
@@ -41,12 +43,13 @@ function Home({onAuth,personal,onLogout,onExpired,onProfileChanged,accessNotice}
  const money=(minor:number,unit:Currency)=>preferences.hideAmounts?`${unit} ••••`:formatMoney(minor,unit);
  const [local,setLocal]=useState<LocalData>(initialData); const localRef=useRef(local);
  const [ready,setReady]=useState(false); const [loadError,setLoadError]=useState('');
- const [currency,setCurrency]=useState<Currency>('DOP'); const [month,setMonth]=useState(currentMonth);
+ const [currency,setCurrency]=useState<Currency>('DOP'); const [periodDate,setPeriodDate]=useState(localToday);
+ const month=periodDate.slice(0,7);
  const tabs=['Inicio','Movimientos','Por revisar','Conexiones'] as const;
  type Tab=typeof tabs[number];
- const [screen,setScreen]=useState<Tab|'Configuración'|'Presupuestos'|'Análisis'>('Inicio');
+ const [screen,setScreen]=useState<Tab|'Configuración'|'Presupuestos'|'Análisis'|'Tasas'>('Inicio');
  const [previousTab,setPreviousTab]=useState<Tab>('Inicio');
- const secondary=screen==='Configuración'||screen==='Presupuestos'||screen==='Análisis';
+ const secondary=screen==='Configuración'||screen==='Presupuestos'||screen==='Análisis'||screen==='Tasas';
  const showMonth=screen==='Inicio'||screen==='Movimientos'||screen==='Presupuestos'||screen==='Análisis';
  const showSummary=screen==='Inicio'||screen==='Presupuestos'||screen==='Análisis';
  const backTo=screen==='Configuración'?previousTab:'Inicio';
@@ -87,7 +90,7 @@ function Home({onAuth,personal,onLogout,onExpired,onProfileChanged,accessNotice}
  const query=useInfiniteQuery({queryKey:['movements',connected,params],enabled:connected,retry:false,initialPageParam:null as string|null,
   queryFn:async({pageParam}):Promise<Page<Movement>>=>request(`/movements?page=true&${params}${pageParam?`&cursor=${encodeURIComponent(pageParam)}`:''}`),
   getNextPageParam:last=>last.nextCursor??undefined});
- const totals=useQuery({queryKey:['summary',connected,month,currency],enabled:connected,retry:false,queryFn:async():Promise<MonthlySummary>=>request(`/summary?month=${month}&currency=${currency}`)});
+ const totals=useQuery({queryKey:['summary',connected,month,currency,periodDate],enabled:connected,retry:false,queryFn:async():Promise<MonthlySummary>=>request(`/summary?month=${month}&currency=${currency}&weekEnd=${periodDate}`)});
  const reviewParams=`${reviewStatus==='ALL'?'':`&status=${reviewStatus}`}${reviewFrom?`&from=${encodeURIComponent(reviewFrom)}`:''}${reviewTo?`&to=${encodeURIComponent(reviewTo)}`:''}`;
  const reviewDateError=(reviewFrom&&!validDate(reviewFrom))||(reviewTo&&!validDate(reviewTo))||(reviewFrom&&reviewTo&&reviewFrom>reviewTo);
  const imports=useInfiniteQuery({queryKey:['imports',connected,reviewParams],enabled:connected&&!reviewDateError,retry:false,refetchInterval:connected&&(screen==='Por revisar'||screen==='Conexiones')?5000:false,initialPageParam:null as string|null,
@@ -174,7 +177,7 @@ function Home({onAuth,personal,onLogout,onExpired,onProfileChanged,accessNotice}
   const edit=editor&&editor!=='new'?editor:null;
   if(connected){await request(edit?`/movements/${edit.id}`:'/movements',{method:edit?'PATCH':'POST',body:JSON.stringify(draft)});await refreshMovements();}
   else {const item:Movement={...draft,...selectedCategory(localRef.current.categories,draft.categoryId??undefined,draft.category,edit??undefined),id:edit?.id??`local-${Date.now()}-${Math.random().toString(36).slice(2)}`};await persist({...localRef.current,movements:edit?localRef.current.movements.map(m=>m.id===item.id?item:m):[item,...localRef.current.movements]});}
-  setDuplicate(null);setCategoryFilter('');setAccountFilter('');setMonth(draft.occurredAt.slice(0,7));setCurrency(draft.currency);setSearch('');setType('ALL');setEditor(null);setScreen('Movimientos');setNotice('Movimiento guardado.');
+  setDuplicate(null);setCategoryFilter('');setAccountFilter('');setPeriodDate(draft.occurredAt.slice(0,10));setCurrency(draft.currency);setSearch('');setType('ALL');setEditor(null);setScreen('Movimientos');setNotice('Movimiento guardado.');
  }
  async function remove(id:string) {
   if(connected){await request(`/movements/${id}`,{method:'DELETE'});await refreshMovements();}
@@ -209,7 +212,9 @@ function Home({onAuth,personal,onLogout,onExpired,onProfileChanged,accessNotice}
 
    {!!notice&&<Text accessibilityLiveRegion="polite" style={s.success}>{notice}</Text>}{!!error&&<Text accessibilityRole="alert" style={s.error}>{error}</Text>}
    {connected&&catalog.error&&<View style={s.card}><Text style={s.error}>No se pudieron cargar las categorías.</Text><Button label="Reintentar categorías" onPress={()=>void catalog.refetch()}/></View>}
-   {showMonth&&<View style={s.between}><View style={s.row}><Choice label="‹ Mes anterior" text="‹" selected={false} onPress={()=>setMonth(shiftMonth(month,-1))}/><Text style={s.title}>{month}</Text><Choice label="Mes siguiente ›" text="›" selected={false} onPress={()=>setMonth(shiftMonth(month,1))}/></View><View style={s.row}>{(['DOP','USD'] as const).map(c=><Choice key={c} label={c} selected={currency===c} onPress={()=>{setCurrency(c);setAccountFilter('');}}/>)}</View></View>}
+   {showMonth&&<><PeriodPicker date={periodDate} onChange={setPeriodDate}/><View style={s.row}>
+    {(['DOP','USD'] as const).map(c=><Choice key={c} label={c} selected={currency===c} onPress={()=>{setCurrency(c);setAccountFilter('');}}/>)}
+   </View></>}
    {connected&&query.isFetching&&<ActivityIndicator color={palette.primary}/>}
    {connected&&query.error&&<View style={s.card}><Text accessibilityRole="alert" style={s.error}>{query.error.message}</Text><Button label="Reintentar" onPress={()=>void refreshMovements()}/></View>}
    {showSummary&&connected&&(totals.isPending||totals.error)&&<View style={s.card}><Text style={s.muted}>{totals.error?'No se pudo cargar el resumen mensual.':'Cargando resumen mensual…'}</Text>{!!totals.error&&<Button label="Reintentar resumen" onPress={()=>void totals.refetch()}/>}</View>}
@@ -218,11 +223,12 @@ function Home({onAuth,personal,onLogout,onExpired,onProfileChanged,accessNotice}
     <View style={s.hero}><Text style={s.white}>Diferencia registrada · {month}</Text><Text style={s.heroValue}>{money(summary.differenceMinor,currency)}</Text><Text style={s.white}>Ingresos menos gastos. No equivale al saldo del banco.</Text></View>
     <View style={s.metrics}><View style={s.metric}><Text style={s.muted}>Ingresos</Text><Text style={s.income}>{money(summary.incomeMinor,currency)}</Text></View><View style={s.metric}><Text style={s.muted}>Gastos</Text><Text style={s.expense}>{money(summary.expenseMinor,currency)}</Text></View><View style={s.metric}><Text style={s.muted}>Movimientos</Text><Text style={s.amount}>{connected?totals.data?.total:period.length}</Text></View></View>
     {pending>0&&<View style={[s.card,{borderColor:'#53412b'}]}><View style={s.between}><Text style={s.text}>{pendingMailMessage(pending)}</Text><Button label="Ir a revisiones" onPress={()=>setScreen('Por revisar')}/></View><Text style={s.muted}>Revisa los datos antes de incorporarlos a tus movimientos.</Text></View>}
-    <View style={s.row}><Button label="Ver presupuestos" onPress={()=>setScreen('Presupuestos')}/><Choice label="Ver análisis" selected={false} onPress={()=>setScreen('Análisis')}/></View>
+    <View style={s.row}><Button label="Ver presupuestos" onPress={()=>setScreen('Presupuestos')}/><Choice label="Ver análisis" selected={false} onPress={()=>setScreen('Análisis')}/><Choice label="Ver tasas de cambio" text="Tasas" selected={false} onPress={()=>setScreen('Tasas')}/></View>
    </>}
+   {screen==='Tasas'&&<RatesScreen/>}
    {screen==='Análisis'&&(!connected||totals.isSuccess)&&<>
-    {comparison&&<MonthlyComparison comparison={comparison} money={money} currency={currency}/>}
-    {preferences.hideAmounts?<View style={s.card}><Text style={s.muted}>Flujo semanal oculto por tu preferencia de privacidad.</Text></View>:<WeeklyFlow rows={period} month={month} currency={currency} days={connected?totals.data?.days:undefined}/>}
+    {comparison&&<MonthlyComparison comparison={comparison} money={money} currency={currency} hideAmounts={preferences.hideAmounts}/>}
+    {preferences.hideAmounts?<View style={s.card}><Text style={s.muted}>Flujo semanal oculto por tu preferencia de privacidad.</Text></View>:<WeeklyFlow rows={local.movements} end={periodDate} currency={currency} days={connected?totals.data?.days:undefined}/>}
     <View style={s.card}><Text style={s.title}>Principales categorías de gastos</Text>{!categories.length&&<Text style={s.muted}>Todavía no hay gastos este mes en esta moneda.</Text>}{categories.slice(0,5).map(c=><View key={c.category} style={{gap:8}}><View style={s.between}><Text style={s.text}>{c.category}</Text><Text style={s.text}>{money(c.amountMinor,currency)}</Text></View><View style={s.track}><View style={[s.fill,{width:`${Math.round(c.amountMinor/summary.expenseMinor*100)}%`}]}/></View></View>)}</View>
    </>}
    {screen==='Presupuestos'&&(!connected||totals.isSuccess)&&<>
@@ -240,13 +246,13 @@ function Home({onAuth,personal,onLogout,onExpired,onProfileChanged,accessNotice}
     {editor&&catalogReady&&(!connected||accountsQuery.isSuccess)&&<MovementForm accounts={connected?accountsQuery.data:undefined} categories={categoryCatalog} recent={recent} editing={editor!=='new'} title={duplicate?'Duplicar movimiento':undefined} key={editor==='new'?'new-'+(duplicate?.id??''):editor.id} movement={editor==='new'?(duplicate??undefined):editor} currency={currency} month={month} onSave={saveMovement} onCancel={()=>setEditor(null)}/>}
     <Field label="Buscar descripción o categoría" value={search} onChangeText={setSearch} maxLength={100} placeholder="Supermercado, transporte…"/>
     <View style={s.row}><Choice label="Todos" selected={type==='ALL'} onPress={()=>setType('ALL')}/>{(['INCOME','EXPENSE','TRANSFER'] as const).map(t=><Choice key={t} label={typeLabels[t]} selected={type===t} onPress={()=>setType(t)}/>)}</View>
-    {connected&&<View style={s.row}><Choice label="Todas las cuentas" selected={!accountFilter} onPress={()=>setAccountFilter('')}/>{(accountsQuery.data??[]).filter(a=>a.currency===currency).map(a=><Choice key={a.id} label={`Filtrar cuenta: ${a.name}`} text={a.name+(a.archived?' · Archivada':'')} selected={accountFilter===a.id} onPress={()=>setAccountFilter(a.id)}/>)}</View>}
-    <View style={s.card}><Text style={s.title}>Categorías</Text><View style={s.row}><FilterChip label="Todas las categorías" selected={!categoryFilter} onPress={()=>setCategoryFilter('')}/>{categoryCatalog.map(c=><FilterChip key={c.id} label={`Filtrar: ${c.name}`} text={c.name+(c.archived?' · Archivada':'')} selected={categoryFilter===c.id} onPress={()=>setCategoryFilter(c.id)}/>)}</View></View>
-    <View style={s.between}><Text style={s.title}>{countLabel(connected?(query.data?.pages[0]?.total??0):visible.length,'movimiento','movimientos')}</Text><View style={s.row}>{connected&&<Button label="Actualizar" onPress={()=>void refreshMovements()}/>}<Button label="Exportar CSV" disabled={!visible.length||busy} onPress={()=>void action(exportAll)}/></View></View>
+    {connected&&<View style={s.row}><Choice label="Todas las cuentas" text="Todas" selected={!accountFilter} onPress={()=>setAccountFilter('')}/>{(accountsQuery.data??[]).filter(a=>a.currency===currency).map(a=><Choice key={a.id} label={`Filtrar cuenta: ${a.name}`} text={a.name+(a.archived?' · Archivada':'')} selected={accountFilter===a.id} onPress={()=>setAccountFilter(a.id)}/>)}</View>}
+    <View style={s.card}><Text style={s.title}>Categorías</Text><View style={s.row}><FilterChip label="Todas las categorías" text="Todas" selected={!categoryFilter} onPress={()=>setCategoryFilter('')}/>{categoryCatalog.map(c=><FilterChip key={c.id} label={`Filtrar: ${c.name}`} text={c.name+(c.archived?' · Archivada':'')} selected={categoryFilter===c.id} onPress={()=>setCategoryFilter(c.id)}/>)}</View></View>
+    <View style={s.between}><Text style={s.title}>{countLabel(connected?(query.data?.pages[0]?.total??0):visible.length,'movimiento','movimientos')}</Text><View style={s.row}>{connected&&<Button label="Actualizar" onPress={()=>void refreshMovements()}/>}<Button label="Exportar CSV" text="CSV" disabled={!visible.length||busy} onPress={()=>void action(exportAll)}/></View></View>
     {!visible.length&&(!connected||query.isSuccess)&&<View style={s.card}><Text style={s.title}>No hay movimientos con estos filtros</Text><Text style={s.muted}>Cambia el mes, la moneda o añade tu primer movimiento.</Text></View>}
     {visible.map(m=><View key={m.id} style={s.card}><View style={s.between}><View><Text style={s.text}>{m.description}</Text><Text style={s.muted}>{m.category} · {m.occurredAt.slice(0,10)} · {typeLabels[m.type]}</Text></View><Text style={m.type==='INCOME'?s.income:m.type==='EXPENSE'?s.expense:s.amount}>{m.type==='EXPENSE'?'−':m.type==='INCOME'?'+':'↔'} {money(m.amountMinor,m.currency)}</Text></View>
      {!!m.accountId&&<Text style={s.muted}>Cuenta: {accountsQuery.data?.find(a=>a.id===m.accountId)?.name??'Asignada'}{m.targetAccountId?` → ${accountsQuery.data?.find(a=>a.id===m.targetAccountId)?.name??'Destino asignado'}`:''}</Text>}
-     <View style={s.row}><Choice label={`Editar ${m.description}`} selected={false} onPress={()=>{setDuplicate(null);setEditor(m);setDeleteId(null);}}/><Choice label={`Duplicar ${m.description}`} selected={false} onPress={()=>{const d=new Date();const today=`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;setDuplicate({...m,occurredAt:movementDate(month,today)+'T12:00:00.000Z'});setEditor('new');setDeleteId(null);setNotice('Borrador duplicado. Revisa los datos y guarda para crear el movimiento.');}}/><Choice label="Eliminar" selected={false} onPress={()=>setDeleteId(m.id)}/></View>
+     <View style={s.row}><IconButton icon="edit" label={`Editar ${m.description}`} onPress={()=>{setDuplicate(null);setEditor(m);setDeleteId(null);}}/><IconButton icon="copy" label={`Duplicar ${m.description}`} onPress={()=>{const d=new Date();const today=`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;setDuplicate({...m,occurredAt:movementDate(month,today)+'T12:00:00.000Z'});setEditor('new');setDeleteId(null);setNotice('Borrador duplicado. Revisa los datos y guarda para crear el movimiento.');}}/><IconButton icon="trash" label="Eliminar" danger onPress={()=>setDeleteId(m.id)}/></View>
      {deleteId===m.id&&<><Text style={s.error}>¿Eliminar este movimiento? Esta acción no se puede deshacer.</Text><View style={s.row}><Button label="Confirmar eliminación" disabled={busy} onPress={()=>void action(()=>remove(m.id))}/><Button label="Cancelar eliminación" disabled={busy} onPress={()=>setDeleteId(null)}/></View></>}
     </View>)}
    </>}
@@ -256,7 +262,7 @@ function Home({onAuth,personal,onLogout,onExpired,onProfileChanged,accessNotice}
    {screen==='Configuración'&&connected&&<><Button label={showFinance?'Ocultar cuentas y conciliación':'Administrar cuentas y conciliación'} onPress={()=>setShowFinance(v=>!v)}/>{showFinance&&(accountsQuery.isSuccess?<FinancePanel items={accountsQuery.data} request={request} money={money} onRefresh={async()=>{await accountsQuery.refetch();}}/>:<View style={s.card}><Text style={s.muted}>{accountsQuery.error?'No se pudieron cargar las cuentas.':'Cargando cuentas…'}</Text><Button label="Reintentar cuentas" onPress={()=>void accountsQuery.refetch()}/></View>)}</>}
 
    {screen==='Configuración'&&personal&&<PersonalAccount session={personal} onLogout={onLogout} onPasswordChanged={onExpired} onProfileChanged={onProfileChanged}/>}
-   {screen==='Configuración'&&!personal&&<View style={s.card}><Text style={s.title}>{testAccount.name}</Text><Text style={s.muted}>{testAccount.email}</Text><Button label="Cerrar sesión" onPress={()=>void onLogout()}/></View>}
+   {screen==='Configuración'&&!personal&&<View style={s.card}><Text style={s.title}>{testAccount.name}</Text><Text style={s.muted}>{testAccount.email}</Text><IconButton icon="logout" label="Cerrar sesión" onPress={()=>void onLogout()}/></View>}
    {screen==='Configuración'&&personal&&<RecoverySettings token={personal.token}/>}
    {screen==='Configuración'&&personal&&<DataRetention token={personal.token} onApplied={async()=>{await Promise.all([client.invalidateQueries({queryKey:['imports']}),client.invalidateQueries({queryKey:['import-stats']})]);}}/>}
    {screen==='Configuración'&&<AccountSettings personal={!!personal} preferences={preferences} onAuth={onAuth} onSave={async value=>{await savePreferences(value);setPreferences(value);setCurrency(value.currency);}}/>}
@@ -280,7 +286,7 @@ function Home({onAuth,personal,onLogout,onExpired,onProfileChanged,accessNotice}
     <View style={s.card}><Text style={s.eyebrow}>PROVEEDORES DE CORREO</Text>{['Gmail Personal','Outlook'].map(provider=><View key={provider} style={s.between}><Text style={s.text}>{provider}</Text><Text style={s.muted}>Próximamente · sin conectar</Text></View>)}<Text style={s.muted}>OAuth aún no está implementado. Esta versión no accede a tu buzón ni utiliza IA para clasificar correos.</Text></View>
 
     <View style={s.card}><Text style={s.title}>Conexión personal</Text><Text style={s.muted}>La demo se guarda localmente. La API guarda movimientos en PostgreSQL. Los datos de ambos modos se mantienen separados.</Text><Text style={s.text}>{url||'Sin URL configurada. Añade EXPO_PUBLIC_API_URL en apps/mobile/.env.'}</Text>
-     {connected?(personal?<Button label="Cerrar sesión y volver al acceso" onPress={()=>void onLogout()}/>:<Button label="Desconectar y volver a demo" onPress={disconnect}/>):<><Field label="Token de desarrollo" value={token} onChangeText={setToken} secureTextEntry autoCapitalize="none"/><Button label="Conectar API" disabled={!url||token.length<24} onPress={()=>{client.clear();setCategoryFilter('');setDuplicate(null);setSession(token);setToken('');setScreen('Inicio');}}/></>}
+     {connected?(personal?<IconButton icon="logout" label="Cerrar sesión y volver al acceso" onPress={()=>void onLogout()}/>:<IconButton icon="logout" label="Desconectar y volver a demo" onPress={disconnect}/>):<><Field label="Token de desarrollo" value={token} onChangeText={setToken} secureTextEntry autoCapitalize="none"/><Button label="Conectar API" disabled={!url||token.length<24} onPress={()=>{client.clear();setCategoryFilter('');setDuplicate(null);setSession(token);setToken('');setScreen('Inicio');}}/></>}
      <Text style={s.muted}>{personal?'Sesión de la cuenta personal. Usa exclusivamente datos ficticios en esta fase.':'El acceso de desarrollo solo funciona antes de configurar la cuenta inicial. El token queda en memoria.'}</Text>
     </View>
     {connected&&<View style={s.card}><Text style={s.title}>Laboratorio de correo sintético</Text><Text style={s.muted}>Envía un aviso de prueba al worker. Un formato desconocido aparecerá en Por revisar cuando el worker lo procese.</Text><Field label="Identificador del correo de prueba" value={sampleId} onChangeText={setSampleId} maxLength={200}/><Field label="Contenido sintético" value={sampleBody} onChangeText={setSampleBody} maxLength={10000} multiline/><Button label="Encolar correo de prueba" disabled={busy||!sampleId.trim()||!sampleBody.trim()} onPress={()=>void action(async()=>{await request('/imports',{method:'POST',body:JSON.stringify({externalId:sampleId.trim(),body:sampleBody})});await Promise.all([client.invalidateQueries({queryKey:['imports']}),queue.refetch()]);setNotice('Correo encolado. Espera al worker y actualiza revisiones.');})}/></View>}

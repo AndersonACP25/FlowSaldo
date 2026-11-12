@@ -20,7 +20,7 @@ Leer ai/README.md y ai/policies.md al usar agentes. El catálogo está en ai/man
 Comandos: pnpm ai:validate, pnpm ai:test y pnpm ai:plan --task "Objetivo" --scope frontend. Para cambios de contratos o instrucciones actualizar catálogo, documentación y pruebas en el mismo PR.
 
 - Revisar LANGUAGE.md y usar concordancia 0/1/N. El revisor lingüístico es language-editor.
-- Archivos exportados: nombre y encabezados con mayúscula inicial; CSV/Excel deben separar campos en columnas. Consultar docs/exports.md y export-guardian.
+- Archivos exportados: nombre y encabezados con mayúscula inicial; Cada campo de un archivo tabular ocupa su propia columna y cada registro su propia fila. En CSV y Excel, separar monto, moneda y los demás campos, sin celdas combinadas ni listas de campos en una celda. Consultar docs/exports.md y export-guardian.
 - Gestor único: la versión de pnpm declarada en packageManager, con pnpm-lock.yaml y pnpm-workspace.yaml. No generar package-lock.json.
 
 

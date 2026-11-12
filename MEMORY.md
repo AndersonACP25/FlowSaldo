@@ -159,3 +159,7 @@ El README enlaza a docs/setup.md para ejecutar desde un clon y a docs/pilot.md p
 ## Arranque conjunto, acceso y MVC
 
 `pnpm dev` inicia API, worker y web. `pnpm db:setup` genera Prisma y aplica migraciones en la base configurada. El registro conserva la cuenta personal única y su token de configuración. Las credenciales públicas de prueba solo abren los datos ficticios del dispositivo. El backend organiza los controladores, modelos y vistas JSON según MVC.
+
+## Períodos y tasas de referencia
+
+Inicio y Análisis comparten fecha de referencia. El resumen y los presupuestos siguen siendo mensuales; el flujo de siete días puede cruzar meses. Tasas usa Frankfurter v2 directamente desde el cliente, con fecha efectiva, consulta histórica y conversión estimada de USD/EUR a DOP. EUR se limita a Tasas. El módulo vive en apps/mobile/src/Servicios y no cambia importes registrados.

@@ -17,6 +17,11 @@ export async function checkHistory(request,connectionString) {
   assert.deepEqual(summary.categories,[{category:'Prueba',amountMinor:203*101}]);
   assert.equal(summary.days.at(-1).expenseMinor,203*101);
   assert.equal(summary.days.at(-1).incomeMinor,10000);
+  const week=await get('/summary?month=2040-01&currency=DOP&weekEnd=2040-01-03');
+  assert.equal(week.expenseMinor,summary.expenseMinor);
+  assert.equal(week.days.at(-1).day,'2040-01-03');
+  assert.equal(week.days.find(day=>day.day==='2039-12-31').expenseMinor,101);
+  assert.equal((await request('/summary?month=2040-01&weekEnd=2040-02-01')).status,400);
   const empty=await get('/summary?month=2041-01&currency=DOP');assert.equal(empty.total,0);assert.equal(empty.days.length,7);assert.equal(empty.expenseMinor,0);
   const ids=[];let cursor=null;
   do {

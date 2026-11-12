@@ -91,3 +91,7 @@
 ## 6. Extensiones v0.5
 
 Inicio de sesión y registro conservan la paleta y muestran «Vista previa de acceso». Los botones de envío permanecen deshabilitados y la demostración se abre con una acción explícita. Configuración se accede desde el encabezado para conservar los cuatro accesos inferiores. Las preferencias locales se distinguen de las opciones de cuenta pendientes. Textos sujetos a LANGUAGE.md; los contadores usan singular para uno.
+
+## Grilla adaptable y acciones
+
+Distribuir tarjetas y filtros en una grilla según el espacio disponible. Apilar módulos en pantallas estrechas y priorizar la información principal. Usar iconos reconocibles para mostrar u ocultar contraseña, editar, duplicar, eliminar y cerrar sesión. Mantener nombres accesibles, foco visible y controles táctiles de al menos 44 × 44.
