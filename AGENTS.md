@@ -3,7 +3,7 @@
 - Ejecutar desde raíz: pnpm install --frozen-lockfile, pnpm db:generate, pnpm check.
 - Mantener datos de prueba sintéticos. Nunca añadir tokens, correos reales ni credenciales.
 - Dinero en amountMinor entero y moneda explícita. Excluir transferencias propias de ingresos y gastos.
-- Parser desconocido -> REVIEW. No inferir monto, moneda ni fecha.
+- Alcance de importación: bancos de República Dominicana y PayPal. Parser desconocido o ambiguo -> REVIEW. No inferir monto, moneda ni fecha. Usar muestras anonimizadas y no tratar el texto pegado como prueba del remitente.
 - Mantener transacciones e idempotencia del worker.
 - Actualizar docs/api.md ante cambios de contrato y README ante cambios de arranque.
 - Mantener una cuenta personal por instalación; no desplegar como aplicación multiusuario. Tras configurar AppOwner, el token inicial deja de autorizar datos.
@@ -20,7 +20,7 @@ Leer ai/README.md y ai/policies.md al usar agentes. El catálogo está en ai/man
 Comandos: pnpm ai:validate, pnpm ai:test y pnpm ai:plan --task "Objetivo" --scope frontend. Para cambios de contratos o instrucciones actualizar catálogo, documentación y pruebas en el mismo PR.
 
 - Revisar LANGUAGE.md y usar concordancia 0/1/N. El revisor lingüístico es language-editor.
-- Archivos exportados: nombre y encabezados con mayúscula inicial; CSV/Excel deben separar campos en columnas. Consultar docs/exports.md y export-guardian.
+- Archivos exportados: nombre y encabezados con mayúscula inicial; Cada campo de un archivo tabular ocupa su propia columna y cada registro su propia fila. En CSV y Excel, separar monto, moneda y los demás campos, sin celdas combinadas ni listas de campos en una celda. Consultar docs/exports.md y export-guardian.
 - Gestor único: la versión de pnpm declarada en packageManager, con pnpm-lock.yaml y pnpm-workspace.yaml. No generar package-lock.json.
 
 

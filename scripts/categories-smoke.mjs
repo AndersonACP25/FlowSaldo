@@ -19,6 +19,8 @@ export async function checkCategories(request) {
  const uncategorized=(await get('/categories')).find(v=>v.system);
  assert.equal((await send('/categories/'+uncategorized.id,'PATCH',{archived:true})).status,409);
  assert.equal((await send('/categories/'+uncategorized.id,'PATCH',{name:'Otro'})).status,409);
+ assert.equal((await request('/categories/'+uncategorized.id,{method:'DELETE'})).status,409);
+ assert.equal((await request('/categories/'+c.id,{method:'DELETE'})).status,409);
  assert.equal((await send('/categories/'+c.id,'PATCH',{archived:false})).status,200);
  const another=await send('/movements','POST',draft);assert.equal(another.status,201);const anotherMovement=await another.json();
  assert.equal(anotherMovement.category,name+' nuevo');
@@ -33,5 +35,8 @@ export async function checkCategories(request) {
  await send('/imports/'+review.id+'/dismiss','POST',{});
  assert.equal((await request('/movements/'+movement.id,{method:'DELETE'})).status,204);
  assert.equal((await request('/movements/'+anotherMovement.id,{method:'DELETE'})).status,204);
+ assert.equal((await request('/categories/'+c.id,{method:'DELETE'})).status,204);
+ assert.equal((await request('/categories/'+c.id,{method:'DELETE'})).status,404);
+ assert.ok(!(await get('/categories')).some(item=>item.id===c.id));
  console.info('PASS: category CRUD, duplicate normalization, snapshot rename, ID filter/CSV/totals, archived assignments/review, preserved edits, system category');
 }

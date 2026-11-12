@@ -24,6 +24,27 @@ export async function checkCoreFlows(browser) {
   await page.reload({waitUntil:'networkidle'});await loginAsTestAccount(page);await button('Movimientos').click();
   await page.getByLabel('Buscar descripción o categoría',{exact:true}).fill('Compra CORE');await page.getByText('1 movimiento',{exact:true}).waitFor();
   const waiting=page.waitForEvent('download');await button('Exportar CSV').click();const file=await waiting;assert.equal(file.suggestedFilename(),`FlowSaldo-${month}.csv`);
+  await page.route('https://api.frankfurter.dev/v2/rate/**',async route=>{
+   const url=new URL(route.request().url());
+   const base=url.pathname.split('/').at(-2);
+   const historical=url.searchParams.get('date');
+   await route.fulfill({headers:{'Access-Control-Allow-Origin':'*'},json:{base,quote:'DOP',date:historical??'2025-01-03',rate:base==='USD'?(historical?60:61):65}});
+  });
+  await button('Inicio').click();await button('Elegir período').click();
+  await page.getByLabel('Año',{exact:true}).fill('2040');
+  await button('febrero de 2040').click();
+  await page.getByText('2040-02-29',{exact:true}).waitFor();
+  await button('Semana siguiente').click();
+  await page.getByText('2040-03-07',{exact:true}).waitFor();
+  await button('Ver tasas de cambio').click();
+  await page.getByText('USD → DOP',{exact:true}).waitFor();
+  await page.getByText('EUR → DOP',{exact:true}).waitFor();
+  await page.getByLabel('Fecha de la tasa (AAAA-MM-DD)',{exact:true}).fill('2024-01-03');
+  await button('Consultar fecha').click();
+  await page.getByText('Publicada el 2024-01-03',{exact:true}).first().waitFor();
+  await page.getByLabel('Monto en USD',{exact:true}).fill('2');
+  await page.getByText(/DOP\s*120[.,]00/).waitFor();
+  await button('Volver').click();
   await button('Configuración').getByText('UD',{exact:true}).waitFor();
   await button('Cerrar sesión').click();
   await page.getByText('Iniciar sesión',{exact:true}).waitFor();

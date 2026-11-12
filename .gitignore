@@ -12,3 +12,24 @@ apps/mobile/ios/
 ai/runs/*
 !ai/runs/.gitkeep
 ai/adapter.local.json
+
+# Resultados locales de pruebas y compilación
+playwright-report/
+playwright/.cache/
+test-results/
+*.tsbuildinfo
+*.log
+
+# Credenciales locales y respaldos de PostgreSQL
+credentials.json
+*.jks
+*.keystore
+*.p12
+*.key
+*.pem
+*.dump
+*.dump.sha256
+
+# Metadatos del sistema
+.DS_Store
+Thumbs.db

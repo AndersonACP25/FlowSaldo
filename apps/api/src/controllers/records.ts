@@ -1,7 +1,7 @@
 import {Router} from 'express';
 import {z} from 'zod';
 import {db} from '@flowsaldo/database';
-import {validDate,summarize,type Movement} from '@flowsaldo/domain';
+import {parseBankWithdrawal,validDate,summarize,type Movement} from '@flowsaldo/domain';
 import {importMetadata} from './imports';
 import {createMovement,updateMovement,deleteMovement,resolveImport} from '../models/records';
 
@@ -46,9 +46,10 @@ records.post('/imports', async (req, res) => {
  res.status(202).json({ id: item.id, status: item.status });
 });
 records.get('/imports/:id', async (req,res)=>{
- const item=await db.mailImport.findUnique({where:{id:req.params.id},select:{...importMetadata,id:true,body:true,status:true,externalId:true,movement:{select:{id:true}}}});
+ const item=await db.mailImport.findUnique({where:{id:req.params.id},select:{...importMetadata,id:true,body:true,status:true,externalId:true,parserVersion:true,movement:{select:{id:true}}}});
  if(!item){res.status(404).json({error:'Importación no encontrada'});return;}
- res.json(item);
+ const bank=item.status==='REVIEW'?parseBankWithdrawal(item.body):null;
+ res.json({...item,...(bank?{suggestion:{id:item.id,...bank.movement}}:{})});
 });
 records.post('/imports/:id/resolve',async(req,res)=>{
  const data=movementSchema.parse(req.body); const id=req.params.id;

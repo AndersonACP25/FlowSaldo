@@ -20,3 +20,15 @@ export async function updateCategory(id: string, patch: {name?:string;archived?:
   return tx.category.update({where:{id:existing.id},data:{...patch,...(patch.name?{normalizedName:categoryKey(patch.name)}:{})}});
  });
 }
+
+export async function deleteCategory(id:string) {
+ await db.$transaction(async tx=>{
+  const [category]=await tx.$queryRaw<Category[]>`SELECT * FROM "Category" WHERE id=${id} FOR UPDATE`;
+  if(!category)throw new CategoryError('Categoría no encontrada.',404);
+  if(category.system)throw new CategoryError('Sin categorizar es una categoría del sistema.',409);
+  const removed=await tx.category.deleteMany({where:{
+   id,movements:{none:{}},recurringTemplates:{none:{}},budgetLimits:{none:{}},
+  }});
+  if(!removed.count)throw new CategoryError('La categoría tiene movimientos, plantillas o presupuestos. Puedes archivarla para conservar esos datos.',409);
+ });
+}

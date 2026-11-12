@@ -1,6 +1,6 @@
 import {randomUUID} from 'node:crypto';
 import type {PrismaClient,MailImport} from '@prisma/client';
-import {parseDemoMail,type ParseResult} from '@flowsaldo/domain';
+import {parseBankWithdrawal,parseDemoMail,type ParseResult} from '@flowsaldo/domain';
 export interface RetrySettings {limit:number;leaseMs:number;baseDelayMs:number;maxDelayMs:number}
 export const retrySettings:RetrySettings={limit:5,leaseMs:30000,baseDelayMs:2000,maxDelayMs:60000};
 const unlocked={lockedUntil:null,lockToken:null};
@@ -22,6 +22,7 @@ export async function failImport(db:PrismaClient,item:MailImport,error:unknown,s
 }
 export async function finishImport(db:PrismaClient,item:MailImport,parse:(body:string)=>ParseResult=parseDemoMail,now=new Date()) {
  const result=parse(item.body);
+ const bank=result.status==='REVIEW'?parseBankWithdrawal(item.body):null;
  return db.$transaction(async tx=>{
   const [owner]=await tx.$queryRaw<MailImport[]>`SELECT * FROM "MailImport" WHERE id=${item.id} FOR UPDATE`;
   if(!owner||owner.status!=='PROCESSING'||owner.lockToken!==item.lockToken)return false;
@@ -30,7 +31,8 @@ export async function finishImport(db:PrismaClient,item:MailImport,parse:(body:s
    await tx.movement.create({data:{...result.movement,categoryId:category.id,importId:item.id}});
    await tx.mailImport.update({where:{id:item.id},data:{status:'PARSED',body:'',reason:null,lastErrorCode:null,processedAt:now,...unlocked}});
   }else{
-   await tx.mailImport.update({where:{id:item.id},data:{status:'REVIEW',reason:result.status==='REVIEW'?result.reason:'Monto fuera de rango',lastErrorCode:null,processedAt:now,...unlocked}});
+   await tx.mailImport.update({where:{id:item.id},data:{status:'REVIEW',parserVersion:bank?.parserVersion??'demo-v1',
+    reason:bank?'Retiro identificado. Confirma monto, fecha y cuenta. Si registras el efectivo como cuenta propia, selecciona Transferencia.':result.status==='REVIEW'?result.reason:'Monto fuera de rango',lastErrorCode:null,processedAt:now,...unlocked}});
   }
   return true;
  });

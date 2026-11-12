@@ -46,7 +46,14 @@ export async function checkAccessFlow(browser){
   await page.getByLabel('Nombre',{exact:true}).fill(owner.name);
   await page.getByLabel('Correo electrónico',{exact:true}).fill(owner.email);
   await page.getByLabel('Contraseña',{exact:true}).fill(password);
-  await page.getByLabel('Confirmar contraseña',{exact:true}).fill(password);
+  const confirmation=page.getByLabel('Confirmar contraseña',{exact:true});
+  await confirmation.fill(password);
+  assert.equal(await confirmation.evaluate(input=>input.type),'password');
+  await button('Mostrar: Confirmar contraseña').click();
+  assert.equal(await confirmation.evaluate(input=>input.type),'text');
+  assert.equal(await confirmation.inputValue(),password);
+  await button('Ocultar: Confirmar contraseña').click();
+  assert.equal(await confirmation.evaluate(input=>input.type),'password');
   await page.getByLabel('Token de configuración inicial',{exact:true}).fill(setupToken);
   await button('Crear cuenta personal').click();
   await page.getByText('Cuenta personal creada. Ahora inicia sesión.',{exact:true}).waitFor();

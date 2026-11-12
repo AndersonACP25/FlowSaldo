@@ -29,7 +29,7 @@ export function AuthScreen({route,onRoute,onTestLogin,onSession,onRecovered,noti
  {(register||recover)&&<><Text style={s.muted}>Al menos 15 caracteres. No se recorta la contraseña.</Text><Field label="Confirmar contraseña" value={confirmation} onChangeText={setConfirmation} secureTextEntry autoCapitalize="none" autoCorrect={false} autoComplete="off" maxLength={128}/></>}
  {!!error&&<Text accessibilityRole="alert" style={s.error}>{error}</Text>}{!!message&&<Text accessibilityLiveRegion="polite" style={s.success}>{message}</Text>}
  <Button label={busy?'Validando acceso…':register?'Crear cuenta personal':recover?'Restablecer contraseña':'Entrar'} disabled={busy||!email||!password||(register&&(!name.trim()||!setupToken))||(recover&&!code)} onPress={()=>void submit()}/>
- <Choice label={register||recover?'Ir a iniciar sesión':'Registrarse'} selected={false} onPress={()=>onRoute(register||recover?'login':'register')}/>
+ <View style={(register||recover)?{alignItems:'center'}:undefined}><Choice label={register||recover?'Ir a iniciar sesión':'Registrarse'} selected={false} onPress={()=>onRoute(register||recover?'login':'register')}/></View>
  {route==='login'&&<Choice label="Recuperar cuenta con código" selected={false} onPress={()=>onRoute('recover')}/>}
  {recover&&<Text style={s.muted}>Usa un código guardado previamente. Recuperar cierra todas las sesiones e invalida el lote completo. No se enviará ningún correo.</Text>}
  </View>

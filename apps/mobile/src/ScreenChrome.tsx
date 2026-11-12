@@ -2,7 +2,7 @@ import React from 'react';
 import {Platform, Pressable, StatusBar, StyleSheet, Text, View} from 'react-native';
 import {BrandMark} from './BrandMark';
 import {palette, styles as s} from './theme';
-import {Button} from './ui';
+import {IconButton} from './IconButton';
 
 export const topInset=Platform.OS==='android'?(StatusBar.currentHeight??0):0;
 
@@ -16,7 +16,7 @@ export function AccountActions({name,onSettings,onLogout}:{name:string;onSetting
   <Pressable accessibilityRole="button" accessibilityLabel="Configuración" onPress={onSettings} style={styles.avatar}>
    <Text style={styles.avatarText}>{initials||'FS'}</Text>
   </Pressable>
-  <Button label="Cerrar sesión" onPress={onLogout}/>
+  <IconButton icon="logout" label="Cerrar sesión" onPress={onLogout}/>
  </View>;
 }
 
