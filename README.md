@@ -65,7 +65,7 @@ Docker Compose ejecuta PostgreSQL. Después de configurar la base, `pnpm db:setu
 
 Desde **Inicio → Tasas** puedes consultar valores recientes o históricos y estimar conversiones a DOP. Las tasas son de referencia. Los movimientos y presupuestos se registran en DOP y USD.
 
-Los saldos son registros que introduces en FlowSaldo. El importador actual trabaja con avisos sintéticos. Gmail y los avisos bancarios reales siguen pendientes.
+Los saldos son registros que introduces en FlowSaldo. En **Conexiones → Laboratorio de correo sintético**, el importador prepara retiros aprobados en DOP de BHD y Popular para confirmación manual. La sincronización con Gmail y los demás formatos de bancos dominicanos y PayPal siguen pendientes. [Formatos admitidos](docs/api.md#avisos-bancarios-de-prueba)
 
 ## Orientarse en el código
 

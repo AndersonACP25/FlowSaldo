@@ -129,6 +129,22 @@ function Home({onAuth,personal,onLogout,onExpired,onProfileChanged,accessNotice}
   if(connected){await request(`/categories/${id}`,{method:'PATCH',body:JSON.stringify({archived})});await catalog.refetch();}
   else {if(localRef.current.categories.find(c=>c.id===id)?.system)throw new Error('Sin categorizar es una categoría del sistema.');await persist({...localRef.current,categories:localRef.current.categories.map(c=>c.id===id?{...c,archived}:c)});}
  }
+ async function deleteCategory(id:string){
+  if(connected){
+   await request(`/categories/${encodeURIComponent(id)}`,{method:'DELETE'});
+   await catalog.refetch();
+  }else{
+   const data=localRef.current;
+   const category=data.categories.find(item=>item.id===id);
+   if(!category)throw new Error('Categoría no encontrada.');
+   if(category.system)throw new Error('Sin categorizar es una categoría del sistema.');
+   const used=data.movements.some(m=>m.categoryId===id)||data.recurring.some(item=>item.categoryId===id)
+    ||Object.keys(data.categoryBudgets).some(key=>key.split(':').slice(3).join(':')===id);
+   if(used)throw new Error('La categoría tiene movimientos, plantillas o presupuestos. Puedes archivarla para conservar esos datos.');
+   await persist({...data,categories:data.categories.filter(item=>item.id!==id)});
+  }
+  setCategoryFilter(current=>current===id?'':current);
+ }
  async function saveServerBudget(limitMinor:number|null,categoryLimits:Array<{categoryId:string;limitMinor:number}>){
   if(!serverBudget.isSuccess||serverBudget.isFetching)throw new Error('Actualiza el presupuesto del servidor antes de guardar.');
   try{await request('/budgets',{method:'POST',body:JSON.stringify({month,currency,expectedVersion:serverBudget.data.version,limitMinor,categoryLimits})});}catch(error){await serverBudget.refetch();throw error;}await serverBudget.refetch();
@@ -266,7 +282,7 @@ function Home({onAuth,personal,onLogout,onExpired,onProfileChanged,accessNotice}
    {screen==='Configuración'&&personal&&<RecoverySettings token={personal.token}/>}
    {screen==='Configuración'&&personal&&<DataRetention token={personal.token} onApplied={async()=>{await Promise.all([client.invalidateQueries({queryKey:['imports']}),client.invalidateQueries({queryKey:['import-stats']})]);}}/>}
    {screen==='Configuración'&&<AccountSettings personal={!!personal} preferences={preferences} onAuth={onAuth} onSave={async value=>{await savePreferences(value);setPreferences(value);setCurrency(value.currency);}}/>}
-   {screen==='Configuración'&&catalogReady&&<CategoryManager items={categoryCatalog} onSave={saveCategory} onArchive={archiveCategory}/>}
+   {screen==='Configuración'&&catalogReady&&<CategoryManager items={categoryCatalog} onSave={saveCategory} onArchive={archiveCategory} onDelete={deleteCategory}/>}
    {screen==='Por revisar'&&<>
     <View style={s.card}><Text style={s.title}>Filtros de revisiones</Text><View style={s.row}>{(['REVIEW','PENDING','PROCESSING','FAILED','PARSED','DISMISSED','ALL'] as const).map(status=><FilterChip key={status} label={{REVIEW:'Por confirmar',PENDING:'En cola',PROCESSING:'Procesando',FAILED:'Con error',PARSED:'Confirmados',DISMISSED:'Descartados',ALL:'Todos los estados'}[status]} selected={reviewStatus===status} onPress={()=>setReviewStatus(status)}/>)}</View>
     <Text style={s.label}>Fecha de recepción</Text><View style={filterStyles.dates}><View style={filterStyles.date}><Field label="Recibido desde (AAAA-MM-DD)" value={reviewFrom} onChangeText={setReviewFrom} maxLength={10}/></View><View style={filterStyles.date}><Field label="Recibido hasta (AAAA-MM-DD)" value={reviewTo} onChangeText={setReviewTo} maxLength={10}/></View></View>
@@ -277,7 +293,7 @@ function Home({onAuth,personal,onLogout,onExpired,onProfileChanged,accessNotice}
     {connected&&imports.error&&<Text style={s.error}>{imports.error.message}</Text>}
     {connected&&<Button label="Actualizar revisiones" onPress={()=>void imports.refetch()}/>}
     {connected&&!accountsQuery.isSuccess&&<View style={s.card}><Text style={s.muted}>{accountsQuery.error?'No se pudieron cargar las cuentas para revisar.':'Cargando cuentas para revisar…'}</Text><Button label="Reintentar cuentas de revisión" onPress={()=>void accountsQuery.refetch()}/></View>}
-    {!reviewDateError&&(!connected||(imports.isSuccess&&accountsQuery.isSuccess))&&<ReviewInbox accounts={connected?accountsQuery.data:undefined} onRetry={connected?retryImport:undefined} money={money} onMovement={async id=>connected?request(`/movements/${id}`):(localRef.current.movements.find(m=>m.id===id)??null)} categories={categoryCatalog} key={reviewParams} total={connected?imports.data?.pages[0]?.total:reviews.length} showHistory={reviewStatus!=='REVIEW'} items={reviews} month={month} currency={currency} onResolve={resolveReview} onDiscard={discardReview} onOriginal={async id=>(await request(`/imports/${id}`)).body}/>}
+    {!reviewDateError&&(!connected||(imports.isSuccess&&accountsQuery.isSuccess))&&<ReviewInbox accounts={connected?accountsQuery.data:undefined} onRetry={connected?retryImport:undefined} money={money} onMovement={async id=>connected?request(`/movements/${id}`):(localRef.current.movements.find(m=>m.id===id)??null)} categories={categoryCatalog} key={reviewParams} total={connected?imports.data?.pages[0]?.total:reviews.length} showHistory={reviewStatus!=='REVIEW'} items={reviews} month={month} currency={currency} onResolve={resolveReview} onDiscard={discardReview} onSuggestion={connected?async id=>(await request(`/imports/${id}`)).suggestion:undefined} onOriginal={async id=>(await request(`/imports/${id}`)).body}/>}
    </>}
    {screen==='Por revisar'&&connected&&imports.hasNextPage&&<Button label={imports.isFetchingNextPage?'Cargando revisiones…':'Cargar más revisiones'} disabled={imports.isFetching} onPress={()=>void imports.fetchNextPage()}/>}
    {screen==='Conexiones'&&<>
@@ -289,7 +305,7 @@ function Home({onAuth,personal,onLogout,onExpired,onProfileChanged,accessNotice}
      {connected?(personal?<IconButton icon="logout" label="Cerrar sesión y volver al acceso" onPress={()=>void onLogout()}/>:<IconButton icon="logout" label="Desconectar y volver a demo" onPress={disconnect}/>):<><Field label="Token de desarrollo" value={token} onChangeText={setToken} secureTextEntry autoCapitalize="none"/><Button label="Conectar API" disabled={!url||token.length<24} onPress={()=>{client.clear();setCategoryFilter('');setDuplicate(null);setSession(token);setToken('');setScreen('Inicio');}}/></>}
      <Text style={s.muted}>{personal?'Sesión de la cuenta personal. Usa exclusivamente datos ficticios en esta fase.':'El acceso de desarrollo solo funciona antes de configurar la cuenta inicial. El token queda en memoria.'}</Text>
     </View>
-    {connected&&<View style={s.card}><Text style={s.title}>Laboratorio de correo sintético</Text><Text style={s.muted}>Envía un aviso de prueba al worker. Un formato desconocido aparecerá en Por revisar cuando el worker lo procese.</Text><Field label="Identificador del correo de prueba" value={sampleId} onChangeText={setSampleId} maxLength={200}/><Field label="Contenido sintético" value={sampleBody} onChangeText={setSampleBody} maxLength={10000} multiline/><Button label="Encolar correo de prueba" disabled={busy||!sampleId.trim()||!sampleBody.trim()} onPress={()=>void action(async()=>{await request('/imports',{method:'POST',body:JSON.stringify({externalId:sampleId.trim(),body:sampleBody})});await Promise.all([client.invalidateQueries({queryKey:['imports']}),queue.refetch()]);setNotice('Correo encolado. Espera al worker y actualiza revisiones.');})}/></View>}
+    {connected&&<View style={s.card}><Text style={s.title}>Laboratorio de correo sintético</Text><Text style={s.muted}>Envía un aviso de prueba al worker. Pega un aviso ficticio en texto plano. Los retiros de BHD y Popular quedan en Por revisar para que confirmes los datos.</Text><Field label="Identificador del correo de prueba" value={sampleId} onChangeText={setSampleId} maxLength={200}/><Field label="Contenido sintético" value={sampleBody} onChangeText={setSampleBody} maxLength={10000} multiline/><Button label="Encolar correo de prueba" disabled={busy||!sampleId.trim()||!sampleBody.trim()} onPress={()=>void action(async()=>{await request('/imports',{method:'POST',body:JSON.stringify({externalId:sampleId.trim(),body:sampleBody})});await Promise.all([client.invalidateQueries({queryKey:['imports']}),queue.refetch()]);setNotice('Correo encolado. Espera al worker y actualiza revisiones.');})}/></View>}
     <View style={s.card}><Text style={s.title}>Datos de demostración</Text><Text style={s.muted}>Restablece movimientos y presupuestos locales. Los datos de PostgreSQL no se eliminan.</Text><Button label={resetConfirm?'Confirmar restablecimiento local':'Restablecer demo'} disabled={busy||connected} onPress={()=>resetConfirm?void action(reset):setResetConfirm(true)}/>{resetConfirm&&<Button label="Cancelar restablecimiento" onPress={()=>setResetConfirm(false)}/>}</View>
     <View style={s.card}><Text style={s.title}>FlowSaldo 0.10</Text><Text style={s.muted}>Dark Slate, esmeralda y cian, según DESIGN.md. Una base personal para aprender, registrar y revisar tus movimientos. Cuentas y conciliación manual disponibles en modo API. La sincronización bancaria y OAuth siguen pendientes.</Text></View>
    </>}

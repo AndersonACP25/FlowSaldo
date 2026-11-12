@@ -26,16 +26,31 @@ try {
  const body = JSON.stringify({ externalId:'ci-demo', body:'FLOWSALDO-DEMO|EXPENSE|DOP|12.50|2026-10-22|Smoke' });
  for(let i=0;i<2;i++) assert.equal((await request('/imports', { method:'POST', body })).status, 202);
  await request('/imports', { method:'POST', body:JSON.stringify({ externalId:'ci-review', body:'desconocido' }) });
+ const bankBody=['Monto\tMoneda\tFecha\tCajero Automatico\tEstatus','RD$2,345.67\tPeso dominicano\t06/07/2025\tATM DE PRUEBA\tAprobada'].join('\n');
+ const enqueued=await request('/imports',{method:'POST',body:JSON.stringify({externalId:'ci-bank-withdrawal',body:bankBody})});
+ assert.equal(enqueued.status,202);
+ const bankId=(await enqueued.json()).id;
  let imports = [];
  for(let i=0;i<40;i++) {
   imports = await (await request('/imports')).json();
-  if(imports.find(x=>x.externalId==='ci-demo')?.status==='PARSED' && imports.find(x=>x.externalId==='ci-review')?.status==='REVIEW') break;
+  if(imports.find(x=>x.externalId==='ci-demo')?.status==='PARSED' && imports.find(x=>x.externalId==='ci-review')?.status==='REVIEW' && imports.find(x=>x.id===bankId)?.status==='REVIEW') break;
   await pause();
  }
  assert.equal(imports.find(x=>x.externalId==='ci-demo')?.status, 'PARSED');
  assert.equal(imports.find(x=>x.externalId==='ci-review')?.status, 'REVIEW');
  const movements = await (await request('/movements')).json();
  assert.equal(movements.filter(x=>x.description==='Smoke').length, 1);
+ assert.equal(imports.find(x=>x.id===bankId)?.parserVersion,'popular-withdrawal-v1');
+ assert.ok(!movements.some(x=>x.importId===bankId));
+ const bankReview=await (await request('/imports/'+bankId)).json();
+ assert.equal(bankReview.status,'REVIEW');
+ assert.equal(bankReview.suggestion.amountMinor,234567);
+ assert.equal(bankReview.suggestion.occurredAt,'2025-07-06T12:00:00.000Z');
+ assert.equal((await request('/imports/'+bankId+'/resolve',{method:'POST',body:JSON.stringify(bankReview.suggestion)})).status,201);
+ const bankConfirmed=await (await request('/imports/'+bankId)).json();
+ assert.equal(bankConfirmed.body,'');
+ assert.ok(bankConfirmed.movement?.id);
+ assert.equal(bankConfirmed.suggestion,undefined);
  const preflight=await fetch('http://127.0.0.1:3000/movements',{method:'OPTIONS',headers:{Origin:'http://localhost:8081','Access-Control-Request-Method':'POST','Access-Control-Request-Headers':'authorization,content-type'}});
  assert.equal(preflight.headers.get('access-control-allow-origin'),'http://localhost:8081');
  const denied=await fetch('http://127.0.0.1:3000/health',{headers:{Origin:'https://untrusted.example'}});

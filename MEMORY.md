@@ -163,3 +163,7 @@ El README enlaza a docs/setup.md para ejecutar desde un clon y a docs/pilot.md p
 ## Períodos y tasas de referencia
 
 Inicio y Análisis comparten fecha de referencia. El resumen y los presupuestos siguen siendo mensuales; el flujo de siete días puede cruzar meses. Tasas usa Frankfurter v2 directamente desde el cliente, con fecha efectiva, consulta histórica y conversión estimada de USD/EUR a DOP. EUR se limita a Tasas. El módulo vive en apps/mobile/src/Servicios y no cambia importes registrados.
+
+## Categorías e importación bancaria
+
+Configuración permite eliminar definitivamente categorías sin referencias. Las categorías vinculadas se conservan y pueden archivarse. Alcance bancario: República Dominicana y PayPal. Los retiros sintéticos aprobados en DOP de BHD y Popular generan sugerencias para revisión manual, sin OAuth ni contabilización automática.

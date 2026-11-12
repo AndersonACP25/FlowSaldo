@@ -11,7 +11,7 @@ Base local: http://127.0.0.1:3000. Salvo health/preflight y las rutas públicas 
 | DELETE | /movements/:id | Eliminar, 204; 404 si no existe |
 | GET | /summary?currency=DOP | Totales de todos los movimientos de esa moneda |
 | POST | /imports | Encolar mensaje o devolver existente, 202 |
-| GET | /imports/:id | Detalle y cuerpo sintético de una importación, 404 si no existe |
+| GET | /imports/:id | Detalle y cuerpo sintético de una importación. Un retiro reconocido en REVIEW incluye suggestion. 404 si no existe |
 | POST | /imports/:id/resolve | Cuerpo igual a POST /movements, confirmación manual, 201; 409 si ya se procesó |
 | POST | /imports/:id/dismiss | Descarta REVIEW sin contabilizar, 204; 409 si no está en revisión |
 | GET | /imports | Últimas 100 importaciones, sin cuerpos |
@@ -57,8 +57,9 @@ Aplicar `pnpm db:generate` y `pnpm db:migrate` antes de iniciar API/worker nuevo
 | GET | /categories | Catálogo completo, activas primero; objetos id, name, normalizedName, archived, system |
 | POST | /categories | `{name}`; nombre de 1–60 caracteres tras normalizar espacios; 201; duplicado 409 |
 | PATCH | /categories/:id | `{name?,archived?}` con al menos un campo; 200; inexistente 404; categoría del sistema 409 |
+| DELETE | /categories/:id | 204 si la categoría está sin uso; 404 si no existe; 409 si es del sistema o está vinculada a movimientos, plantillas o presupuestos |
 
-Sin categorizar es la categoría protegida del worker: no admite renombrado ni archivo. No hay borrado físico de categorías. Archivar conserva movimientos y presupuestos; se puede reactivar. Renombrar mantiene el identificador y las etiquetas históricas de cada movimiento; las asignaciones nuevas toman el nombre actual.
+Sin categorizar es la categoría protegida del worker: no admite renombrado, archivo ni eliminación. El borrado de categorías sin uso se coordina con las asignaciones mediante el bloqueo de la fila. Archivar conserva movimientos y presupuestos; se puede reactivar. Renombrar mantiene el identificador y las etiquetas históricas de cada movimiento; las asignaciones nuevas toman el nombre actual.
 
 POST/PATCH /movements y POST /imports/:id/resolve aceptan `categoryId`. Se recomienda enviarlo; sin él se busca `category` por nombre normalizado, por defecto Sin categorizar. Categoría desconocida devuelve 400; archivada, 409. Un movimiento ya asociado puede conservar su categoría archivada al editar otros campos. Duplicarlo es una asignación nueva y exige una categoría activa. Las asignaciones bloquean la fila de categoría dentro de la transacción, coordinándose con archivo/renombrado. Confirmación de revisiones conserva el bloqueo de importación y la idempotencia.
 
@@ -183,3 +184,9 @@ Presupuestos se separan por mes/moneda para la única instalación personal. Bor
 Configura juntos `TLS_CERT_FILE` y `TLS_KEY_FILE` para servir HTTPS en `HOST:PORT`. La API lee los archivos PEM al arrancar. El modo `TRUST_PROXY_LOOPBACK=1` requiere un listener HTTP en `127.0.0.1` o `::1`. Consulta la [guía del piloto](pilot.md) para las dos configuraciones.
 
 El formulario **Registrarse** usa el endpoint existente `POST /auth/setup` y su token de configuración. El usuario de prueba opera localmente en el cliente. Sus credenciales públicas no crean una sesión de API.
+
+## Avisos bancarios de prueba
+
+El alcance de proveedores es bancos dominicanos y PayPal. El laboratorio acepta texto plano sintético. El worker reconoce retiros aprobados en DOP de BHD y Popular con una tabla de una fila separada por tabulaciones o espacios repetidos. BHD requiere el encabezado «BHD Notificación de Transacciones» y el tipo «Retiro de Efectivo». Para ambos, la fecha de operación se interpreta como día/mes/año y se conserva a mediodía UTC.
+
+Los retiros reconocidos quedan en REVIEW con `parserVersion` específico. El detalle devuelve `suggestion` con monto, moneda, fecha, cajero y una propuesta de tipo, sin afectar saldos hasta la confirmación. El texto copiado no autentica al remitente. Compras, depósitos, transferencias, PayPal y formatos ambiguos siguen en revisión manual.

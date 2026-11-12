@@ -1,3 +1,4 @@
+export * from './bank-mail.ts';
 export * from './recurring.ts';
 export * from './planning.ts';
 export * from './finance.ts';

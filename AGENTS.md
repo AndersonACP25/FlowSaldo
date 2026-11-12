@@ -3,7 +3,7 @@
 - Ejecutar desde raíz: pnpm install --frozen-lockfile, pnpm db:generate, pnpm check.
 - Mantener datos de prueba sintéticos. Nunca añadir tokens, correos reales ni credenciales.
 - Dinero en amountMinor entero y moneda explícita. Excluir transferencias propias de ingresos y gastos.
-- Parser desconocido -> REVIEW. No inferir monto, moneda ni fecha.
+- Alcance de importación: bancos de República Dominicana y PayPal. Parser desconocido o ambiguo -> REVIEW. No inferir monto, moneda ni fecha. Usar muestras anonimizadas y no tratar el texto pegado como prueba del remitente.
 - Mantener transacciones e idempotencia del worker.
 - Actualizar docs/api.md ante cambios de contrato y README ante cambios de arranque.
 - Mantener una cuenta personal por instalación; no desplegar como aplicación multiusuario. Tras configurar AppOwner, el token inicial deja de autorizar datos.

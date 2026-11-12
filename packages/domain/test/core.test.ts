@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {formatMinorAmount,ledgerBalance,parseSignedAmount,parseAmount,summarize,filterMovements,demoMovements,parseDemoMail,upgradeCategories,selectedCategory,budgetStatus,nextMonthlyDate,prepareOccurrence,changeSince,previousMonth,movementsCsv,validateExportTable,movementExportHeaders,type RecurringTemplate} from '../src/index.ts';
+import {formatMinorAmount,ledgerBalance,parseSignedAmount,parseAmount,summarize,filterMovements,demoMovements,parseDemoMail,parseBankWithdrawal,upgradeCategories,selectedCategory,budgetStatus,nextMonthlyDate,prepareOccurrence,changeSince,previousMonth,movementsCsv,validateExportTable,movementExportHeaders,type RecurringTemplate} from '../src/index.ts';
 
 test('CORE: monetary precision and input bounds',()=>{
  assert.equal(formatMinorAmount(9007199254740982),'90,071,992,547,409.82');assert.equal(formatMinorAmount(-10029),'-100.29');
@@ -19,6 +19,27 @@ test('CORE: totals isolate currencies/months and exclude own transfers',()=>{
 test('CORE: only explicit valid synthetic messages become movements',()=>{
  assert.equal(parseDemoMail('FLOWSALDO-DEMO|EXPENSE|DOP|12.50|2026-10-21|Compra').status,'PARSED');
  for(const body of ['desconocido','FLOWSALDO-DEMO|EXPENSE|DOP|0.00|2026-10-21|Compra','FLOWSALDO-DEMO|INCOME|USD|10.00|2026-02-30|Ingreso'])assert.equal(parseDemoMail(body).status,'REVIEW');
+});
+test('CORE: Dominican withdrawal suggestions validate money, date, approval and table shape',()=>{
+ const bhd=['BHD Notificación de Transacciones','Fecha\tMoneda\tMonto\tComercio\tEstado\tTipo',
+  '04/08/2025 10:21 am\tRD\t$1,234.56\tCAJERO DE PRUEBA\tAprobada\tRetiro de Efectivo'].join('\n');
+ const popular=['Monto\tMoneda\tFecha\tCajero Automatico\tEstatus',
+  'RD$2,345.67\tPeso dominicano\t06/07/2025\tATM DE PRUEBA\tAprobada'].join('\n');
+ for(const [body,version,amount,date] of [
+  [bhd,'bhd-withdrawal-v1',123456,'2025-08-04'],[popular,'popular-withdrawal-v1',234567,'2025-07-06'],
+ ] as const){
+  const result=parseBankWithdrawal(body);
+  assert.equal(result?.parserVersion,version);
+  assert.equal(result.movement.amountMinor,amount);
+  assert.equal(result.movement.currency,'DOP');
+  assert.equal(result.movement.occurredAt.slice(0,10),date);
+  assert.equal(result.movement.type,'EXPENSE');
+ }
+ for(const body of [bhd.replace('Aprobada','Declinada'),bhd.replace('Retiro de Efectivo','Compra'),
+  bhd.replace('1,234.56','12,34.56'),popular.replace('06/07','31/02'),popular.replace('Peso dominicano','USD'),
+  popular+'\n'+popular.split('\n')[1],'PayPal: pago recibido', 'Banco extranjero: retiro']){
+  assert.equal(parseBankWithdrawal(body),null);
+ }
 });
 test('CORE: category migration/archive preserves history and prevents new assignment',()=>{
  const data=upgradeCategories(demoMovements);const category=data.categories.find(c=>c.name==='Alimentación')!;
