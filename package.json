@@ -35,7 +35,9 @@
     "ai:test": "node --test scripts/ai.test.mjs",
     "text:check": "node scripts/text-check.mjs",
     "exports:check": "node scripts/export-guardian.mjs",
-    "exports:test": "node --test scripts/export-guardian.test.mjs"
+    "exports:test": "node --test scripts/export-guardian.test.mjs",
+    "format": "prettier --write",
+    "format:check": "prettier --check"
   },
   "devDependencies": {
     "@eslint/js": "^9.39.0",
@@ -43,6 +45,7 @@
     "eslint": "^9.39.0",
     "exceljs": "^4.4.0",
     "playwright": "^1.64.1",
+    "prettier": "3.10.1",
     "tsx": "^4.20.0",
     "typescript": "~5.9.3",
     "typescript-eslint": "^8.46.0"
