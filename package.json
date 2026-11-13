@@ -6,6 +6,9 @@
     "node": ">=24.11 <25"
   },
   "scripts": {
+    "setup:local": "pnpm install --frozen-lockfile && pnpm db:setup",
+    "doctor:expo": "pnpm --filter @flowsaldo/mobile exec node -p \"require.resolve('expo/package.json')\"",
+    "doctor:api": "node --env-file-if-exists=.env scripts/doctor-api.mjs",
     "dev": "node scripts/dev.mjs web",
     "dev:android": "node scripts/dev.mjs android",
     "dev:phone": "node scripts/dev.mjs go",

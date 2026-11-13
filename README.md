@@ -61,7 +61,7 @@ Ejecuta los comandos desde la raíz tras instalar las dependencias. Prepara la b
 
 ## Conectar tu propia instalación
 
-Docker Compose ejecuta PostgreSQL. Después de configurar la base, `pnpm db:setup` prepara las tablas y `pnpm dev` arranca la web, la API y el worker juntos. Usa **Registrarse** para crear tu cuenta personal. La [guía de instalación](docs/setup.md) indica cómo configurar los archivos `.env`, preparar las tablas, arrancar los servicios y crear tu primera cuenta. Si el APK debe conectarse desde un teléfono, prepara una URL HTTPS accesible y configúrala antes de compilar. [Guía del piloto Android](docs/pilot.md)
+Docker Compose ejecuta PostgreSQL. Después de configurar Docker y el archivo `.env`, `pnpm setup:local` instala las dependencias y prepara la base y `pnpm dev` arranca la web, la API y el worker juntos. Usa **Registrarse** para crear tu cuenta personal. La [guía de instalación](docs/setup.md) indica cómo configurar los archivos `.env`, preparar las tablas, arrancar los servicios y crear tu primera cuenta. Si el APK debe conectarse desde un teléfono, prepara una URL HTTPS accesible y configúrala antes de compilar. [Guía del piloto Android](docs/pilot.md)
 
 Desde **Inicio → Tasas** puedes consultar valores recientes o históricos y estimar conversiones a DOP. Las tasas son de referencia. Los movimientos y presupuestos se registran en DOP y USD.
 
