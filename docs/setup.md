@@ -42,12 +42,12 @@ docker compose ps
 Espera a que PostgreSQL aparezca `healthy`. Revisa la columna **PORTS**. Si ves `127.0.0.1:5433->5432/tcp`, usa `DATABASE_URL=postgresql://flowsaldo:flowsaldo_local@127.0.0.1:5433/flowsaldo` en el `.env` raíz. Si Compose publica el puerto 5432, usa ese puerto en la URL. El puerto `PORT=3000` de la API es independiente.
 
 ```powershell
-pnpm db:setup
+pnpm setup:local
 # Opcional: insertar movimientos de ejemplo en una base de pruebas.
 pnpm db:seed
 ```
 
-Copia las plantillas solo si aún no tienes esos archivos. Antes de arrancar la API, cambia `DEV_API_TOKEN` en el `.env` de la raíz por un secreto aleatorio de al menos 24 caracteres. Usa la base local de Compose o ajusta `DATABASE_URL` si ya tienes PostgreSQL.
+`pnpm setup:local` instala las dependencias con el lockfile, genera Prisma y aplica las migraciones. Si ya instalaste las dependencias y solo necesitas preparar la base, usa `pnpm db:setup`. Copia las plantillas solo si aún no tienes esos archivos. Antes de arrancar la API, cambia `DEV_API_TOKEN` en el `.env` de la raíz por un secreto aleatorio de al menos 24 caracteres. Usa la base local de Compose o ajusta `DATABASE_URL` si ya tienes PostgreSQL.
 
 Desde la raíz, ejecuta `pnpm dev` para arrancar la web, la API y el worker en una terminal. Usa Ctrl+C para detener los tres procesos. PostgreSQL se administra por separado con Docker Compose.
 
@@ -59,7 +59,9 @@ Desde la raíz, ejecuta `pnpm dev` para arrancar la web, la API y el worker en u
 | `pnpm web` | Solo la web |
 | `pnpm dev:api` / `pnpm dev:worker` | Solo el servicio indicado |
 
-Desde PowerShell, comprueba la API con `Invoke-RestMethod http://127.0.0.1:3000/health`. Si copiaste la plantilla de la app para la web local, cambia `EXPO_PUBLIC_API_URL` en `apps/mobile/.env` a `http://127.0.0.1:3000`. Si Expo usa un puerto distinto al autorizado, ajusta `WEB_ORIGINS` en el `.env` de la API con el origen exacto de la web.
+Con la API en ejecución, usa `pnpm doctor:api` para verificar que escuche y consulte PostgreSQL. Usa el `PORT` del `.env` raíz. Para verificar otra dirección, pásala como argumento, por ejemplo `pnpm doctor:api https://api.ejemplo.test`. La plantilla `.env.example` usa el puerto 5433 de Docker Compose. Si copiaste el archivo antes de este ajuste, revisa el puerto en tu `.env` existente y ejecuta `pnpm db:setup`. Si copiaste la plantilla de la app para la web local, cambia `EXPO_PUBLIC_API_URL` en `apps/mobile/.env` a `http://127.0.0.1:3000`. Si Expo usa un puerto distinto al autorizado, ajusta `WEB_ORIGINS` en el `.env` de la API con el origen exacto de la web.
+
+Si 8081 está ocupado, usa `pnpm web --port 8082` para la demo o `pnpm dev --port 8082` para el modo conectado. Si usas el modo conectado, agrega el origen de 8082 a `WEB_ORIGINS`. Si Metro sigue sin resolver Expo después de reinstalar, prueba un clon limpio y comprueba el arranque antes de copiar tus archivos `.env`.
 
 En un teléfono o emulador, `localhost` apunta al propio dispositivo. Para probar por Wi-Fi con datos ficticios, usa la IPv4 LAN de la PC en `EXPO_PUBLIC_API_URL`, cambia `HOST` a `0.0.0.0` y permite el puerto 3000 en la red privada. Reinicia la API y Expo después de cambiar su configuración. Para un APK conectado al servidor de pruebas, configura HTTPS según la [guía del piloto](pilot.md).
 
@@ -82,3 +84,8 @@ pnpm ai:test
 Para Playwright, instala Chromium con `pnpm exec playwright install chromium` y ejecuta `pnpm test:web`. Consulta [TESTING.md](../TESTING.md) para el smoke de integración con PostgreSQL y la prueba de Metro.
 
 Para generar un APK instalable, sigue [la guía EAS y Android](pilot.md#compilar-e-instalar-el-apk). El APK de demostración puede usarse sin servidor. El modo conectado requiere que el teléfono llegue a la URL HTTPS incluida en la compilación.
+
+## Diagnosticar un error al arrancar
+
+- Si `/health` responde pero `/auth/status` falla, comprueba PostgreSQL con `docker compose ps`, revisa `DATABASE_URL` y aplica `pnpm db:setup`. Reinicia la API si cambiaste su configuración.
+- Si el error aparece antes de que se muestre la app y Expo indica `Metro` o `bundle`, revisa el primer error de la terminal de Expo. Ejecuta `pnpm doctor:expo` para comprobar si Node encuentra Expo desde el paquete móvil. Puedes aislar la interfaz con `pnpm web` en la PC o `pnpm start` para Expo Go, y probar con el usuario de demo.

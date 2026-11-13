@@ -1,5 +1,7 @@
 # FlowSaldo
 
+- Escribir los mensajes de commit en español, incluido el cuerpo cuando se use. Los prefijos convencionales como `fix:` y `docs:` pueden conservarse.
+
 - Ejecutar desde raíz: pnpm install --frozen-lockfile, pnpm db:generate, pnpm check.
 - Mantener datos de prueba sintéticos. Nunca añadir tokens, correos reales ni credenciales.
 - Dinero en amountMinor entero y moneda explícita. Excluir transferencias propias de ingresos y gastos.

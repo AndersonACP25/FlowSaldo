@@ -1,0 +1,12 @@
+pnpm-lock.yaml
+**/prisma/migrations/
+**/playwright-report/
+**/test-results/
+**/node_modules/
+**/.expo/
+**/dist/
+**/coverage/
+packages/database/.agents/
+packages/database/.claude/skills/
+packages/database/.windsurf/
+packages/database/skills-lock.json
