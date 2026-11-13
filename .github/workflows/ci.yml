@@ -22,7 +22,7 @@ jobs:
       node-version: 24
       cache: pnpm
    - run: pnpm install --frozen-lockfile
-   - run: cp .env.example .env
+   - run: sed 's/127.0.0.1:5433/127.0.0.1:5432/' .env.example > .env
    - run: pnpm db:generate
    - run: pnpm exec prisma migrate deploy --config packages/database/prisma.config.ts
      working-directory: .

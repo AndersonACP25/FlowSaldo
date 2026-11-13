@@ -190,3 +190,5 @@ El formulario **Registrarse** usa el endpoint existente `POST /auth/setup` y su 
 El alcance de proveedores es bancos dominicanos y PayPal. El laboratorio acepta texto plano sintético. El worker reconoce retiros aprobados en DOP de BHD y Popular con una tabla de una fila separada por tabulaciones o espacios repetidos. BHD requiere el encabezado «BHD Notificación de Transacciones» y el tipo «Retiro de Efectivo». Para ambos, la fecha de operación se interpreta como día/mes/año y se conserva a mediodía UTC.
 
 Los retiros reconocidos quedan en REVIEW con `parserVersion` específico. El detalle devuelve `suggestion` con monto, moneda, fecha, cajero y una propuesta de tipo, sin afectar saldos hasta la confirmación. El texto copiado no autentica al remitente. Compras, depósitos, transferencias, PayPal y formatos ambiguos siguen en revisión manual.
+
+Los endpoints que consultan PostgreSQL devuelven 503 con un mensaje de diagnóstico cuando la base está inaccesible, rechaza las credenciales o falta aplicar el esquema. `GET /health` confirma que el proceso escucha y `GET /auth/status` verifica también una consulta a la base.
