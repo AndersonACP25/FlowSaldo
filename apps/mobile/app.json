@@ -12,9 +12,7 @@
         "backgroundColor": "#101d28"
       }
     },
-    "plugins": [
-      "expo-secure-store"
-    ],
+    "plugins": ["expo-secure-store", "expo-notifications"],
     "backgroundColor": "#0a0e16",
     "extra": {
       "eas": {

@@ -1,91 +1,210 @@
-import {checkFinance} from './finance-smoke.mjs';
-import {checkAccessTransport} from './access-transport-smoke.mjs';
-import {checkPersonalAccess} from './access-smoke.mjs';
-import {once} from 'node:events';
-import {checkImportRecovery} from './import-recovery-smoke.mjs';
+import { checkFinance } from './finance-smoke.mjs';
+import { checkAccessTransport } from './access-transport-smoke.mjs';
+import { checkPersonalAccess } from './access-smoke.mjs';
+import { once } from 'node:events';
+import { checkImportRecovery } from './import-recovery-smoke.mjs';
 import { spawn } from 'node:child_process';
 import assert from 'node:assert/strict';
 import { checkCategoryMigration } from './category-migration-smoke.mjs';
 import { checkRecurring } from './recurring-smoke.mjs';
 import { checkCategories } from './categories-smoke.mjs';
 import { checkHistory } from './history-smoke.mjs';
-const api = spawn('node', ['--import', 'tsx', '--env-file=.env', 'apps/api/src/index.ts'], { stdio: 'inherit' });
-const worker = spawn('node', ['--import', 'tsx', '--env-file=.env', 'apps/worker/src/index.ts'], { stdio: 'inherit' });
+const api = spawn('node', ['--import', 'tsx', '--env-file=.env', 'apps/api/src/index.ts'], {
+  stdio: 'inherit',
+});
+const worker = spawn('node', ['--import', 'tsx', '--env-file=.env', 'apps/worker/src/index.ts'], {
+  stdio: 'inherit',
+});
 const { readFile } = await import('node:fs/promises');
 const env = await readFile('.env', 'utf8');
 const token = /^DEV_API_TOKEN=(.+)$/m.exec(env)?.[1];
 const headers = { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' };
-const request = (path, options = {}) => fetch('http://127.0.0.1:3000' + path, { ...options, headers });
-const pause = () => new Promise(r => setTimeout(r, 500));
+const request = (path, options = {}) =>
+  fetch('http://127.0.0.1:3000' + path, { ...options, headers });
+const pause = () => new Promise((r) => setTimeout(r, 500));
 try {
- let ready = false;
- for (let i=0;i<40;i++) { try { if ((await request('/health')).ok) { ready=true; break; } } catch { /* API may still be starting. */ } await pause(); }
- assert.ok(ready, 'API ready');
- assert.equal((await fetch('http://127.0.0.1:3000/movements')).status, 401);
- assert.equal((await request('/movements', { method:'POST', body: JSON.stringify({ amountMinor: -1 }) })).status, 400);
- const body = JSON.stringify({ externalId:'ci-demo', body:'FLOWSALDO-DEMO|EXPENSE|DOP|12.50|2026-10-22|Smoke' });
- for(let i=0;i<2;i++) assert.equal((await request('/imports', { method:'POST', body })).status, 202);
- await request('/imports', { method:'POST', body:JSON.stringify({ externalId:'ci-review', body:'desconocido' }) });
- const bankBody=['Monto\tMoneda\tFecha\tCajero Automatico\tEstatus','RD$2,345.67\tPeso dominicano\t06/07/2025\tATM DE PRUEBA\tAprobada'].join('\n');
- const enqueued=await request('/imports',{method:'POST',body:JSON.stringify({externalId:'ci-bank-withdrawal',body:bankBody})});
- assert.equal(enqueued.status,202);
- const bankId=(await enqueued.json()).id;
- let imports = [];
- for(let i=0;i<40;i++) {
-  imports = await (await request('/imports')).json();
-  if(imports.find(x=>x.externalId==='ci-demo')?.status==='PARSED' && imports.find(x=>x.externalId==='ci-review')?.status==='REVIEW' && imports.find(x=>x.id===bankId)?.status==='REVIEW') break;
-  await pause();
- }
- assert.equal(imports.find(x=>x.externalId==='ci-demo')?.status, 'PARSED');
- assert.equal(imports.find(x=>x.externalId==='ci-review')?.status, 'REVIEW');
- const movements = await (await request('/movements')).json();
- assert.equal(movements.filter(x=>x.description==='Smoke').length, 1);
- assert.equal(imports.find(x=>x.id===bankId)?.parserVersion,'popular-withdrawal-v1');
- assert.ok(!movements.some(x=>x.importId===bankId));
- const bankReview=await (await request('/imports/'+bankId)).json();
- assert.equal(bankReview.status,'REVIEW');
- assert.equal(bankReview.suggestion.amountMinor,234567);
- assert.equal(bankReview.suggestion.occurredAt,'2025-07-06T12:00:00.000Z');
- assert.equal((await request('/imports/'+bankId+'/resolve',{method:'POST',body:JSON.stringify(bankReview.suggestion)})).status,201);
- const bankConfirmed=await (await request('/imports/'+bankId)).json();
- assert.equal(bankConfirmed.body,'');
- assert.ok(bankConfirmed.movement?.id);
- assert.equal(bankConfirmed.suggestion,undefined);
- const preflight=await fetch('http://127.0.0.1:3000/movements',{method:'OPTIONS',headers:{Origin:'http://localhost:8081','Access-Control-Request-Method':'POST','Access-Control-Request-Headers':'authorization,content-type'}});
- assert.equal(preflight.headers.get('access-control-allow-origin'),'http://localhost:8081');
- const denied=await fetch('http://127.0.0.1:3000/health',{headers:{Origin:'https://untrusted.example'}});
- assert.equal(denied.headers.get('access-control-allow-origin'),null);
- const created=await request('/movements',{method:'POST',body:JSON.stringify({amountMinor:12345,currency:'USD',type:'EXPENSE',description:'Manual smoke',category:'Servicios',occurredAt:'2026-09-12T12:00:00.000Z'})});
- assert.equal(created.status,201); const manual=await created.json();
- const filtered=await (await request('/movements?month=2026-09&currency=USD')).json();
- assert.ok(filtered.some(x=>x.id===manual.id)); assert.ok(filtered.every(x=>x.currency==='USD'&&x.occurredAt.startsWith('2026-09')));
- assert.equal((await request('/movements?month=2026-13')).status,400);
- assert.equal((await request('/movements/'+manual.id,{method:'PATCH',body:JSON.stringify({...manual,description:'Updated smoke'})})).status,200);
- assert.equal((await request('/movements/'+manual.id,{method:'DELETE'})).status,204);
- assert.equal((await request('/movements/'+manual.id,{method:'DELETE'})).status,404);
- const review=imports.find(x=>x.externalId==='ci-review');
- const detail=await (await request('/imports/'+review.id)).json();assert.equal(detail.body,'desconocido');
- const confirmed={amountMinor:350000,currency:'DOP',type:'TRANSFER',description:'Manual review smoke',category:'Transferencias',occurredAt:'2026-10-22T12:00:00.000Z'};
- const resolutions=await Promise.all([1,2].map(()=>request('/imports/'+review.id+'/resolve',{method:'POST',body:JSON.stringify(confirmed)})));
- assert.deepEqual(resolutions.map(r=>r.status).sort(),[201,409]);
- const trace=await (await request('/imports/'+review.id)).json();assert.ok(trace.movement?.id);assert.equal((await (await request('/movements/'+trace.movement.id)).json()).importId,review.id);
- const afterReview=await (await request('/movements')).json();assert.equal(afterReview.filter(x=>x.importId===review.id).length,1);
- assert.equal((await (await request('/imports/'+review.id)).json()).body,'');
- await request('/imports',{method:'POST',body:JSON.stringify({externalId:'ci-discard',body:'Formato desconocido para descartar'})});
- let discard;
- for(let i=0;i<40;i++){const rows=await (await request('/imports')).json();discard=rows.find(x=>x.externalId==='ci-discard');if(discard?.status==='REVIEW')break;await pause();}
- assert.equal(discard?.status,'REVIEW');
- assert.equal((await request('/imports/'+discard.id+'/dismiss',{method:'POST'})).status,204);
- assert.equal((await request('/imports/'+discard.id+'/resolve',{method:'POST',body:JSON.stringify(confirmed)})).status,409);
- assert.equal((await (await request('/imports/'+discard.id)).json()).status,'DISMISSED');
- await checkCategoryMigration(/^DATABASE_URL=(.+)$/m.exec(env)?.[1]);
- await checkCategories(request);
- await checkRecurring(request);
- await checkHistory(request,/^DATABASE_URL=(.+)$/m.exec(env)?.[1]);
- const workerExit=once(worker,'exit');worker.kill('SIGTERM');await workerExit;
- await checkImportRecovery(request,/^DATABASE_URL=(.+)$/m.exec(env)?.[1]);
- await checkFinance(request);
- await checkPersonalAccess(token,/^DATABASE_URL=(.+)$/m.exec(env)?.[1]);
- await checkAccessTransport();
- console.info('Smoke: auth, validation, persistence, idempotency and review passed');
-} finally { api.kill('SIGTERM'); worker.kill('SIGTERM'); }
+  let ready = false;
+  for (let i = 0; i < 40; i++) {
+    try {
+      if ((await request('/health')).ok) {
+        ready = true;
+        break;
+      }
+    } catch {
+      /* API may still be starting. */
+    }
+    await pause();
+  }
+  assert.ok(ready, 'API ready');
+  assert.equal((await fetch('http://127.0.0.1:3000/movements')).status, 401);
+  assert.equal(
+    (await request('/movements', { method: 'POST', body: JSON.stringify({ amountMinor: -1 }) }))
+      .status,
+    400,
+  );
+  const body = JSON.stringify({
+    externalId: 'ci-demo',
+    body: 'FLOWSALDO-DEMO|EXPENSE|DOP|12.50|2026-10-22|Smoke',
+  });
+  for (let i = 0; i < 2; i++)
+    assert.equal((await request('/imports', { method: 'POST', body })).status, 202);
+  await request('/imports', {
+    method: 'POST',
+    body: JSON.stringify({ externalId: 'ci-review', body: 'desconocido' }),
+  });
+  const bankBody = [
+    'Monto\tMoneda\tFecha\tCajero Automatico\tEstatus',
+    'RD$2,345.67\tPeso dominicano\t06/07/2025\tATM DE PRUEBA\tAprobada',
+  ].join('\n');
+  const enqueued = await request('/imports', {
+    method: 'POST',
+    body: JSON.stringify({ externalId: 'ci-bank-withdrawal', body: bankBody }),
+  });
+  assert.equal(enqueued.status, 202);
+  const bankId = (await enqueued.json()).id;
+  let imports = [];
+  for (let i = 0; i < 40; i++) {
+    imports = await (await request('/imports')).json();
+    if (
+      imports.find((x) => x.externalId === 'ci-demo')?.status === 'PARSED' &&
+      imports.find((x) => x.externalId === 'ci-review')?.status === 'REVIEW' &&
+      imports.find((x) => x.id === bankId)?.status === 'REVIEW'
+    )
+      break;
+    await pause();
+  }
+  assert.equal(imports.find((x) => x.externalId === 'ci-demo')?.status, 'PARSED');
+  assert.equal(imports.find((x) => x.externalId === 'ci-review')?.status, 'REVIEW');
+  const movements = await (await request('/movements')).json();
+  assert.equal(movements.filter((x) => x.description === 'Smoke').length, 1);
+  assert.equal(imports.find((x) => x.id === bankId)?.parserVersion, 'popular-withdrawal-v1');
+  assert.ok(!movements.some((x) => x.importId === bankId));
+  const bankReview = await (await request('/imports/' + bankId)).json();
+  assert.equal(bankReview.status, 'REVIEW');
+  assert.equal(bankReview.suggestion.amountMinor, 234567);
+  assert.equal(bankReview.suggestion.occurredAt, '2025-07-06T12:00:00.000Z');
+  assert.equal(
+    (
+      await request('/imports/' + bankId + '/resolve', {
+        method: 'POST',
+        body: JSON.stringify(bankReview.suggestion),
+      })
+    ).status,
+    201,
+  );
+  const bankConfirmed = await (await request('/imports/' + bankId)).json();
+  assert.equal(bankConfirmed.body, '');
+  assert.ok(bankConfirmed.movement?.id);
+  assert.equal(bankConfirmed.suggestion, undefined);
+  const preflight = await fetch('http://127.0.0.1:3000/movements', {
+    method: 'OPTIONS',
+    headers: {
+      Origin: 'http://localhost:8081',
+      'Access-Control-Request-Method': 'POST',
+      'Access-Control-Request-Headers': 'authorization,content-type',
+    },
+  });
+  assert.equal(preflight.headers.get('access-control-allow-origin'), 'http://localhost:8081');
+  const denied = await fetch('http://127.0.0.1:3000/health', {
+    headers: { Origin: 'https://untrusted.example' },
+  });
+  assert.equal(denied.headers.get('access-control-allow-origin'), null);
+  const created = await request('/movements', {
+    method: 'POST',
+    body: JSON.stringify({
+      amountMinor: 12345,
+      currency: 'USD',
+      type: 'EXPENSE',
+      description: 'Manual smoke',
+      category: 'Servicios',
+      occurredAt: '2026-09-12T12:00:00.000Z',
+    }),
+  });
+  assert.equal(created.status, 201);
+  const manual = await created.json();
+  const filtered = await (await request('/movements?month=2026-09&currency=USD')).json();
+  assert.ok(filtered.some((x) => x.id === manual.id));
+  assert.ok(filtered.every((x) => x.currency === 'USD' && x.occurredAt.startsWith('2026-09')));
+  assert.equal((await request('/movements?month=2026-13')).status, 400);
+  assert.equal(
+    (
+      await request('/movements/' + manual.id, {
+        method: 'PATCH',
+        body: JSON.stringify({ ...manual, description: 'Updated smoke' }),
+      })
+    ).status,
+    200,
+  );
+  assert.equal((await request('/movements/' + manual.id, { method: 'DELETE' })).status, 204);
+  assert.equal((await request('/movements/' + manual.id, { method: 'DELETE' })).status, 404);
+  const review = imports.find((x) => x.externalId === 'ci-review');
+  const detail = await (await request('/imports/' + review.id)).json();
+  assert.equal(detail.body, 'desconocido');
+  const confirmed = {
+    amountMinor: 350000,
+    currency: 'DOP',
+    type: 'TRANSFER',
+    description: 'Manual review smoke',
+    category: 'Transferencias',
+    occurredAt: '2026-10-22T12:00:00.000Z',
+  };
+  const resolutions = await Promise.all(
+    [1, 2].map(() =>
+      request('/imports/' + review.id + '/resolve', {
+        method: 'POST',
+        body: JSON.stringify(confirmed),
+      }),
+    ),
+  );
+  assert.deepEqual(resolutions.map((r) => r.status).sort(), [201, 409]);
+  const trace = await (await request('/imports/' + review.id)).json();
+  assert.ok(trace.movement?.id);
+  assert.equal(
+    (await (await request('/movements/' + trace.movement.id)).json()).importId,
+    review.id,
+  );
+  const afterReview = await (await request('/movements')).json();
+  assert.equal(afterReview.filter((x) => x.importId === review.id).length, 1);
+  assert.equal((await (await request('/imports/' + review.id)).json()).body, '');
+  await request('/imports', {
+    method: 'POST',
+    body: JSON.stringify({ externalId: 'ci-discard', body: 'Formato desconocido para descartar' }),
+  });
+  let discard;
+  for (let i = 0; i < 40; i++) {
+    const rows = await (await request('/imports')).json();
+    discard = rows.find((x) => x.externalId === 'ci-discard');
+    if (discard?.status === 'REVIEW') break;
+    await pause();
+  }
+  assert.equal(discard?.status, 'REVIEW');
+  assert.equal(
+    (await request('/imports/' + discard.id + '/dismiss', { method: 'POST' })).status,
+    204,
+  );
+  assert.equal(
+    (
+      await request('/imports/' + discard.id + '/resolve', {
+        method: 'POST',
+        body: JSON.stringify(confirmed),
+      })
+    ).status,
+    409,
+  );
+  assert.equal((await (await request('/imports/' + discard.id)).json()).status, 'DISMISSED');
+  await checkCategoryMigration(/^DATABASE_URL=(.+)$/m.exec(env)?.[1]);
+  await checkCategories(request);
+  await checkRecurring(request);
+  await checkHistory(request, /^DATABASE_URL=(.+)$/m.exec(env)?.[1]);
+  const workerExit = once(worker, 'exit');
+  worker.kill('SIGTERM');
+  await workerExit;
+  await checkImportRecovery(request, /^DATABASE_URL=(.+)$/m.exec(env)?.[1]);
+  await checkFinance(request);
+  await checkPersonalAccess(token, /^DATABASE_URL=(.+)$/m.exec(env)?.[1]);
+  await checkAccessTransport();
+  console.info('Smoke: auth, validation, persistence, idempotency and review passed');
+} finally {
+  api.kill('SIGTERM');
+  worker.kill('SIGTERM');
+}

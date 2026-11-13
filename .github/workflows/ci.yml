@@ -28,6 +28,7 @@ jobs:
      working-directory: .
      env:
       DATABASE_URL: postgresql://flowsaldo:flowsaldo_local@localhost:5432/flowsaldo
+   - run: pnpm format:check apps packages scripts
    - run: pnpm check
    - run: pnpm db:seed
    - run: node scripts/smoke.mjs
