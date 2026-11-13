@@ -88,6 +88,8 @@ Ejecuta `pnpm format apps packages scripts` para aplicar Prettier al código que
 
 En la APK de Android, entra en **Configuración → Activar notificaciones**. FlowSaldo puede avisar al guardar ingresos o transferencias y al confirmar avisos bancarios o movimientos recurrentes. Los avisos son locales y se generan en el dispositivo que confirma la operación. Se requiere recompilar la APK para incorporar este módulo. La notificación no muestra montos ni cuentas.
 
+Consulta [cómo publicar una APK y avisar de una actualización](docs/pilot.md#avisar-de-una-apk-nueva).
+
 ## Próximo feature
 
 [Plan de importación de avisos bancarios con Gmail](docs/plan-feature.md)

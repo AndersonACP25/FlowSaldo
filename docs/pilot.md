@@ -42,14 +42,26 @@ Antes de compilar, comprueba que `build.preview.pnpm` en `eas.json` coincida con
 
 Abre el enlace del build terminado en Android, descarga el APK e instálalo. Si Android lo solicita, permite instalar desde la app que abrió el archivo. Abre FlowSaldo sin Metro. Para probar el APK generado desde este código, inicia sesión con `prueba@flowsaldo.test` y `FlowSaldo-Prueba-2026`. Para el piloto conectado, registra el build, el modelo y la versión de Android y ejecuta la siguiente lista.
 
-| Prueba | Resultado esperado |
-|---|---|
-| Inicio de sesión y reapertura después de cerrar la app | La sesión activa se recupera desde SecureStore y la API valida su vigencia. |
-| Revocación de esa sesión desde una segunda sesión autorizada y reapertura | La sesión revocada vuelve a la pantalla de acceso. |
-| Exportación de movimientos filtrados y compartir con una segunda app | El archivo recibido conserva nombre CSV, encabezados y filas del filtro. |
-| Navegación con TalkBack en acceso, Panel y exportación | Los controles tienen nombres comprensibles y el foco sigue el orden visual. |
-| Fuente del sistema ampliada | Los campos, errores y botones principales se leen y se pueden activar. |
+| Prueba                                                                    | Resultado esperado                                                          |
+| ------------------------------------------------------------------------- | --------------------------------------------------------------------------- |
+| Inicio de sesión y reapertura después de cerrar la app                    | La sesión activa se recupera desde SecureStore y la API valida su vigencia. |
+| Revocación de esa sesión desde una segunda sesión autorizada y reapertura | La sesión revocada vuelve a la pantalla de acceso.                          |
+| Exportación de movimientos filtrados y compartir con una segunda app      | El archivo recibido conserva nombre CSV, encabezados y filas del filtro.    |
+| Navegación con TalkBack en acceso, Panel y exportación                    | Los controles tienen nombres comprensibles y el foco sigue el orden visual. |
+| Fuente del sistema ampliada                                               | Los campos, errores y botones principales se leen y se pueden activar.      |
 
 La prueba automatizada de HTTPS usa OpenSSL para crear un certificado temporal y verifica una sesión activa y otra revocada en la API. El certificado público, el APK firmado y la prueba física se verifican en el entorno del piloto.
 
 Referencias oficiales de Expo. [Compilar APK](https://docs.expo.dev/build-reference/apk/) · [Variables de entorno](https://docs.expo.dev/eas/environment-variables/)
+
+## Avisar de una APK nueva
+
+La APK consulta las releases públicas de FlowSaldo al abrirse y al volver a primer plano si pasó al menos una hora desde la última consulta. Incluye las versiones preliminares publicadas. El aviso ofrece abrir la release en el navegador o dejar la actualización para más tarde. Android se encarga de confirmar la instalación.
+
+1. Comprueba el `versionCode` de la APK distribuida en los detalles del build de EAS. La configuración inicial del verificador propone `versionCode: 2`. Si la APK instalada ya tiene ese número o uno mayor, asigna uno superior en `apps/mobile/app.json` antes de compilar. Mantén el identificador Android y la clave de firma original.
+2. Genera la APK con el perfil `preview`. Instala manualmente la primera compilación que contiene el verificador.
+3. En cada publicación posterior, aumenta `version` y `android.versionCode` en `apps/mobile/app.json`. El perfil lee estos valores desde el proyecto.
+4. Publica la release con un tag como `v0.10.2-preview.1`. Adjunta la APK firmada como `FlowSaldo-android-3.apk` si su `versionCode` es 3. El número en el nombre debe coincidir con el valor del binario. Conserva una sola APK de distribución por release.
+5. Abre una instalación anterior del verificador para validar el aviso. Pulsa **Descargar**, descarga el archivo de la release e instálalo encima de la versión anterior.
+
+FlowSaldo compara el número de compilación instalado con el número del archivo publicado, por lo que puede distinguir dos compilaciones con la misma versión visible. El aviso se muestra dentro de la app. La comprobación es opcional y un fallo de red no afecta el acceso.

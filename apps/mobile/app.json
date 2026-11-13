@@ -2,7 +2,7 @@
   "expo": {
     "name": "FlowSaldo",
     "slug": "flowsaldo",
-    "version": "0.10.0",
+    "version": "0.10.1",
     "orientation": "portrait",
     "userInterfaceStyle": "dark",
     "android": {
@@ -10,7 +10,8 @@
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
         "backgroundColor": "#101d28"
-      }
+      },
+      "versionCode": 2
     },
     "plugins": ["expo-secure-store", "expo-notifications"],
     "backgroundColor": "#0a0e16",

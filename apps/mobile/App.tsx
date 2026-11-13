@@ -1,3 +1,4 @@
+import { ApkUpdateNotice } from './src/ApkUpdateNotice';
 import { NotificationSettings } from './src/NotificationSettings';
 import { notifyTransaction } from './src/transactionNotifications';
 import { RatesScreen } from './src/RatesScreen';
@@ -1837,6 +1838,7 @@ export default function App() {
   }
   return (
     <QueryClientProvider client={client}>
+      {!cover && <ApkUpdateNotice />}
       {cover ? (
         <OpeningCover />
       ) : restoring ? (
