@@ -104,7 +104,14 @@ export async function checkAccessFlow(browser) {
       return;
     } else if (url.pathname === '/budgets')
       data = { version: 0, limitMinor: null, categoryLimits: [] };
-    else if (url.pathname === '/accounts') data = [];
+    else if (url.pathname === '/integrations/gmail') {
+      assert.equal(route.request().method(), 'GET');
+      assert.equal(
+        route.request().headers().authorization,
+        'Bearer ' + (changed ? nextToken : token),
+      );
+      data = { status: 'unavailable' };
+    } else if (url.pathname === '/accounts') data = [];
     else if (url.pathname === '/categories') data = demoCategoryCatalog([]);
     else if (url.pathname === '/recurring') data = [];
     else if (url.pathname === '/imports')
@@ -176,6 +183,7 @@ export async function checkAccessFlow(browser) {
     );
     await button('Configuración').click();
     await page.getByText('Cuenta personal', { exact: true }).waitFor();
+    await page.getByText('Gmail sin configurar en el servidor.', { exact: true }).waitFor();
     await button('Editar perfil').click();
     await page.getByLabel('Nombre de la cuenta', { exact: true }).fill('Anderson Castillo');
     await page.getByLabel('Correo de la cuenta', { exact: true }).fill('nuevo@correo.test');
