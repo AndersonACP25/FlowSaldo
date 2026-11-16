@@ -94,6 +94,12 @@ Consulta [cómo publicar una APK y avisar de una actualización](docs/pilot.md#a
 
 [Plan de importación de avisos bancarios con Gmail](docs/plan-feature.md)
 
+## Skills de desarrollo
+
+Desde Git Bash o WSL, ejecuta `bash skills.sh` para consultar la selección y `bash skills.sh instalar` para instalarla en este proyecto. El instalador permite elegir el agente y confirmar la instalación. Usa pnpm y conserva las referencias de origen fijadas a un commit.
+
+Incluye dos guías de Expo sobre interfaz nativa y consultas de datos, y una guía de Supabase para revisar consultas e índices de PostgreSQL en Docker. Estas guías complementan las reglas de [AGENTS.md](AGENTS.md). La instalación es opcional y se ejecuta aparte de la preparación de la base.
+
 ## Orientarse en el código
 
 | Ruta                        | Contenido                                                        |

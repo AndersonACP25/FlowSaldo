@@ -17,6 +17,15 @@ FlowSaldo reconoce retiros aprobados en DOP de BHD y Popular cuando se pegan com
 | 3. Revisar y confirmar | Reutilizar los parsers de retiros. Mostrar monto, moneda, fecha y cajero. Permitir corregir, descartar o registrar como gasto o transferencia a efectivo.                     | La importación queda en Por revisar. Los totales cambian solo cuando el titular confirma la operación.                                     |
 | 4. Validar el piloto   | Probar en web y Android con un buzón de prueba, un despliegue HTTPS y muestras anonimizadas.                                                                                  | Se completa conexión → importación → confirmación → desconexión en los dos clientes.                                                       |
 
+## Primer corte para implementar
+
+1. Documentar la configuración del proyecto OAuth de prueba y su URL de retorno. Mostrar el estado **Desconectado**, **Conectado** o **Requiere autorización** en Configuración.
+2. Implementar la conexión y la desconexión con un proveedor simulado. Verificar que solo la cuenta personal pueda iniciarlas y que un retorno OAuth vencido o repetido se rechace.
+3. Añadir **Sincronizar ahora** con una ventana inicial de siete días como valor propuesto. Mostrar cuántos avisos quedaron en revisión y cuándo ocurrió la última sincronización exitosa.
+4. Ensayar con avisos anonimizados. Validar que un retiro ambiguo permita corrección manual y que volver a sincronizar mantenga los saldos y el número de importaciones.
+
+El piloto empieza con un buzón y sincronización manual. La sincronización programada y la ampliación a más formatos se evalúan después de comprobar este recorrido.
+
 ## Dependencias y alcance posterior
 
 - Preparar un proyecto OAuth de Google para el piloto, un buzón de prueba y una URL HTTPS para el retorno de la autorización. Confirmar con la documentación vigente de Google los permisos y requisitos de verificación antes de implementar el conector.

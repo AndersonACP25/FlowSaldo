@@ -168,6 +168,6 @@ Inicio y Análisis comparten fecha de referencia. El resumen y los presupuestos 
 
 Configuración permite eliminar definitivamente categorías sin referencias. Las categorías vinculadas se conservan y pueden archivarse. Alcance bancario: República Dominicana y PayPal. Los retiros sintéticos aprobados en DOP de BHD y Popular generan sugerencias para revisión manual, sin OAuth ni contabilización automática.
 
-## Conexión Gmail del piloto
+## Plan del piloto Gmail
 
-El callback local de OAuth usa el puerto 3000. La cuenta personal inicia la conexión y el backend conserva la credencial cifrada. La interfaz permite consultar el estado y eliminar la conexión local. La sincronización de avisos se implementa por separado.
+El próximo feature usa un buzón de prueba y sincronización manual. El primer corte prepara OAuth, vuelve observable el estado de conexión y reaprovecha la revisión de retiros BHD/Popular. La ventana inicial propuesta es de siete días.
