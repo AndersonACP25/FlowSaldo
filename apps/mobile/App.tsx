@@ -1,3 +1,4 @@
+import { GmailConnection } from './src/GmailConnection';
 import { ApkUpdateNotice } from './src/ApkUpdateNotice';
 import { NotificationSettings } from './src/NotificationSettings';
 import { notifyTransaction } from './src/transactionNotifications';
@@ -1407,6 +1408,7 @@ function Home({
               </View>
             )}
             {screen === 'Configuración' && personal && <NotificationSettings />}
+            {screen === 'Configuración' && personal && <GmailConnection token={personal.token} />}
             {screen === 'Configuración' && personal && <RecoverySettings token={personal.token} />}
             {screen === 'Configuración' && personal && (
               <DataRetention

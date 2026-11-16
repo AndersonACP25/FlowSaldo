@@ -31,3 +31,15 @@ El piloto empieza con un buzón y sincronización manual. La sincronización pro
 - Preparar un proyecto OAuth de Google para el piloto, un buzón de prueba y una URL HTTPS para el retorno de la autorización. Confirmar con la documentación vigente de Google los permisos y requisitos de verificación antes de implementar el conector.
 - Mantener la primera entrega bancaria centrada en retiros de BHD y Popular. Compras, transferencias recibidas de Banreservas y pagos de PayPal requieren muestras anonimizadas y parsers propios.
 - Usar datos sintéticos en CI. Cubrir deduplicación, reintentos, desconexión y confirmación mediante pruebas de integración. Validar la autorización real con el buzón del piloto.
+
+## Probar la conexión local
+
+En el .env raíz configura GMAIL_CLIENT_ID y GMAIL_CLIENT_SECRET con el cliente web de Google Cloud. Define GMAIL_REDIRECT_URI como `http://127.0.0.1:3000/integrations/gmail/callback`. Genera una clave local independiente para GMAIL_TOKEN_KEY con:
+
+```powershell
+node -e "console.log(require('node:crypto').randomBytes(32).toString('hex'))"
+```
+
+Ejecuta `pnpm db:setup` para instalar la migración y `pnpm dev --port 8082`. Inicia sesión en FlowSaldo desde la PC y, en **Configuración**, pulsa **Conectar Gmail** y luego **Autorizar en Google**. Autoriza el buzón de prueba en Google, vuelve a FlowSaldo y pulsa **Actualizar estado**. El callback de loopback requiere abrirlo desde la propia PC. El estado de autorización dura diez minutos y vive en memoria de una sola instancia de la API.
+
+**Desconectar Gmail** elimina la credencial guardada en FlowSaldo. Puedes retirar también el permiso concedido desde las conexiones de tu cuenta de Google. La importación de correos corresponde a la siguiente entrega.
