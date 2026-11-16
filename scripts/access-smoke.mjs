@@ -1,3 +1,4 @@
+import { checkGmailConnection } from './gmail-smoke.mjs';
 import { checkNativeTls } from './tls-pilot-smoke.mjs';
 import assert from 'node:assert/strict';
 import { checkRecoveryRetention } from './recovery-retention-smoke.mjs';
@@ -65,6 +66,7 @@ export async function checkPersonalAccess(bootstrapToken, connectionString) {
     assert.match(first.token, /^fs_[\w-]{43}$/);
     assert.equal((await call('/movements', undefined, first.token)).status, 200);
     const stored = await db.accessSession.findUniqueOrThrow({ where: { id: first.sessionId } });
+    await checkGmailConnection(connectionString, first.sessionId, db);
     assert.equal(stored.tokenHash, digest(first.token));
     assert.notEqual(stored.tokenHash, first.token);
     const sessions = await (await call('/auth/sessions', undefined, first.token)).json();

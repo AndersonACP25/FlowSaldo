@@ -81,7 +81,7 @@ BEGIN
   RAISE EXCEPTION 'Stop other clients';
  END IF;
 END $$;
-TRUNCATE public."AppOwner",public."AccessSession",public."AuthThrottle",public."RecoveryCode",
+TRUNCATE public."GmailConnection",public."AppOwner",public."AccessSession",public."AuthThrottle",public."RecoveryCode",
  public."DataCleanup",public."CleanupPreview",public."MovementRequest",public."RecurringOccurrence",
  public."RecurringTemplate",public."Movement",public."MailImport",public."BudgetCategory",
  public."BudgetPeriod",public."Reconciliation",public."FinancialAccount",public."Category";
@@ -120,9 +120,13 @@ async function main() {
           '--schema=public',
           '--no-owner',
           '--no-privileges',
-          ...['AccessSession', 'RecoveryCode', 'AuthThrottle', 'CleanupPreview'].map(
-            (table) => '--exclude-table-data=public."' + table + '"',
-          ),
+          ...[
+            'AccessSession',
+            'RecoveryCode',
+            'AuthThrottle',
+            'CleanupPreview',
+            'GmailConnection',
+          ].map((table) => '--exclude-table-data=public."' + table + '"'),
         ],
         env,
         { output: createWriteStream(file, { flags: 'r+' }) },

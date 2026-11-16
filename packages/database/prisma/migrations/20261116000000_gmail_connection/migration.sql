@@ -1,0 +1,4 @@
+CREATE TABLE "GmailConnection" (
+  "ownerId" INTEGER NOT NULL PRIMARY KEY REFERENCES "AppOwner"("id") ON DELETE CASCADE ON UPDATE CASCADE,
+  "encryptedToken" TEXT NOT NULL
+);

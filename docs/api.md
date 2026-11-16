@@ -192,3 +192,7 @@ El alcance de proveedores es bancos dominicanos y PayPal. El laboratorio acepta 
 Los retiros reconocidos quedan en REVIEW con `parserVersion` específico. El detalle devuelve `suggestion` con monto, moneda, fecha, cajero y una propuesta de tipo, sin afectar saldos hasta la confirmación. El texto copiado no autentica al remitente. Compras, depósitos, transferencias, PayPal y formatos ambiguos siguen en revisión manual.
 
 Los endpoints que consultan PostgreSQL devuelven 503 con un mensaje de diagnóstico cuando la base está inaccesible, rechaza las credenciales o falta aplicar el esquema. `GET /health` confirma que el proceso escucha y `GET /auth/status` verifica también una consulta a la base.
+
+### Conexión OAuth de Gmail
+
+Con una sesión personal, GET /integrations/gmail consulta el estado, POST /integrations/gmail/connect inicia la autorización y DELETE /integrations/gmail elimina la conexión local. Google retorna a GET /integrations/gmail/callback. Ese retorno exige un estado de un solo uso vinculado a una sesión vigente. El token de renovación cifrado se excluye de los respaldos de datos.

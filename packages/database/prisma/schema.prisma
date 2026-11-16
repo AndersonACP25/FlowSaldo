@@ -115,6 +115,7 @@ model AppOwner {
  recoveryCodes RecoveryCode[]
  cleanups DataCleanup[]
  cleanupPreview CleanupPreview?
+ gmailConnection GmailConnection?
 }
 model AccessSession {
  id String @id @default(cuid())
@@ -216,4 +217,10 @@ model MovementRequest {
  key String @id
  movementId String? @unique
  movement Movement? @relation(fields: [movementId], references: [id], onDelete: SetNull)
+}
+
+model GmailConnection {
+ ownerId Int @id
+ owner AppOwner @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+ encryptedToken String
 }
