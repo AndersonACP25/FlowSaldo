@@ -33,3 +33,10 @@ credentials.json
 # Metadatos del sistema
 .DS_Store
 Thumbs.db
+
+# Skills de terceros instaladas localmente desde skills.sh
+/.agents/skills/
+/.claude/skills/
+/.codex/skills/
+/.windsurf/skills/
+/skills-lock.json
