@@ -1,3 +1,4 @@
+import { FilterRow } from './ScreenChrome';
 import React, { useState } from 'react';
 import { Text, View } from 'react-native';
 import {
@@ -161,7 +162,7 @@ export function MovementForm({
             Administra tus cuentas en Configuración. Sin cuenta conserva el registro fuera de los
             saldos y la conciliación.
           </Text>
-          <View style={s.row}>
+          <FilterRow label="Seleccionar cuenta del movimiento">
             <Choice
               label="Sin cuenta asignada"
               selected={!accountId}
@@ -181,11 +182,11 @@ export function MovementForm({
                   onPress={() => setAccountId(a.id)}
                 />
               ))}
-          </View>
+          </FilterRow>
           {type === 'TRANSFER' && !!accountId && (
             <>
               <Text style={s.label}>Cuenta de destino</Text>
-              <View style={s.row}>
+              <FilterRow label="Seleccionar cuenta de destino">
                 {accounts
                   .filter((a) => a.currency === unit && a.id !== accountId && !a.archived)
                   .map((a) => (
@@ -197,7 +198,7 @@ export function MovementForm({
                       onPress={() => setTargetAccountId(a.id)}
                     />
                   ))}
-              </View>
+              </FilterRow>
               <Text style={s.muted}>
                 El pago de tarjeta o préstamo se registra aquí como transferencia; el destino reduce
                 su deuda sin duplicar gastos.
@@ -220,7 +221,7 @@ export function MovementForm({
       {recent.length > 0 && (
         <>
           <Text style={s.label}>Categorías recientes</Text>
-          <View style={s.row}>
+          <FilterRow label="Elegir categoría reciente">
             {categories
               .filter((c) => !c.archived && recent.includes(c.id))
               .map((c) => (
@@ -232,10 +233,10 @@ export function MovementForm({
                   onPress={() => setCategoryId(c.id)}
                 />
               ))}
-          </View>
+          </FilterRow>
         </>
       )}
-      <View style={s.row}>
+      <FilterRow label="Seleccionar categoría">
         {categories
           .filter((c) => !c.archived || (editing && c.id === movement?.categoryId))
           .map((c) => (
@@ -247,7 +248,7 @@ export function MovementForm({
               onPress={() => setCategoryId(c.id)}
             />
           ))}
-      </View>
+      </FilterRow>
       {type === 'TRANSFER' && (
         <Text style={s.muted}>
           Transferencia entre cuentas propias: no cuenta como ingreso ni gasto.

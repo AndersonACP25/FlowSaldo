@@ -46,7 +46,7 @@ try {
   page.on('pageerror', (e) => errors.push(e.message));
   await page.goto('http://localhost:8083', { waitUntil: 'networkidle' });
   await loginAsTestAccount(page);
-  await page.getByRole('button', { name: 'Ver presupuestos', exact: true }).waitFor();
+  await page.getByRole('button', { name: 'Opciones de Inicio', exact: true }).waitFor();
   assert.deepEqual(errors, []);
   console.info('PASS: Metro development bundle 200 + frontend boot');
 } finally {

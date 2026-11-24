@@ -86,7 +86,7 @@ export async function checkFinanceFlow(browser) {
       }
       data = budget;
     } else if (url.pathname === '/categories') data = demoCategoryCatalog([]);
-    else if (url.pathname === '/recurring') data = [];
+    else if (['/recurring', '/banks'].includes(url.pathname)) data = [];
     else if (url.pathname === '/imports')
       data = { items: [], total: 0, nextCursor: null, pendingTotal: 0 };
     else if (url.pathname === '/imports/stats')
@@ -124,7 +124,7 @@ export async function checkFinanceFlow(browser) {
       .getByLabel('Token de desarrollo', { exact: true })
       .fill('synthetic-finance-token-123456789');
     await button('Conectar API').click();
-    await page.getByRole('button', { name: 'Ver presupuestos', exact: true }).waitFor();
+    await page.getByRole('button', { name: 'Opciones de Inicio', exact: true }).waitFor();
   }
   try {
     await page.goto('http://127.0.0.1:8082', { waitUntil: 'networkidle' });
@@ -164,6 +164,7 @@ export async function checkFinanceFlow(browser) {
     assert.equal(reconciled, true);
     await button('Volver').click();
     await button('Inicio').click();
+    await button('Opciones de Inicio').click();
     await button('Ver presupuestos').click();
     await page.getByLabel('Nuevo límite mensual', { exact: true }).fill('900');
     await button('Guardar presupuesto').click();
@@ -171,6 +172,7 @@ export async function checkFinanceFlow(browser) {
     assert.equal(budget.limitMinor, 90000);
     await page.reload({ waitUntil: 'networkidle' });
     await connect();
+    await button('Opciones de Inicio').click();
     await button('Ver presupuestos').click();
     await page.getByText('0% utilizado · DOP 900.00', { exact: true }).waitFor();
     assert.equal(budget.version, 1);

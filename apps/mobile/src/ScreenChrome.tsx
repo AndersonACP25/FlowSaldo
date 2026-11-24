@@ -1,10 +1,77 @@
-import React from 'react';
-import { Platform, ScrollView, Pressable, StatusBar, StyleSheet, Text, View } from 'react-native';
+import React, { useState } from 'react';
+import { Platform, ScrollView, Pressable, StyleSheet, Text, View } from 'react-native';
 import { BrandMark } from './BrandMark';
 import { palette, styles as s } from './theme';
 import { IconButton } from './IconButton';
+import { Choice } from './ui';
+import { StatusBar } from 'expo-status-bar';
+import {
+  SafeAreaProvider,
+  SafeAreaView,
+  initialWindowMetrics,
+} from 'react-native-safe-area-context';
 
-export const topInset = Platform.OS === 'android' ? (StatusBar.currentHeight ?? 0) : 0;
+export function AppFrame({ children }: { children: React.ReactNode }) {
+  return (
+    <SafeAreaProvider initialMetrics={initialWindowMetrics}>
+      <StatusBar style="light" />
+      <SafeAreaView style={s.root}>{children}</SafeAreaView>
+    </SafeAreaProvider>
+  );
+}
+
+export function HomeOptions({
+  children,
+  onSelect,
+}: {
+  children: React.ReactNode;
+  onSelect: (option: 'Presupuestos' | 'Análisis' | 'Tasas') => void;
+}) {
+  const [open, setOpen] = useState(false);
+  return (
+    <>
+      <View style={s.between}>
+        <Text accessibilityRole="header" style={s.title}>
+          Inicio
+        </Text>
+        <View style={s.row}>
+          {children}
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel="Opciones de Inicio"
+            accessibilityState={{ expanded: open }}
+            onPress={() => setOpen((value) => !value)}
+            style={[s.pill, open && s.selected]}
+          >
+            <Text style={s.pillText}>{open ? 'Opciones ▴' : 'Opciones ▾'}</Text>
+          </Pressable>
+        </View>
+      </View>
+      {open && (
+        <View style={s.card}>
+          <Choice
+            label="Ver presupuestos"
+            text="Presupuestos"
+            selected={false}
+            onPress={() => onSelect('Presupuestos')}
+          />
+          <Choice
+            label="Ver análisis"
+            text="Análisis"
+            selected={false}
+            onPress={() => onSelect('Análisis')}
+          />
+          <Choice
+            label="Ver tasas de cambio"
+            text="Tasas de cambio"
+            selected={false}
+            onPress={() => onSelect('Tasas')}
+          />
+        </View>
+      )}
+    </>
+  );
+}
 
 export function OpeningCover() {
   return (
@@ -118,6 +185,7 @@ export function FilterRow({ label, children }: { label: string; children: React.
       horizontal
       accessibilityLabel={label}
       keyboardShouldPersistTaps="handled"
+      nestedScrollEnabled
       contentContainerStyle={{ gap: 8, alignItems: 'center', paddingBottom: 8 }}
     >
       {children}

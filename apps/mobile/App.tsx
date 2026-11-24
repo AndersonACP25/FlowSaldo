@@ -1,3 +1,5 @@
+import { AboutApp } from './src/AboutApp';
+import { BankConnections, BankSettings } from './src/BankDirectory';
 import { GmailConnection } from './src/GmailConnection';
 import { ApkUpdateNotice } from './src/ApkUpdateNotice';
 import { NotificationSettings } from './src/NotificationSettings';
@@ -8,17 +10,16 @@ import { IconButton } from './src/IconButton';
 import { BrandMark } from './src/BrandMark';
 import {
   AccountActions,
+  AppFrame,
   FilterChip,
   FilterRow,
   filterStyles,
+  HomeOptions,
   OpeningCover,
-  topInset,
 } from './src/ScreenChrome';
 import { testAccount } from './src/testAccount';
 import React, { useEffect, useRef, useState } from 'react';
-import { StatusBar } from 'expo-status-bar';
 import {
-  SafeAreaView,
   ScrollView,
   View,
   Text,
@@ -48,6 +49,8 @@ import {
   pendingMailMessage,
   categoryExpenses,
   demoMovements,
+  dominicanBanks,
+  type BankRegistration,
   filterMovements,
   parseAmount,
   summarize,
@@ -95,6 +98,7 @@ function initialData(): LocalData {
       demoMovements.map((m) => ({ ...m, occurredAt: currentMonth() + m.occurredAt.slice(7) })),
     ),
     recurring: [],
+    bankIds: [],
     receipts: [],
     categoryBudgets: {},
     budgets: {},
@@ -138,21 +142,26 @@ function Home({
   const tabs = ['Inicio', 'Movimientos', 'Por revisar', 'Conexiones'] as const;
   type Tab = (typeof tabs)[number];
   const [screen, setScreen] = useState<
-    Tab | 'Configuración' | 'Presupuestos' | 'Análisis' | 'Tasas'
+    Tab | 'Configuración' | 'Presupuestos' | 'Análisis' | 'Tasas' | 'Acerca de la aplicación'
   >('Inicio');
   const [previousTab, setPreviousTab] = useState<Tab>('Inicio');
   const secondary =
-    screen === 'Configuración' ||
-    screen === 'Presupuestos' ||
-    screen === 'Análisis' ||
-    screen === 'Tasas';
+    screen !== 'Inicio' &&
+    screen !== 'Movimientos' &&
+    screen !== 'Por revisar' &&
+    screen !== 'Conexiones';
   const showMonth =
     screen === 'Inicio' ||
     screen === 'Movimientos' ||
     screen === 'Presupuestos' ||
     screen === 'Análisis';
   const showSummary = screen === 'Inicio' || screen === 'Presupuestos' || screen === 'Análisis';
-  const backTo = screen === 'Configuración' ? previousTab : 'Inicio';
+  const backTo =
+    screen === 'Acerca de la aplicación'
+      ? 'Configuración'
+      : screen === 'Configuración'
+        ? previousTab
+        : 'Inicio';
   useEffect(() => {
     if (Platform.OS !== 'android' || !secondary) return;
     const subscription = BackHandler.addEventListener('hardwareBackPress', () => {
@@ -231,6 +240,16 @@ function Home({
     }
     return response.status === 204 ? null : response.json();
   }
+  const bankDirectory = useQuery({
+    queryKey: ['banks', personal?.owner.id],
+    enabled: !!personal && (screen === 'Configuración' || screen === 'Conexiones'),
+    retry: false,
+    queryFn: async (): Promise<BankRegistration[]> => request('/banks'),
+  });
+  const banks = connected
+    ? (bankDirectory.data ?? [])
+    : dominicanBanks.map((bank) => ({ ...bank, registered: local.bankIds.includes(bank.id) }));
+
   const accountsQuery = useQuery({
     queryKey: ['accounts', connected],
     enabled:
@@ -621,6 +640,22 @@ function Home({
       setBusy(false);
     }
   }
+  async function changeBank(id: string, registered: boolean) {
+    if (connected) {
+      await request(`/banks/${id}`, { method: 'PATCH', body: JSON.stringify({ registered }) });
+      client.setQueryData<BankRegistration[]>(['banks', personal?.owner.id], (current) =>
+        current?.map((bank) => (bank.id === id ? { ...bank, registered } : bank)),
+      );
+      await client.invalidateQueries({ queryKey: ['banks', personal?.owner.id] });
+    } else {
+      const current = localRef.current;
+      const bankIds = new Set(current.bankIds);
+      if (registered) bankIds.add(id);
+      else bankIds.delete(id);
+      await persist({ ...current, bankIds: [...bankIds] });
+    }
+    setNotice(registered ? 'Banco agregado.' : 'Banco quitado.');
+  }
   async function saveMovement(draft: Draft) {
     const edit = editor && editor !== 'new' ? editor : null;
     let movementId: string;
@@ -759,13 +794,26 @@ function Home({
     setDeleteId(null);
     setNotice('Sesión cerrada. Volviste a la demo local.');
   }
+  const addMovement = (
+    <Button
+      label="+ Nuevo movimiento"
+      text="+ Añadir"
+      disabled={!ready || busy || !!editor || !catalogReady}
+      onPress={() => {
+        setDuplicate(null);
+        setEditor('new');
+        setScreen('Movimientos');
+        setError('');
+        setNotice('');
+      }}
+    />
+  );
   return (
-    <SafeAreaView style={s.root}>
-      <StatusBar style="light" />
+    <View style={s.root}>
       <ScrollView
         key={screen}
         keyboardShouldPersistTaps="handled"
-        contentContainerStyle={[s.content, { paddingTop: topInset + 24 }]}
+        contentContainerStyle={s.content}
       >
         <View style={s.between}>
           <BrandMark />
@@ -793,25 +841,14 @@ function Home({
               onPress={() => setScreen(backTo)}
             />
           </View>
+        ) : screen === 'Inicio' ? (
+          <HomeOptions onSelect={setScreen}>{addMovement}</HomeOptions>
         ) : (
           <View style={s.between}>
             <Text accessibilityRole="header" style={s.title}>
               {screen}
             </Text>
-            {(screen === 'Inicio' || screen === 'Movimientos') && (
-              <Button
-                label="+ Nuevo movimiento"
-                text="+ Añadir"
-                disabled={!ready || busy || !!editor || !catalogReady}
-                onPress={() => {
-                  setDuplicate(null);
-                  setEditor('new');
-                  setScreen('Movimientos');
-                  setError('');
-                  setNotice('');
-                }}
-              />
-            )}
+            {screen === 'Movimientos' && addMovement}
           </View>
         )}
         {!!accessNotice && <Text style={s.muted}>{accessNotice}</Text>}
@@ -822,7 +859,6 @@ function Home({
                 ? 'API personal · historial paginado'
                 : 'Demo · datos ficticios en este dispositivo'}
             </Text>
-            <Text style={s.muted}>Correo bancario sin conectar.</Text>
           </View>
         )}
         {!ready && !loadError && <ActivityIndicator color={palette.primary} />}
@@ -928,20 +964,6 @@ function Home({
                     </Text>
                   </View>
                 )}
-                <View style={s.row}>
-                  <Button label="Ver presupuestos" onPress={() => setScreen('Presupuestos')} />
-                  <Choice
-                    label="Ver análisis"
-                    selected={false}
-                    onPress={() => setScreen('Análisis')}
-                  />
-                  <Choice
-                    label="Ver tasas de cambio"
-                    text="Tasas"
-                    selected={false}
-                    onPress={() => setScreen('Tasas')}
-                  />
-                </View>
               </>
             )}
             {screen === 'Tasas' && <RatesScreen />}
@@ -1356,6 +1378,41 @@ function Home({
                 onPress={() => void query.fetchNextPage()}
               />
             )}
+            {screen === 'Acerca de la aplicación' && <AboutApp />}
+            {screen === 'Configuración' && (
+              <>
+                <Choice
+                  label="Acerca de la aplicación"
+                  selected={false}
+                  onPress={() => setScreen('Acerca de la aplicación')}
+                />
+                {(!connected || bankDirectory.isSuccess) && (
+                  <BankSettings
+                    banks={banks}
+                    busy={busy}
+                    local={!connected}
+                    onChange={(id, registered) => void action(() => changeBank(id, registered))}
+                  />
+                )}
+                {personal && !bankDirectory.isSuccess && (
+                  <View style={s.card}>
+                    <Text style={s.title}>Mis bancos</Text>
+                    <Text style={s.muted}>
+                      {bankDirectory.isError
+                        ? 'No se pudieron cargar los bancos.'
+                        : 'Cargando bancos…'}
+                    </Text>
+                    {bankDirectory.isError && (
+                      <Choice
+                        label="Reintentar bancos"
+                        selected={false}
+                        onPress={() => void bankDirectory.refetch()}
+                      />
+                    )}
+                  </View>
+                )}
+              </>
+            )}
             {screen === 'Configuración' && connected && (
               <>
                 <Button
@@ -1571,6 +1628,15 @@ function Home({
             )}
             {screen === 'Conexiones' && (
               <>
+                <BankConnections
+                  banks={banks}
+                  loading={!!personal && bankDirectory.isPending}
+                  failed={bankDirectory.isError}
+                  onSettings={() => {
+                    setPreviousTab('Conexiones');
+                    setScreen('Configuración');
+                  }}
+                />
                 <Text style={s.title}>Centro de conexiones</Text>
                 {connected && (
                   <ImportQueue
@@ -1714,7 +1780,7 @@ function Home({
                   <Text style={s.muted}>
                     Dark Slate, esmeralda y cian, según DESIGN.md. Una base personal para aprender,
                     registrar y revisar tus movimientos. Cuentas y conciliación manual disponibles
-                    en modo API. La sincronización bancaria y OAuth siguen pendientes.
+                    en modo API. La sincronización de avisos bancarios sigue pendiente.
                   </Text>
                 </View>
               </>
@@ -1750,7 +1816,7 @@ function Home({
           ))}
         </View>
       )}
-    </SafeAreaView>
+    </View>
   );
 }
 export default function App() {
@@ -1840,43 +1906,47 @@ export default function App() {
   }
   return (
     <QueryClientProvider client={client}>
-      {!cover && <ApkUpdateNotice />}
-      {cover ? (
-        <OpeningCover />
-      ) : restoring ? (
-        <SafeAreaView style={s.root}>
-          <ActivityIndicator color={palette.primary} />
-          <Text style={s.muted}>Validando sesión guardada…</Text>
-        </SafeAreaView>
-      ) : route === 'demo' || route === 'personal' ? (
-        <Home
-          key={personal?.sessionId ?? 'demo'}
-          onAuth={openAuth}
-          personal={route === 'personal' ? personal : undefined}
-          onLogout={logout}
-          onProfileChanged={(owner) => setPersonal((current) => current && { ...current, owner })}
-          onExpired={() => forget('Tu sesión terminó. Inicia sesión nuevamente.')}
-          accessNotice={notice}
-        />
-      ) : (
-        <>
-          {canRetry && <Button label="Reintentar sesión guardada" onPress={() => void restore()} />}
-          <AuthScreen
-            key={route}
-            route={route}
-            onRoute={setRoute}
-            onTestLogin={() => {
-              client.clear();
-              setRoute('demo');
-            }}
-            onSession={acceptSession}
-            onRecovered={() =>
-              forget('Contraseña restablecida. Inicia sesión con la nueva contraseña.')
-            }
-            notice={notice}
+      <AppFrame>
+        {!cover && <ApkUpdateNotice />}
+        {cover ? (
+          <OpeningCover />
+        ) : restoring ? (
+          <View style={s.root}>
+            <ActivityIndicator color={palette.primary} />
+            <Text style={s.muted}>Validando sesión guardada…</Text>
+          </View>
+        ) : route === 'demo' || route === 'personal' ? (
+          <Home
+            key={personal?.sessionId ?? 'demo'}
+            onAuth={openAuth}
+            personal={route === 'personal' ? personal : undefined}
+            onLogout={logout}
+            onProfileChanged={(owner) => setPersonal((current) => current && { ...current, owner })}
+            onExpired={() => forget('Tu sesión terminó. Inicia sesión nuevamente.')}
+            accessNotice={notice}
           />
-        </>
-      )}
+        ) : (
+          <>
+            {canRetry && (
+              <Button label="Reintentar sesión guardada" onPress={() => void restore()} />
+            )}
+            <AuthScreen
+              key={route}
+              route={route}
+              onRoute={setRoute}
+              onTestLogin={() => {
+                client.clear();
+                setRoute('demo');
+              }}
+              onSession={acceptSession}
+              onRecovered={() =>
+                forget('Contraseña restablecida. Inicia sesión con la nueva contraseña.')
+              }
+              notice={notice}
+            />
+          </>
+        )}
+      </AppFrame>
     </QueryClientProvider>
   );
 }

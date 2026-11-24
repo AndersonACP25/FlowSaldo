@@ -73,13 +73,13 @@ export function PeriodPicker({
           selected={false}
           onPress={() => stepWeek(1)}
         />
-        <Choice
-          label="Volver a hoy"
-          text="Hoy"
-          selected={false}
-          onPress={() => select(localToday())}
-        />
       </View>
+      <Choice
+        label="Volver a hoy"
+        text="Hoy"
+        selected={false}
+        onPress={() => select(localToday())}
+      />
       {open && (
         <View style={styles.picker}>
           <Field
