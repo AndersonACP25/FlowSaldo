@@ -21,7 +21,7 @@ import {
   OpeningCover,
 } from './src/ScreenChrome';
 import { testAccount } from './src/testAccount';
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import {
   ScrollView,
   View,
@@ -149,7 +149,14 @@ function Home({
   const tabs = ['Inicio', 'Movimientos', 'Por revisar', 'Conexiones'] as const;
   type Tab = (typeof tabs)[number];
   const [screen, setScreen] = useState<
-    Tab | 'Configuración' | 'Presupuestos' | 'Análisis' | 'Tasas' | SettingsSection
+    | Tab
+    | 'Configuración'
+    | 'Presupuestos'
+    | 'Análisis'
+    | 'Tasas'
+    | 'Editar movimiento'
+    | 'Nueva plantilla mensual'
+    | SettingsSection
   >('Inicio');
   const [previousTab, setPreviousTab] = useState<Tab>('Inicio');
   const secondary =
@@ -165,19 +172,21 @@ function Home({
   const showSummary = screen === 'Inicio' || screen === 'Presupuestos' || screen === 'Análisis';
   const settingsSection = settingsSections.some((section) => section === screen);
   const inSettings = settingsSection || screen === 'Configuración';
+  const fromMovements = screen === 'Editar movimiento' || screen === 'Nueva plantilla mensual';
+  const activeTab = inSettings
+    ? previousTab
+    : fromMovements
+      ? 'Movimientos'
+      : secondary
+        ? 'Inicio'
+        : screen;
   const backTo = settingsSection
     ? 'Configuración'
     : screen === 'Configuración'
       ? previousTab
-      : 'Inicio';
-  useEffect(() => {
-    if (Platform.OS !== 'android' || !secondary) return;
-    const subscription = BackHandler.addEventListener('hardwareBackPress', () => {
-      setScreen(backTo);
-      return true;
-    });
-    return () => subscription.remove();
-  }, [backTo, secondary]);
+      : fromMovements
+        ? 'Movimientos'
+        : 'Inicio';
   const [accountFilter, setAccountFilter] = useState('');
   const [search, setSearch] = useState('');
   const [type, setType] = useState<MovementType | 'ALL'>('ALL');
@@ -194,6 +203,22 @@ function Home({
   const [notice, setNotice] = useState('');
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
+  const goBack = useCallback(() => {
+    if (busy) return;
+    if (fromMovements) {
+      setEditor(null);
+      setDuplicate(null);
+    }
+    setScreen(backTo);
+  }, [backTo, busy, fromMovements]);
+  useEffect(() => {
+    if (Platform.OS !== 'android' || !secondary) return;
+    const subscription = BackHandler.addEventListener('hardwareBackPress', () => {
+      goBack();
+      return true;
+    });
+    return () => subscription.remove();
+  }, [goBack, secondary]);
   const [budgetInput, setBudgetInput] = useState('');
   const [resetConfirm, setResetConfirm] = useState(false);
   const [sampleId, setSampleId] = useState('');
@@ -813,6 +838,15 @@ function Home({
     setDeleteId(null);
     setNotice('Sesión cerrada. Volviste a la demo local.');
   }
+  async function saveForm(save: () => Promise<void>) {
+    setBusy(true);
+    try {
+      await save();
+    } finally {
+      setBusy(false);
+    }
+  }
+
   const addMovement = (
     <Button
       label="+ Nuevo movimiento"
@@ -840,6 +874,7 @@ function Home({
             <AccountActions
               name={personal?.owner.name ?? testAccount.name}
               onSettings={() => {
+                if (busy) return;
                 setPreviousTab(screen);
                 setEditor(null);
                 setScreen('Configuración');
@@ -857,7 +892,8 @@ function Home({
               label="Volver"
               text={inSettings ? 'Volver' : '‹ Volver'}
               selected={false}
-              onPress={() => setScreen(backTo)}
+              disabled={busy}
+              onPress={goBack}
             />
           </View>
         ) : screen === 'Inicio' ? (
@@ -873,11 +909,7 @@ function Home({
         {!!accessNotice && <Text style={s.muted}>{accessNotice}</Text>}
         {screen === 'Conexiones' && (
           <View style={s.banner}>
-            <Text style={s.text}>
-              {connected
-                ? 'API personal · historial paginado'
-                : 'Demo · datos ficticios en este dispositivo'}
-            </Text>
+            <Text style={s.text}>{connected ? 'Modo conectado' : 'Modo de prueba'}</Text>
           </View>
         )}
         {!ready && !loadError && <ActivityIndicator color={palette.primary} />}
@@ -954,9 +986,7 @@ function Home({
                 <View style={s.hero}>
                   <Text style={s.heroText}>Diferencia registrada · {month}</Text>
                   <Text style={s.heroValue}>{money(summary.differenceMinor, currency)}</Text>
-                  <Text style={s.heroText}>
-                    Ingresos menos gastos. No equivale al saldo del banco.
-                  </Text>
+                  <Text style={s.heroText}>Ingresos − gastos</Text>
                 </View>
                 <View style={s.metrics}>
                   <View style={s.metric}>
@@ -978,9 +1008,6 @@ function Home({
                       <Text style={s.text}>{pendingMailMessage(pending)}</Text>
                       <Button label="Ir a revisiones" onPress={() => setScreen('Por revisar')} />
                     </View>
-                    <Text style={s.muted}>
-                      Revisa los datos antes de incorporarlos a tus movimientos.
-                    </Text>
                   </View>
                 )}
               </>
@@ -1153,42 +1180,75 @@ function Home({
                     currency={currency}
                   />
                 )}
-                <Text style={s.muted}>
-                  Las transferencias propias se excluyen de ingresos y gastos. Los indicadores
-                  incluyen todos los movimientos del mes y la moneda seleccionados.
-                </Text>
               </>
             )}
-            {screen === 'Movimientos' && (
+            {editor && (screen === 'Movimientos' || screen === 'Editar movimiento') && (
               <>
-                {editor && connected && !accountsQuery.isSuccess && (
+                {connected && !accountsQuery.isSuccess && (
                   <View style={s.card}>
                     <Text style={s.muted}>
                       {accountsQuery.error
                         ? 'No se pudieron cargar las cuentas.'
                         : 'Cargando cuentas…'}
                     </Text>
-                    <Button
-                      label="Reintentar cuentas"
-                      onPress={() => void accountsQuery.refetch()}
-                    />
+                    {accountsQuery.error && (
+                      <Button
+                        label="Reintentar cuentas"
+                        onPress={() => void accountsQuery.refetch()}
+                      />
+                    )}
                   </View>
                 )}
-                {editor && catalogReady && (!connected || accountsQuery.isSuccess) && (
+                {catalogReady && (!connected || accountsQuery.isSuccess) && (
                   <MovementForm
                     accounts={connected ? accountsQuery.data : undefined}
                     categories={categoryCatalog}
                     recent={recent}
                     editing={editor !== 'new'}
-                    title={duplicate ? 'Duplicar movimiento' : undefined}
+                    title={
+                      screen === 'Editar movimiento'
+                        ? null
+                        : duplicate
+                          ? 'Duplicar movimiento'
+                          : undefined
+                    }
                     key={editor === 'new' ? 'new-' + (duplicate?.id ?? '') : editor.id}
                     movement={editor === 'new' ? (duplicate ?? undefined) : editor}
                     currency={currency}
                     month={month}
-                    onSave={saveMovement}
-                    onCancel={() => setEditor(null)}
+                    onSave={(draft) => saveForm(() => saveMovement(draft))}
+                    onCancel={
+                      screen === 'Editar movimiento'
+                        ? goBack
+                        : () => {
+                            setEditor(null);
+                            setDuplicate(null);
+                          }
+                    }
                   />
                 )}
+              </>
+            )}
+            {screen === 'Nueva plantilla mensual' && catalogReady && (
+              <MovementForm
+                title={null}
+                categories={categoryCatalog}
+                currency={currency}
+                month={month}
+                recurringDateTime
+                saveLabel="Guardar plantilla mensual"
+                onSave={(draft) =>
+                  saveForm(async () => {
+                    await saveRecurring(draft);
+                    setScreen('Movimientos');
+                    setNotice('Plantilla mensual guardada.');
+                  })
+                }
+                onCancel={goBack}
+              />
+            )}
+            {screen === 'Movimientos' && (
+              <>
                 <Field
                   label="Buscar descripción o categoría"
                   value={search}
@@ -1271,9 +1331,6 @@ function Home({
                 {!visible.length && (!connected || query.isSuccess) && (
                   <View style={s.card}>
                     <Text style={s.title}>No hay movimientos con estos filtros</Text>
-                    <Text style={s.muted}>
-                      Cambia el mes, la moneda o añade tu primer movimiento.
-                    </Text>
                   </View>
                 )}
                 {visible.map((m) => (
@@ -1315,6 +1372,9 @@ function Home({
                           setDuplicate(null);
                           setEditor(m);
                           setDeleteId(null);
+                          setNotice('');
+                          setError('');
+                          setScreen('Editar movimiento');
                         }}
                       />
                       <IconButton
@@ -1373,9 +1433,17 @@ function Home({
                   categories={categoryCatalog}
                   currency={currency}
                   month={month}
-                  onSave={saveRecurring}
-                  onToggle={toggleRecurring}
-                  onConfirm={confirmRecurring}
+                  onSave={(draft, id) => saveForm(() => saveRecurring(draft, id))}
+                  onCreate={() => {
+                    setEditor(null);
+                    setDuplicate(null);
+                    setDeleteId(null);
+                    setNotice('');
+                    setError('');
+                    setScreen('Nueva plantilla mensual');
+                  }}
+                  onToggle={(id, active) => saveForm(() => toggleRecurring(id, active))}
+                  onConfirm={(template) => saveForm(() => confirmRecurring(template))}
                   money={money}
                 />
               )}
@@ -1569,10 +1637,6 @@ function Home({
                       setReviewTo('');
                     }}
                   />
-                  <Text style={s.muted}>
-                    Las fechas filtran la recepción del correo. Los avisos demo antiguos sin fecha
-                    solo aparecen sin filtro de fechas.
-                  </Text>
                 </View>
                 {connected && imports.isFetching && <ActivityIndicator color={palette.primary} />}
                 {connected && imports.error && <Text style={s.error}>{imports.error.message}</Text>}
@@ -1657,27 +1721,23 @@ function Home({
                   />
                 )}
                 <View style={s.card}>
-                  <Text style={s.eyebrow}>PROVEEDORES DE CORREO</Text>
-                  {['Gmail Personal', 'Outlook'].map((provider) => (
-                    <View key={provider} style={s.between}>
-                      <Text style={s.text}>{provider}</Text>
-                      <Text style={s.muted}>Próximamente · sin conectar</Text>
-                    </View>
-                  ))}
-                  <Text style={s.muted}>
-                    OAuth aún no está implementado. Esta versión no accede a tu buzón ni utiliza IA
-                    para clasificar correos.
-                  </Text>
+                  <Text style={s.title}>Correo</Text>
+                  <View style={s.between}>
+                    <Text style={s.text}>Gmail</Text>
+                    <Text style={s.muted}>
+                      {personal ? 'Gestionar en Configuración' : 'Requiere cuenta personal'}
+                    </Text>
+                  </View>
+                  <View style={s.between}>
+                    <Text style={s.text}>Outlook</Text>
+                    <Text style={s.muted}>Próximamente</Text>
+                  </View>
                 </View>
 
                 <View style={s.card}>
                   <Text style={s.title}>Conexión personal</Text>
-                  <Text style={s.muted}>
-                    La demo se guarda localmente. La API guarda movimientos en PostgreSQL. Los datos
-                    de ambos modos se mantienen separados.
-                  </Text>
                   <Text style={s.text}>
-                    {url || 'Sin URL configurada. Añade EXPO_PUBLIC_API_URL en apps/mobile/.env.'}
+                    {url || 'Configura EXPO_PUBLIC_API_URL para conectar la API.'}
                   </Text>
                   {connected ? (
                     personal ? (
@@ -1718,16 +1778,16 @@ function Home({
                   )}
                   <Text style={s.muted}>
                     {personal
-                      ? 'Sesión de la cuenta personal. Usa exclusivamente datos ficticios en esta fase.'
-                      : 'El acceso de desarrollo solo funciona antes de configurar la cuenta inicial. El token queda en memoria.'}
+                      ? 'Usa datos ficticios.'
+                      : 'El token de desarrollo funciona antes de crear la cuenta personal.'}
                   </Text>
                 </View>
                 {connected && (
                   <View style={s.card}>
                     <Text style={s.title}>Laboratorio de correo sintético</Text>
                     <Text style={s.muted}>
-                      Envía un aviso de prueba al worker. Pega un aviso ficticio en texto plano. Los
-                      retiros de BHD y Popular quedan en Por revisar para que confirmes los datos.
+                      Usa avisos ficticios. Los retiros admitidos de BHD y Popular aparecen en Por
+                      revisar.
                     </Text>
                     <Field
                       label="Identificador del correo de prueba"
@@ -1764,8 +1824,7 @@ function Home({
                 <View style={s.card}>
                   <Text style={s.title}>Datos de demostración</Text>
                   <Text style={s.muted}>
-                    Restablece movimientos y presupuestos locales. Los datos de PostgreSQL no se
-                    eliminan.
+                    El restablecimiento borra los datos de demostración de este dispositivo.
                   </Text>
                   <Button
                     label={resetConfirm ? 'Confirmar restablecimiento local' : 'Restablecer demo'}
@@ -1784,30 +1843,37 @@ function Home({
           </>
         )}
       </ScrollView>
-      {ready && !secondary && (
+      {ready && (
         <View style={s.nav}>
           {tabs.map((item, index) => (
             <Pressable
               key={item}
               accessibilityRole="button"
               accessibilityLabel={item}
-              accessibilityState={{ selected: screen === item }}
+              accessibilityState={{ selected: activeTab === item, disabled: busy }}
+              disabled={busy}
               onPress={() => {
                 setScreen(item);
                 setEditor(null);
+                setDuplicate(null);
                 setDeleteId(null);
               }}
-              style={[s.navItem, screen === item && s.navActive]}
+              style={[s.navItem, activeTab === item && s.navActive]}
             >
               <View style={s.row}>
                 <Text
-                  style={{ color: screen === item ? palette.primary : palette.muted, fontSize: 20 }}
+                  style={{
+                    color: activeTab === item ? palette.primary : palette.muted,
+                    fontSize: 20,
+                  }}
                 >
                   {['▦', '⇄', '☑', '⌘'][index]}
                 </Text>
                 {item === 'Por revisar' && pending > 0 && <Text style={s.badge}>{pending}</Text>}
               </View>
-              <Text style={[s.navText, screen === item && { color: palette.income }]}>{item}</Text>
+              <Text style={[s.navText, activeTab === item && { color: palette.income }]}>
+                {item}
+              </Text>
             </Pressable>
           ))}
         </View>

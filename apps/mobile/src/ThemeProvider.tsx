@@ -61,8 +61,6 @@ export function ThemeSettings() {
   }
   return (
     <View style={s.card}>
-      <Text style={s.title}>Tema de la aplicación</Text>
-      <Text style={s.muted}>Tu tema se guarda en este dispositivo.</Text>
       {options.map((id) => (
         <Choice
           key={id}

@@ -71,8 +71,8 @@ export async function checkCoreFlows(browser) {
     await button('Quitar Banco BHD').waitFor();
     await button('Volver').click();
     await button('Apariencia').click();
-    await button('Claro').click();
-    await page.waitForFunction(() => localStorage.getItem('flowsaldo.theme.v1') === 'light');
+    await button('Arena').click();
+    await page.waitForFunction(() => localStorage.getItem('flowsaldo.theme.v1') === 'sand');
     await page.reload({ waitUntil: 'networkidle' });
     await loginAsTestAccount(page);
     await button('Conexiones').click();
@@ -87,12 +87,28 @@ export async function checkCoreFlows(browser) {
       await about.evaluate(
         (element) => element.ownerDocument.defaultView.getComputedStyle(element).color,
       ),
-      'rgb(18, 35, 52)',
+      'rgb(48, 34, 24)',
     );
     await page.getByText('Versión', { exact: true }).waitFor();
     await button('Volver').click();
     await button('Volver').click();
     await button('Movimientos').click();
+    await page.getByLabel('Buscar descripción o categoría', { exact: true }).fill('Compra CORE');
+    await page.getByText('1 movimiento', { exact: true }).waitFor();
+    await button('Editar Compra CORE').click();
+    await page.getByRole('heading', { name: 'Editar movimiento', exact: true }).waitFor();
+    assert.equal(
+      await page.getByLabel('Buscar descripción o categoría', { exact: true }).count(),
+      0,
+    );
+    await page.getByLabel('Monto (sin separadores de miles)', { exact: true }).fill('99.00');
+    await button('Volver').click();
+    await button('Editar Compra CORE').click();
+    const amount = page.getByLabel('Monto (sin separadores de miles)', { exact: true });
+    assert.equal(await amount.inputValue(), '100.29');
+    await amount.fill('101.29');
+    await button('Guardar movimiento').click();
+    await page.getByText('Movimiento guardado.', { exact: true }).waitFor();
     await page.getByLabel('Buscar descripción o categoría', { exact: true }).fill('Compra CORE');
     await page.getByText('1 movimiento', { exact: true }).waitFor();
     const waiting = page.waitForEvent('download');
@@ -138,19 +154,21 @@ export async function checkCoreFlows(browser) {
     await button('Ver tasas de cambio').click();
     await page.getByText('USD → DOP', { exact: true }).waitFor();
     await page.getByText('EUR → DOP', { exact: true }).waitFor();
-    await page.getByLabel('Fecha de la tasa (AAAA-MM-DD)', { exact: true }).fill('2024-01-03');
+    for (const tab of ['Inicio', 'Movimientos', 'Por revisar', 'Conexiones'])
+      assert.ok(await button(tab).isVisible(), tab);
+    await page.getByLabel('Fecha y hora de consulta', { exact: true }).fill('2024-01-03T14:25');
     await button('Consultar fecha').click();
     await page.getByText('Publicada el 2024-01-03', { exact: true }).first().waitFor();
     await page.getByLabel('Monto en USD', { exact: true }).fill('2');
     await page.getByText(/DOP\s*120[.,]00/).waitFor();
-    await button('Volver').click();
+    await button('Inicio').click();
     await button('Configuración').getByText('UD', { exact: true }).waitFor();
     await button('Cerrar sesión').click();
     await page.getByText('Iniciar sesión', { exact: true }).waitFor();
     const csv = parseCsv(await readFile(await file.path(), 'utf8'));
     assert.equal(csv.length, 2);
     assert.equal(csv[1][2], 'EUR');
-    assert.equal(csv[1][3], '100.29');
+    assert.equal(csv[1][3], '101.29');
     assert.equal(csv[1][4], 'Compra CORE');
     assert.equal(apiRequests, 0, 'El flujo local funciona sin solicitudes a la API');
   });
@@ -183,6 +201,11 @@ export async function checkCoreFlows(browser) {
       await loginAsTestAccount(page);
       await button('Movimientos').click();
       await button('Nueva plantilla mensual').click();
+      await page.getByRole('heading', { name: 'Nueva plantilla mensual', exact: true }).waitFor();
+      assert.equal(
+        await page.getByLabel('Buscar descripción o categoría', { exact: true }).count(),
+        0,
+      );
       const day = dominicanDateTime(new Date()).slice(0, 10);
       await page.getByLabel('Fecha y hora de inicio', { exact: true }).fill(day + 'T00:00');
       await page.getByLabel('Descripción', { exact: true }).fill('Alquiler CORE');

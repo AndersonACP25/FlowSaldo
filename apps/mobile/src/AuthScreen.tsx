@@ -84,20 +84,14 @@ export function AuthScreen({
     <View style={s.root}>
       <ScrollView
         keyboardShouldPersistTaps="handled"
-        contentContainerStyle={[s.content, { maxWidth: 520, paddingTop: 32 }]}
+        contentContainerStyle={[
+          s.content,
+          { maxWidth: register || recover ? 600 : 520, paddingTop: 32, paddingHorizontal: 12 },
+        ]}
       >
         <BrandMark />
-        <Text style={s.muted}>Tus finanzas, en orden.</Text>
-        <View style={s.banner}>
-          <Text style={s.text}>Acceso personal</Text>
-          <Text style={s.muted}>
-            {route === 'login'
-              ? 'Entra con tu cuenta personal o usa la cuenta de prueba sin conexión.'
-              : 'Usa el correo y la contraseña de tu cuenta FlowSaldo.'}
-          </Text>
-        </View>
         {!!notice && <Text style={s.muted}>{notice}</Text>}
-        <View style={s.card}>
+        <View style={[s.card, { paddingHorizontal: 14 }]}>
           <Text style={s.title}>
             {register ? 'Registro' : recover ? 'Recuperar cuenta' : 'Iniciar sesión'}
           </Text>
@@ -114,10 +108,7 @@ export function AuthScreen({
                 autoComplete="off"
                 maxLength={300}
               />
-              <Text style={s.muted}>
-                Usa el token configurado por el administrador para asociar la cuenta inicial a los
-                datos existentes. No se pueden crear cuentas adicionales.
-              </Text>
+              <Text style={s.muted}>El token inicial lo configura el administrador.</Text>
             </>
           )}
           <Field
@@ -159,7 +150,7 @@ export function AuthScreen({
           />
           {(register || recover) && (
             <>
-              <Text style={s.muted}>Al menos 15 caracteres. No se recorta la contraseña.</Text>
+              <Text style={s.muted}>Mínimo 15 caracteres.</Text>
               <Field
                 label="Confirmar contraseña"
                 value={confirmation}
@@ -213,13 +204,11 @@ export function AuthScreen({
               }}
             />
           )}
-          <View style={register || recover ? { alignItems: 'center' } : undefined}>
-            <Choice
-              label={register || recover ? 'Ir a iniciar sesión' : 'Registrarse'}
-              selected={false}
-              onPress={() => onRoute(register || recover ? 'login' : 'register')}
-            />
-          </View>
+          <Choice
+            label={register || recover ? 'Ir a iniciar sesión' : 'Registrarse'}
+            selected={false}
+            onPress={() => onRoute(register || recover ? 'login' : 'register')}
+          />
           {route === 'login' && (
             <Choice
               label="Recuperar cuenta con código"
@@ -229,8 +218,8 @@ export function AuthScreen({
           )}
           {recover && (
             <Text style={s.muted}>
-              Usa un código guardado previamente. Recuperar cierra todas las sesiones e invalida el
-              lote completo. No se enviará ningún correo.
+              Usa un código guardado. El cambio cierra todas las sesiones e invalida los códigos
+              anteriores.
             </Text>
           )}
         </View>
