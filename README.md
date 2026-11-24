@@ -43,7 +43,7 @@ pnpm install --frozen-lockfile
 pnpm web
 ```
 
-Abre la dirección que muestra Expo e inicia sesión con el usuario de prueba `prueba@flowsaldo.test` y la contraseña `FlowSaldo-Prueba-2026`. Los movimientos de prueba se guardan en el dispositivo. La demo funciona sin API de FlowSaldo ni PostgreSQL. La consulta de Tasas requiere Internet.
+Abre la dirección que muestra Expo. Pulsa **Usar cuenta de prueba** para rellenar el formulario y luego **Entrar**. También puedes escribir el correo `prueba@flowsaldo.test` y la contraseña `FlowSaldo-Prueba-2026`. El acceso funciona sin API de FlowSaldo ni PostgreSQL, y los movimientos se guardan por separado en cada navegador o instalación de Android. La consulta de Tasas requiere Internet.
 
 ## Formas de ejecutar FlowSaldo
 
@@ -65,7 +65,7 @@ Docker Compose ejecuta PostgreSQL. Después de configurar Docker y el archivo `.
 
 Desde **Inicio → Tasas** puedes consultar valores recientes o históricos y estimar conversiones a DOP. Las tasas son de referencia. Los movimientos y presupuestos se registran en DOP y USD.
 
-Los saldos son registros que introduces en FlowSaldo. En **Conexiones → Laboratorio de correo sintético**, el importador prepara retiros aprobados en DOP de BHD y Popular para confirmación manual. La sincronización con Gmail y los demás formatos de bancos dominicanos y PayPal siguen pendientes. [Formatos admitidos](docs/api.md#avisos-bancarios-de-prueba)
+Los saldos son registros que introduces en FlowSaldo. En **Conexiones → Laboratorio de correo sintético**, el importador prepara retiros aprobados en DOP de BHD y Popular para confirmación manual. El modo conectado ya permite autorizar y desconectar Gmail en el piloto local. La importación desde Gmail y los demás formatos de bancos dominicanos y PayPal siguen pendientes. [Formatos admitidos](docs/api.md#avisos-bancarios-de-prueba)
 
 ## Comandos rápidos
 

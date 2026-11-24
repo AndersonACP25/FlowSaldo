@@ -1,4 +1,29 @@
-# Próximas fases
+# Próximas fases de FlowSaldo
+
+## Plan de funcionalidades · noviembre de 2026
+
+La prioridad es que FlowSaldo se pueda usar desde el navegador de la PC y una APK Android sin levantar PostgreSQL. El modo local ya incluye movimientos, categorías, presupuestos, comparación mensual, recurrencias y CSV. En el modo conectado, Gmail ya se puede autorizar y desconectar en el piloto local. La lectura de avisos del buzón sigue pendiente.
+
+### Primera etapa · Sin PostgreSQL
+
+| Prioridad | Funcionalidad | Criterio de aceptación |
+| --- | --- | --- |
+| P0 | Cuenta de prueba y piloto Android | Entrar, registrar un movimiento, volver a abrir la app y encontrarlo en web sin API y en la APK con modo avión. Verificar el CSV compartido en Android y la instalación sobre la versión anterior. |
+| P1 | Respaldo y restauración local en JSON | Exportar movimientos, categorías y sus relaciones, presupuestos y recurrencias con una versión de formato. Validar y previsualizar el archivo antes de restaurar en otro dispositivo. Si falla la validación, conservar los datos actuales. Restaurar dos veces el mismo respaldo conserva los mismos totales. |
+| P1 | Importación CSV con revisión previa | Mostrar filas válidas, posibles duplicados y errores con número de fila antes de confirmar. Conservar moneda y precisión. Reimportar el mismo archivo no duplica movimientos confirmados. |
+| P2 | Recordatorios locales de vencimientos | Programar avisos de recurrencias en Android sin API. Editar o pausar una recurrencia actualiza o cancela su aviso. Registrar el vencimiento sigue requiriendo confirmación. |
+
+### Segunda etapa · Cuando se retome PostgreSQL
+
+| Orden | Funcionalidad | Criterio de aceptación |
+| --- | --- | --- |
+| 1 | Pasar datos locales a la cuenta personal | Ver una vista previa de los registros que se copiarán. Confirmar explícitamente el traspaso y conservar el respaldo local. Reintentar una carga interrumpida sin duplicar registros. |
+| 2 | Sincronización manual desde Gmail | Usar el OAuth existente y un buzón de prueba. Enviar avisos admitidos de BHD y Popular a revisión. Reintentar tras un fallo sin duplicar avisos y modificar el saldo solo al confirmar. |
+| 3 | Ampliar formatos bancarios | Añadir compras, transferencias y PayPal por lotes, con muestras anonimizadas por formato. Enviar avisos ambiguos a revisión y probar deduplicación entre avisos de la misma operación. |
+
+La siguiente implementación después de validar el acceso en una APK física es el respaldo JSON. Puede servir para mover datos entre PC y Android y preparar el traspaso posterior a la cuenta personal.
+
+## Historial del roadmap
 
 ## Completado en v0.2
 

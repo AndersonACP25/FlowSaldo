@@ -8,6 +8,8 @@ import { parseCsv } from './export-guardian.mjs';
 
 // Three independent critical journeys. Business-rule combinations live in domain/API tests.
 export async function checkCoreFlows(browser) {
+  const apiUrl = process.env.EXPO_PUBLIC_API_URL;
+  if (!apiUrl) throw new Error('Exporta con EXPO_PUBLIC_API_URL para el recorrido CORE API.');
   const month = new Date().toISOString().slice(0, 7);
   const today = new Date().toISOString().slice(0, 10);
   async function scenario(name, work, legacy) {
@@ -32,8 +34,18 @@ export async function checkCoreFlows(browser) {
     }
   }
   await scenario('register → persist → export filtered CSV', async (page, button) => {
+    let apiRequests = 0;
+    await page.route(apiUrl + '/**', (route) => {
+      apiRequests++;
+      return route.abort();
+    });
     await page.goto('http://127.0.0.1:8082', { waitUntil: 'networkidle' });
-    await loginAsTestAccount(page);
+    await button('Usar cuenta de prueba').click();
+    await page.getByLabel('Contraseña', { exact: true }).fill('Contraseña incorrecta');
+    await button('Entrar').click();
+    await page.getByRole('alert').filter({ hasText: 'Correo o contraseña incorrectos' }).waitFor();
+    await button('Usar cuenta de prueba').click();
+    await button('Entrar').click();
     await button('+ Nuevo movimiento').click();
     await page.getByLabel('Descripción', { exact: true }).fill('Compra CORE');
     await page.getByLabel('Monto (sin separadores de miles)', { exact: true }).fill('100.29');
@@ -85,6 +97,7 @@ export async function checkCoreFlows(browser) {
     assert.equal(csv.length, 2);
     assert.equal(csv[1][3], '100.29');
     assert.equal(csv[1][4], 'Compra CORE');
+    assert.equal(apiRequests, 0, 'El flujo local funciona sin solicitudes a la API');
   });
   const legacy = {
     movements: [],
@@ -145,8 +158,6 @@ export async function checkCoreFlows(browser) {
     },
     legacy,
   );
-  if (!process.env.EXPO_PUBLIC_API_URL)
-    throw new Error('Exporta con EXPO_PUBLIC_API_URL para el recorrido CORE API.');
   await scenario(
     'API exports complete results and manually retries a failed import',
     async (page, button) => {
@@ -157,7 +168,7 @@ export async function checkCoreFlows(browser) {
         occurredAt: month + '-01T12:00:00.000Z',
       }));
       let retried = false;
-      await page.route(process.env.EXPO_PUBLIC_API_URL + '/**', async (route) => {
+      await page.route(apiUrl + '/**', async (route) => {
         const url = new URL(route.request().url());
         const headers = {
           'Access-Control-Allow-Origin': '*',

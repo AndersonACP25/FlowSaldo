@@ -29,6 +29,7 @@ export function Choice({
   label,
   selected,
   onPress,
+  disabled = false,
   text,
   compact = false,
 }: {
@@ -36,15 +37,22 @@ export function Choice({
   label: string;
   selected: boolean;
   onPress: () => void;
+  disabled?: boolean;
   text?: string;
 }) {
   return (
     <Pressable
       accessibilityRole="button"
       accessibilityLabel={label}
-      accessibilityState={{ selected }}
+      accessibilityState={{ selected, disabled }}
+      disabled={disabled}
       onPress={onPress}
-      style={[s.pill, compact && { paddingHorizontal: 0 }, selected && s.selected]}
+      style={[
+        s.pill,
+        compact && { paddingHorizontal: 0 },
+        selected && s.selected,
+        disabled && s.disabled,
+      ]}
     >
       <Text style={s.pillText}>{text ?? label}</Text>
     </Pressable>

@@ -171,3 +171,7 @@ Configuración permite eliminar definitivamente categorías sin referencias. Las
 ## Plan del piloto Gmail
 
 El próximo feature usa un buzón de prueba y sincronización manual. El primer corte prepara OAuth, vuelve observable el estado de conexión y reaprovecha la revisión de retiros BHD/Popular. La ventana inicial propuesta es de siete días.
+
+## Acceso de prueba local y plan de funcionalidades (2026-11-24)
+
+El inicio de sesión permite rellenar las credenciales públicas de la cuenta de prueba. Correo reconocido y contraseña incorrecta se validan localmente. La cuenta abre el modo local en web y Android, con datos separados por instalación. PostgreSQL y el traspaso a la cuenta personal quedan para una fase posterior. El plan vigente prioriza validar la APK, respaldo JSON, importación CSV y recordatorios locales. Gmail OAuth ya está incorporado al piloto conectado. Importar mensajes sigue pendiente.
