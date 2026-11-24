@@ -233,7 +233,7 @@ export async function checkCoreFlows(browser) {
     ],
   };
   await scenario(
-    'confirm recurrence once → confirm review → open generated movement',
+    'settle a recurring expense in parts → confirm review → open generated movement',
     async (page, button, stored) => {
       await page.goto('http://127.0.0.1:8082', { waitUntil: 'networkidle' });
       await loginAsTestAccount(page);
@@ -266,12 +266,30 @@ export async function checkCoreFlows(browser) {
       await button('EUR').click();
       assert.equal(await page.getByLabel('Saldo disponible hoy', { exact: true }).inputValue(), '');
       await button('Movimientos').click();
-      await button('Registrar vencimiento Alquiler CORE').click();
-      await button('Confirmar registro de vencimiento').click();
-      await page.getByText('Vencimiento registrado una sola vez.', { exact: true }).waitFor();
+      await button('Registrar pendiente Alquiler CORE').click();
+      await page.getByRole('heading', { name: 'Pagos y cobros pendientes', exact: true }).waitFor();
+      await page.getByLabel('Monto del abono', { exact: true }).fill('5000');
+      await button('Registrar abono').click();
+      await page.getByText('Abono registrado.', { exact: true }).waitFor();
+      assert.equal((await stored()).movements.length, 0);
+      await button('Inicio').click();
+      await button('Disponible hasta el próximo cobro').click();
+      await page.getByText('DOP 13,000.00', { exact: true }).waitFor();
+      await button('Movimientos').click();
+      await button('+ Nuevo movimiento').click();
+      await page.getByLabel('Descripción', { exact: true }).fill('Abono alquiler CORE');
+      await page.getByLabel('Monto (sin separadores de miles)', { exact: true }).fill('7000');
+      await button('Guardar movimiento').click();
+      await page.getByText('Movimiento guardado.', { exact: true }).waitFor();
+      await button('Vincular a pendiente: Abono alquiler CORE').click();
+      await button('Vincular a Alquiler CORE').click();
+      await page.getByText('Movimiento vinculado.', { exact: true }).waitFor();
+      await button('Ver todos los pendientes').click();
+      await button('Cerrar vencimiento').click();
+      await page.getByText('Vencimiento cerrado.', { exact: true }).waitFor();
       assert.equal((await stored()).movements.length, 1);
-      assert.equal((await stored()).movements[0].occurredAt, day + 'T04:00:00.000Z');
       assert.equal((await stored()).receipts.length, 1);
+      assert.equal((await stored()).receipts[0].movementId, null);
       await page.reload({ waitUntil: 'networkidle' });
       await loginAsTestAccount(page);
       await button('Disponible hasta el próximo cobro').click();

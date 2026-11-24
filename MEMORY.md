@@ -199,3 +199,8 @@ La rama feat/finanzas-personales-por-fases reúne proyección de efectivo, metas
 ## Metas de ahorro y apartados (2026-11-24)
 
 Fase 2 en la misma rama y PR que la proyección de efectivo. Metas por moneda con aportes manuales y vínculos a transferencias propias del historial. Cada transferencia se vincula a una meta como máximo. El avance considera el monto vigente del movimiento de origen y descuenta vínculos que ya no cumplen los requisitos. Quitar un aporte conserva el movimiento. Las metas se guardan en el dispositivo con separación demo/API.
+
+
+## Pagos y cobros pendientes (2026-11-24)
+
+Fase 3 en el mismo PR. Registra vencimientos por moneda con hora dominicana y aplica abonos manuales o movimientos vigentes del mismo tipo y moneda. Cada movimiento se puede vincular a un pendiente. Los pendientes se guardan en el dispositivo con separación demo/cuenta. La proyección descuenta el saldo de pagos antes del próximo cobro y sustituye un vencimiento mensual por su pendiente vinculado. Tras saldarlo, el cierre avanza la plantilla y conserva un recibo sin generar movimiento. El endpoint de cierre usa la transacción existente de recurrencias. La fase usa el esquema actual de PostgreSQL.

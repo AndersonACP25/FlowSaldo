@@ -18,6 +18,7 @@ export function CashProjectionScreen({
   currency,
   onCurrency,
   templates,
+  pending,
   saved,
   saving,
   onSave,
@@ -26,6 +27,7 @@ export function CashProjectionScreen({
   currency: Currency;
   onCurrency: (currency: Currency) => void;
   templates: RecurringTemplate[];
+  pending: Parameters<typeof projectAvailableCash>[0]['pending'];
   saved?: CashProjectionPlan;
   saving: boolean;
   onSave: (plan: CashProjectionPlan) => Promise<void>;
@@ -53,7 +55,7 @@ export function CashProjectionScreen({
   if (balance.trim() && nextIncomeAt) {
     try {
       plan = { balanceMinor: parseSignedAmount(balance), nextIncomeAt };
-      projection = projectAvailableCash({ ...plan, currency, templates, now });
+      projection = projectAvailableCash({ ...plan, currency, templates, pending, now });
     } catch (e) {
       error = e instanceof Error ? e.message : 'No se pudo calcular la proyección.';
     }
@@ -145,7 +147,7 @@ export function CashProjectionScreen({
               {money(projection.availableMinor, currency)}
             </Text>
             <Text style={s.muted}>
-              Gastos recurrentes pendientes: {money(projection.committedMinor, currency)}
+              Pagos y gastos recurrentes: {money(projection.committedMinor, currency)}
             </Text>
           </View>
           <View style={s.card}>
@@ -170,14 +172,16 @@ export function CashProjectionScreen({
           <View style={s.card}>
             <Text style={s.title}>Compromisos antes del cobro</Text>
             {projection.commitments.length === 0 && (
-              <Text style={s.muted}>Sin gastos recurrentes pendientes.</Text>
+              <Text style={s.muted}>Sin compromisos pendientes.</Text>
             )}
             {projection.commitments.map((item) => (
-              <View key={item.id} style={s.between}>
+              <View key={item.source + item.id} style={s.between}>
                 <View style={{ flexShrink: 1 }}>
                   <Text style={s.text}>{item.description}</Text>
                   <Text style={s.muted}>
-                    {countLabel(item.occurrences, 'vencimiento', 'vencimientos')} · Desde{' '}
+                    {item.source === 'pending'
+                      ? 'Pago pendiente · '
+                      : countLabel(item.occurrences, 'vencimiento', 'vencimientos') + ' · Desde '}
                     {item.firstDueAt.replace('T', ' · ')}
                   </Text>
                 </View>

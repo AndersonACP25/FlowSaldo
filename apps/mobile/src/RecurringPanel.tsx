@@ -19,6 +19,8 @@ export function RecurringPanel({
   onCreate,
   onToggle,
   onConfirm,
+  hasPending,
+  onPending,
   money,
 }: {
   items: RecurringTemplate[];
@@ -29,6 +31,8 @@ export function RecurringPanel({
   onCreate: () => void;
   onToggle: (id: string, active: boolean) => Promise<void>;
   onConfirm: (template: RecurringTemplate) => Promise<void>;
+  hasPending: (template: RecurringTemplate) => boolean;
+  onPending: (template: RecurringTemplate) => Promise<void>;
   money: (value: number, currency: Currency) => string;
 }) {
   const { styles: s } = useTheme();
@@ -122,7 +126,15 @@ export function RecurringPanel({
                 void run(() => onToggle(item.id, !item.active), 'Plantilla actualizada.')
               }
             />
-            {item.active && (
+            {(hasPending(item) || (item.active && item.type !== 'TRANSFER')) && (
+              <Button
+                label={`${hasPending(item) ? 'Ver pendiente' : 'Registrar pendiente'} ${item.description}`}
+                text={hasPending(item) ? 'Ver pendiente' : 'Registrar pendiente'}
+                disabled={busy}
+                onPress={() => void run(() => onPending(item), '')}
+              />
+            )}
+            {item.active && !hasPending(item) && (
               <Button
                 label={`Registrar vencimiento ${item.description}`}
                 text="Registrar vencimiento"
@@ -131,7 +143,7 @@ export function RecurringPanel({
               />
             )}
           </View>
-          {confirm === item.id && (
+          {confirm === item.id && !hasPending(item) && (
             <>
               <Text style={s.muted}>
                 ¿Registrar {money(item.amountMinor, item.currency)} con fecha {item.nextDate}

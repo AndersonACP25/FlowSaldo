@@ -17,6 +17,10 @@ import {
   prepareOccurrence,
   projectAvailableCash,
   addSavingsContribution,
+  addPendingSettlement,
+  pendingRemaining,
+  validPendingItems,
+  type PendingItem,
   savingsProgress,
   validSavingsGoals,
   type SavingsGoal,
@@ -176,6 +180,7 @@ test('CORE: recurrence requires due/active/unconfirmed occurrence before posting
   assert.equal(timedMovement.movement.occurredAt, '2026-02-01T03:50:00.000Z');
   assert.equal(timedMovement.nextDate, '2026-02-28');
   assert.throws(() => prepareOccurrence(t, t.nextDate, '2026-01-30'));
+  assert.equal(prepareOccurrence(t, t.nextDate, '2026-01-30', [], false).nextDate, '2026-02-28');
   assert.throws(() => prepareOccurrence({ ...t, active: false }, t.nextDate, '2026-02-01'));
   assert.throws(() =>
     prepareOccurrence(t, t.nextDate, '2026-02-01', [
@@ -228,6 +233,30 @@ test('CORE: cash projection counts pending installments by currency and exact cu
     projectAvailableCash({ ...input, balanceMinor: 100_000 }).availableMinor,
     -1_100_000,
   );
+  const tracked = {
+    id: 'tracked-rent',
+    name: 'Alquiler pendiente',
+    kind: 'pay' as const,
+    currency: 'DOP' as const,
+    dueAt: '2026-01-31T09:00',
+    occurrence: { templateId: rent.id, scheduledFor: rent.nextDate },
+    remainingMinor: 400_000,
+  };
+  const reconciled = projectAvailableCash({
+    ...input,
+    pending: [
+      tracked,
+      { ...tracked, id: 'receivable', kind: 'collect', occurrence: undefined },
+      { ...tracked, id: 'other-currency', currency: 'EUR', occurrence: undefined },
+      { ...tracked, id: 'next-cycle', dueAt: input.nextIncomeAt, occurrence: undefined },
+    ],
+  });
+  assert.equal(reconciled.committedMinor, 1_000_000);
+  assert.equal(reconciled.commitments[1].firstDueAt, '2026-02-28T09:00');
+  assert.equal(
+    projectAvailableCash({ ...input, pending: [{ ...tracked, remainingMinor: 0 }] }).committedMinor,
+    600_000,
+  );
   const legacy = { ...rent, nextDate: '2026-03-31', timeOfDay: null };
   assert.equal(
     projectAvailableCash({ ...input, templates: [legacy], nextIncomeAt: '2026-03-31T08:00' })
@@ -238,6 +267,60 @@ test('CORE: cash projection counts pending installments by currency and exact cu
     () => projectAvailableCash({ ...input, nextIncomeAt: '2026-02-28T10:00' }),
     /futuro/,
   );
+});
+test('CORE: partial settlements use the live movement exactly once and preserve currency', () => {
+  const item: PendingItem = {
+    id: 'electricity',
+    name: 'Electricidad',
+    amountMinor: 100_000,
+    currency: 'DOP',
+    kind: 'pay',
+    dueAt: '2026-11-24T15:00',
+    settlements: [],
+  };
+  const other: PendingItem = { ...item, id: 'other' };
+  const expense = {
+    ...demoMovements[0],
+    currency: 'DOP' as const,
+    type: 'EXPENSE' as const,
+    amountMinor: 60_000,
+  };
+  const movements = new Map([[expense.id, expense]]);
+  const link = { id: 'link', kind: 'movement' as const, movementId: expense.id };
+  const withPartial = addPendingSettlement(
+    [item, other],
+    item.id,
+    { id: 'manual', kind: 'manual', amountMinor: 40_000 },
+    movements,
+  );
+  assert.equal(pendingRemaining(withPartial[0], movements), 60_000);
+  assert.throws(
+    () =>
+      addPendingSettlement(
+        withPartial,
+        item.id,
+        { id: 'extra', kind: 'manual', amountMinor: 60_001 },
+        movements,
+      ),
+    /excede/,
+  );
+  assert.throws(
+    () => addPendingSettlement([{ ...item, currency: 'EUR' }], item.id, link, movements),
+    /moneda/,
+  );
+  assert.throws(
+    () => addPendingSettlement([{ ...item, kind: 'collect' }], item.id, link, movements),
+    /tipo/,
+  );
+  const settled = addPendingSettlement(withPartial, item.id, link, movements);
+  assert.equal(pendingRemaining(settled[0], movements), 0);
+  assert.equal(pendingRemaining(settled[0], new Map()), 60_000);
+  assert.throws(
+    () => addPendingSettlement(settled, other.id, link, movements),
+    /ya está vinculado/,
+  );
+  assert.ok(validPendingItems(settled));
+  assert.equal(validPendingItems([settled[0], { ...other, settlements: [link] }]), false);
 });
 test('CORE: goal contributions preserve currency and reuse each transfer only once', () => {
   const goal: SavingsGoal = {

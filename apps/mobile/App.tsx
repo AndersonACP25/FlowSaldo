@@ -1,3 +1,4 @@
+import { PendingPaymentsScreen } from './src/PendingPaymentsScreen';
 import { SavingsGoalsScreen } from './src/SavingsGoalsScreen';
 import { CashProjectionScreen } from './src/CashProjectionScreen';
 import { SettingsMenu, settingsSections, type SettingsSection } from './src/SettingsMenu';
@@ -42,6 +43,12 @@ import {
 import {
   formatMinorAmount,
   addSavingsContribution,
+  addPendingSettlement,
+  checkPendingDraft,
+  pendingOccurrence,
+  pendingRemaining,
+  type PendingDraft,
+  type PendingItem,
   checkSavingsGoal,
   type SavingsGoal,
   type SavingsContribution,
@@ -121,6 +128,7 @@ function initialData(): LocalData {
     categoryBudgets: {},
     cashProjections: {},
     savingsGoals: { demo: [], api: [] },
+    pendingItems: {},
     budgets: {},
     reviews: demoReviews(),
   };
@@ -169,12 +177,16 @@ function Home({
     | 'Análisis'
     | 'Disponible hasta el próximo cobro'
     | 'Metas de ahorro'
+    | 'Pagos y cobros pendientes'
     | 'Tasas'
     | 'Editar movimiento'
     | 'Nueva plantilla mensual'
     | SettingsSection
   >('Inicio');
   const [transferForSavings, setTransferForSavings] = useState<Movement | null>(null);
+  const [movementForPending, setMovementForPending] = useState<Movement | null>(null);
+  const [pendingFocus, setPendingFocus] = useState<string | null>(null);
+  const [pendingFromMovements, setPendingFromMovements] = useState(false);
   const [projectionCurrency, setProjectionCurrency] = useState<Currency>('DOP');
   const [previousTab, setPreviousTab] = useState<Tab>('Inicio');
   const secondary =
@@ -193,7 +205,8 @@ function Home({
   const fromMovements =
     screen === 'Editar movimiento' ||
     screen === 'Nueva plantilla mensual' ||
-    (screen === 'Metas de ahorro' && !!transferForSavings);
+    (screen === 'Metas de ahorro' && !!transferForSavings) ||
+    (screen === 'Pagos y cobros pendientes' && pendingFromMovements);
   const activeTab = inSettings
     ? previousTab
     : fromMovements
@@ -254,6 +267,17 @@ function Home({
   const connected = !!session;
   const savingsMode = connected ? 'api' : 'demo';
   const savingsGoals = local.savingsGoals[savingsMode];
+  const pendingScope = personal ? `owner:${personal.owner.id}` : savingsMode;
+  const pendingItems = local.pendingItems[pendingScope] ?? [];
+  const pendingMovementIds = [
+    ...new Set(
+      pendingItems.flatMap((item) =>
+        item.settlements.flatMap((settlement) =>
+          settlement.kind === 'movement' ? [settlement.movementId] : [],
+        ),
+      ),
+    ),
+  ].sort();
   const savingsTransferIds = [
     ...new Set(
       savingsGoals.flatMap((goal) =>
@@ -304,7 +328,7 @@ function Home({
     }
     return response.status === 204 ? null : response.json();
   }
-  async function savingsMovement(id: string): Promise<Movement | null> {
+  async function movementForLink(id: string): Promise<Movement | null> {
     if (!connected)
       return localRef.current.movements.find((movement) => movement.id === id) ?? null;
     try {
@@ -319,10 +343,30 @@ function Home({
     enabled: connected && screen === 'Metas de ahorro' && savingsTransferIds.length > 0,
     retry: false,
     queryFn: async () => {
-      const results = await Promise.all(savingsTransferIds.map(savingsMovement));
+      const results = await Promise.all(savingsTransferIds.map(movementForLink));
       return results.filter((movement): movement is Movement => movement !== null);
     },
   });
+
+  async function pendingLinks(ids: string[]) {
+    const results = await Promise.all(ids.map(movementForLink));
+    return new Map(
+      results.flatMap((movement) => (movement ? [[movement.id, movement] as const] : [])),
+    );
+  }
+  const pendingLinksQuery = useQuery({
+    queryKey: ['pending-links', url, pendingScope, pendingMovementIds],
+    enabled:
+      connected &&
+      pendingMovementIds.length > 0 &&
+      (screen === 'Pagos y cobros pendientes' || screen === 'Disponible hasta el próximo cobro'),
+    retry: false,
+    queryFn: () => pendingLinks(pendingMovementIds),
+  });
+  const pendingLinksReady = !connected || !pendingMovementIds.length || pendingLinksQuery.isSuccess;
+  const linkedPendingMovements = connected
+    ? (pendingLinksQuery.data ?? new Map<string, Movement>())
+    : new Map(local.movements.map((movement) => [movement.id, movement]));
 
   const bankDirectory = useQuery({
     queryKey: ['banks', personal?.owner.id],
@@ -457,6 +501,7 @@ function Home({
     await Promise.all([
       client.invalidateQueries({ queryKey: ['movements'] }),
       client.invalidateQueries({ queryKey: ['savings-transfers'] }),
+      client.invalidateQueries({ queryKey: ['pending-links'] }),
       client.invalidateQueries({ queryKey: ['summary'] }),
       client.invalidateQueries({ queryKey: ['accounts'] }),
     ]);
@@ -675,21 +720,33 @@ function Home({
         ),
       });
   }
-  async function confirmRecurring(template: RecurringTemplate) {
+  async function confirmRecurring(template: RecurringTemplate, recordMovement = true) {
+    if (
+      recordMovement &&
+      pendingOccurrence(
+        localRef.current.pendingItems[pendingScope] ?? [],
+        template.id,
+        template.nextDate,
+      )
+    )
+      throw new Error('Este vencimiento se gestiona en Pagos y cobros pendientes.');
     const key = JSON.stringify([template.id, template.nextDate]);
     if (confirming.current.has(key)) throw new Error('Este vencimiento ya se está procesando.');
     confirming.current.add(key);
     try {
       if (connected) {
-        const result: { movement: Movement } = await request(`/recurring/${template.id}/confirm`, {
-          method: 'POST',
-          body: JSON.stringify({
-            scheduledFor: template.nextDate,
-            expectedVersion: template.version,
-          }),
-        });
+        const result: { movement: Movement | null } = await request(
+          `/recurring/${template.id}/${recordMovement ? 'confirm' : 'close'}`,
+          {
+            method: 'POST',
+            body: JSON.stringify({
+              scheduledFor: template.nextDate,
+              expectedVersion: template.version,
+            }),
+          },
+        );
         await Promise.all([recurringQuery.refetch(), refreshMovements()]);
-        if (personal)
+        if (personal && result.movement)
           void notifyTransaction(result.movement.id, 'Movimiento recurrente confirmado');
       } else {
         const existing = localRef.current.recurring.find((t) => t.id === template.id);
@@ -701,15 +758,24 @@ function Home({
           template.nextDate,
           new Date().toISOString(),
           localRef.current.receipts,
+          recordMovement,
         );
-        const movement: Movement = {
-          ...occurrence.movement,
-          ...selectedCategory(localRef.current.categories, existing.categoryId, existing.category),
-          id: `occurrence-${Date.now()}-${Math.random().toString(36).slice(2)}`,
-        };
+        const movement: Movement | null = recordMovement
+          ? {
+              ...occurrence.movement,
+              ...selectedCategory(
+                localRef.current.categories,
+                existing.categoryId,
+                existing.category,
+              ),
+              id: `occurrence-${Date.now()}-${Math.random().toString(36).slice(2)}`,
+            }
+          : null;
         await persist({
           ...localRef.current,
-          movements: [movement, ...localRef.current.movements],
+          movements: movement
+            ? [movement, ...localRef.current.movements]
+            : localRef.current.movements,
           recurring: localRef.current.recurring.map((t) =>
             t.id === existing.id
               ? { ...t, nextDate: occurrence.nextDate, version: t.version + 1 }
@@ -717,7 +783,11 @@ function Home({
           ),
           receipts: [
             ...localRef.current.receipts,
-            { templateId: existing.id, scheduledFor: template.nextDate, movementId: movement.id },
+            {
+              templateId: existing.id,
+              scheduledFor: template.nextDate,
+              movementId: movement?.id ?? null,
+            },
           ],
         });
       }
@@ -878,6 +948,8 @@ function Home({
       Object.entries(localRef.current.cashProjections).filter(([key]) => key.startsWith('api:')),
     );
     next.savingsGoals.api = localRef.current.savingsGoals.api;
+    next.pendingItems = { ...localRef.current.pendingItems };
+    delete next.pendingItems.demo;
     await persist(next);
     setLoadError('');
     setReady(true);
@@ -915,7 +987,7 @@ function Home({
     });
   }
 
-  function savingsId() {
+  function newLocalId() {
     return `${Date.now()}-${Math.random().toString(36).slice(2)}`;
   }
 
@@ -926,7 +998,7 @@ function Home({
     return saveForm(() =>
       updateSavingsGoals((goals) => {
         const goal = checkSavingsGoal(input);
-        if (!id) return [...goals, { ...goal, id: savingsId(), contributions: [] }];
+        if (!id) return [...goals, { ...goal, id: newLocalId(), contributions: [] }];
         if (!goals.some((item) => item.id === id))
           throw new Error('La meta ya no está disponible.');
         return goals.map((item) =>
@@ -938,7 +1010,7 @@ function Home({
 
   function addSavings(goalId: string, item: SavingsContribution) {
     return saveForm(async () => {
-      const transfer = item.kind === 'transfer' ? await savingsMovement(item.movementId) : null;
+      const transfer = item.kind === 'transfer' ? await movementForLink(item.movementId) : null;
       const transfers = new Map(transfer ? [[transfer.id, transfer]] : []);
       await updateSavingsGoals((goals) => addSavingsContribution(goals, goalId, item, transfers));
     });
@@ -957,6 +1029,85 @@ function Home({
         ),
       ),
     );
+  }
+
+  function openPending(movement: Movement | null, focus: string | null, fromList: boolean) {
+    setMovementForPending(movement);
+    setPendingFocus(focus);
+    setPendingFromMovements(fromList);
+    setDeleteId(null);
+    setNotice('');
+    setError('');
+    setScreen('Pagos y cobros pendientes');
+  }
+
+  function updatePending(update: (items: PendingItem[]) => PendingItem[]) {
+    const current = localRef.current;
+    return persist({
+      ...current,
+      pendingItems: {
+        ...current.pendingItems,
+        [pendingScope]: update(current.pendingItems[pendingScope] ?? []),
+      },
+    });
+  }
+
+  function savePending(input: PendingDraft) {
+    return saveForm(() =>
+      updatePending((items) => [
+        ...items,
+        { ...checkPendingDraft(input), id: newLocalId(), settlements: [] },
+      ]),
+    );
+  }
+
+  async function openRecurringPending(template: RecurringTemplate) {
+    const existing = pendingOccurrence(
+      localRef.current.pendingItems[pendingScope] ?? [],
+      template.id,
+      template.nextDate,
+    );
+    const id = existing?.id ?? newLocalId();
+    if (!existing) {
+      if (!template.active || template.type === 'TRANSFER')
+        throw new Error('Esta plantilla no admite pagos ni cobros pendientes.');
+      const occurrence = { templateId: template.id, scheduledFor: template.nextDate };
+      await updatePending((items) => [
+        ...items,
+        {
+          ...checkPendingDraft({
+            name: template.description,
+            kind: template.type === 'EXPENSE' ? 'pay' : 'collect',
+            currency: template.currency,
+            dueAt: dominicanDateTime(
+              new Date(recurringOccurrenceAt(template.nextDate, template.timeOfDay)),
+            ),
+            amountMinor: template.amountMinor,
+          }),
+          id,
+          occurrence,
+          settlements: [],
+        },
+      ]);
+    }
+    openPending(null, id, true);
+  }
+
+  function currentPendingTemplate(item: PendingItem) {
+    return recurring.find(
+      (template) =>
+        template.id === item.occurrence?.templateId &&
+        template.nextDate === item.occurrence.scheduledFor &&
+        template.active,
+    );
+  }
+
+  async function verifiedPendingMovements(item: PendingItem, extraId?: string) {
+    const ids = item.settlements.flatMap((entry) =>
+      entry.kind === 'movement' ? [entry.movementId] : [],
+    );
+    if (extraId) ids.push(extraId);
+    return pendingLinks([...new Set(ids)]);
   }
 
   const addMovement = (
@@ -1068,6 +1219,12 @@ function Home({
                   }}
                 />
                 <Choice
+                  label="Pagos y cobros pendientes"
+                  selected={false}
+                  disabled={busy}
+                  onPress={() => openPending(null, null, false)}
+                />
+                <Choice
                   label="Metas de ahorro"
                   selected={false}
                   disabled={busy}
@@ -1081,12 +1238,16 @@ function Home({
               </View>
             )}
             {screen === 'Disponible hasta el próximo cobro' &&
-              (!connected || recurringQuery.isSuccess ? (
+              ((!connected || recurringQuery.isSuccess) && pendingLinksReady ? (
                 <CashProjectionScreen
                   key={projectionKey}
                   currency={projectionCurrency}
                   onCurrency={setProjectionCurrency}
                   templates={recurring}
+                  pending={pendingItems.map((item) => ({
+                    ...item,
+                    remainingMinor: pendingRemaining(item, linkedPendingMovements),
+                  }))}
                   saved={local.cashProjections[projectionKey]}
                   saving={busy}
                   onSave={(plan) =>
@@ -1105,18 +1266,108 @@ function Home({
               ) : (
                 <View style={s.card}>
                   <Text style={s.muted}>
-                    {recurringQuery.isError
+                    {recurringQuery.isError || pendingLinksQuery.isError
                       ? 'No se pudieron cargar los compromisos.'
                       : 'Cargando compromisos…'}
                   </Text>
-                  {recurringQuery.isError && (
+                  {(recurringQuery.isError || pendingLinksQuery.isError) && (
                     <Button
                       label="Reintentar compromisos"
-                      onPress={() => void recurringQuery.refetch()}
+                      onPress={() => {
+                        if (recurringQuery.isError) void recurringQuery.refetch();
+                        if (pendingLinksQuery.isError) void pendingLinksQuery.refetch();
+                      }}
                     />
                   )}
                 </View>
               ))}
+            {screen === 'Pagos y cobros pendientes' && (
+              <PendingPaymentsScreen
+                items={pendingItems}
+                defaultCurrency={currency}
+                movements={linkedPendingMovements}
+                link={movementForPending}
+                focusId={pendingFocus}
+                ready={pendingLinksReady}
+                linksError={pendingLinksQuery.isError}
+                saving={busy}
+                money={money}
+                canClose={(item) => !!currentPendingTemplate(item)}
+                onSave={savePending}
+                onSettle={(id, settlement) =>
+                  saveForm(async () => {
+                    const item = (localRef.current.pendingItems[pendingScope] ?? []).find(
+                      (entry) => entry.id === id,
+                    );
+                    if (!item) throw new Error('El pendiente ya no está disponible.');
+                    const movements = await verifiedPendingMovements(
+                      item,
+                      settlement.kind === 'movement' ? settlement.movementId : undefined,
+                    );
+                    await updatePending((items) =>
+                      addPendingSettlement(
+                        items,
+                        id,
+                        { ...settlement, id: newLocalId() },
+                        movements,
+                      ),
+                    );
+                  })
+                }
+                onRemove={(id, settlementId) =>
+                  saveForm(() =>
+                    updatePending((items) =>
+                      items.map((item) =>
+                        item.id === id
+                          ? {
+                              ...item,
+                              settlements: item.settlements.filter(
+                                (entry) => entry.id !== settlementId,
+                              ),
+                            }
+                          : item,
+                      ),
+                    ),
+                  )
+                }
+                onDelete={(id) =>
+                  saveForm(() =>
+                    updatePending((items) => {
+                      const item = items.find((entry) => entry.id === id);
+                      if (item?.settlements.length)
+                        throw new Error('Quita los abonos antes de eliminar el pendiente.');
+                      if (
+                        item?.occurrence &&
+                        !recurring.some(
+                          (template) =>
+                            template.id === item.occurrence?.templateId &&
+                            template.nextDate === item.occurrence.scheduledFor,
+                        )
+                      )
+                        throw new Error('El vencimiento ya se cerró.');
+                      return items.filter((entry) => entry.id !== id);
+                    }),
+                  )
+                }
+                onClose={(item) =>
+                  saveForm(async () => {
+                    const template = currentPendingTemplate(item);
+                    const current = (localRef.current.pendingItems[pendingScope] ?? []).find(
+                      (entry) => entry.id === item.id,
+                    );
+                    if (
+                      !template ||
+                      !current ||
+                      pendingRemaining(current, await verifiedPendingMovements(current)) !== 0
+                    )
+                      throw new Error('El vencimiento debe estar saldado y la plantilla activa.');
+                    await confirmRecurring(template, false);
+                  })
+                }
+                onRetry={() => void pendingLinksQuery.refetch()}
+                onClearLink={() => setMovementForPending(null)}
+              />
+            )}
             {screen === 'Metas de ahorro' && (
               <SavingsGoalsScreen
                 goals={savingsGoals}
@@ -1142,10 +1393,10 @@ function Home({
                 saving={busy}
                 onSaveGoal={saveSavingsGoal}
                 onAddManual={(goalId, amountMinor) =>
-                  addSavings(goalId, { id: savingsId(), kind: 'manual', amountMinor })
+                  addSavings(goalId, { id: newLocalId(), kind: 'manual', amountMinor })
                 }
                 onLink={(goalId, movementId) =>
-                  addSavings(goalId, { id: savingsId(), kind: 'transfer', movementId })
+                  addSavings(goalId, { id: newLocalId(), kind: 'transfer', movementId })
                 }
                 onRemove={removeSavings}
                 money={money}
@@ -1609,6 +1860,19 @@ function Home({
                         danger
                         onPress={() => setDeleteId(m.id)}
                       />
+                      {m.type !== 'TRANSFER' && (
+                        <Choice
+                          label={`Vincular a pendiente: ${m.description}`}
+                          text={
+                            pendingMovementIds.includes(m.id)
+                              ? 'Ver vínculo'
+                              : 'Vincular a pendiente'
+                          }
+                          selected={false}
+                          disabled={busy}
+                          onPress={() => openPending(m, null, true)}
+                        />
+                      )}
                       {m.type === 'TRANSFER' && (
                         <Choice
                           label={`Vincular a meta: ${m.description}`}
@@ -1672,6 +1936,10 @@ function Home({
                   }}
                   onToggle={(id, active) => saveForm(() => toggleRecurring(id, active))}
                   onConfirm={(template) => saveForm(() => confirmRecurring(template))}
+                  hasPending={(template) =>
+                    !!pendingOccurrence(pendingItems, template.id, template.nextDate)
+                  }
+                  onPending={(template) => saveForm(() => openRecurringPending(template))}
                   money={money}
                 />
               )}

@@ -3,6 +3,8 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import {
   isCurrency,
   validSavingsGoals,
+  validPendingItems,
+  type PendingItem,
   type SavingsGoal,
   parseDominicanDateTime,
   type CashProjectionPlan,
@@ -28,6 +30,7 @@ export interface LocalData {
   receipts: RecurringReceipt[];
   cashProjections: Partial<Record<CashProjectionKey, CashProjectionPlan>>;
   savingsGoals: Record<'demo' | 'api', SavingsGoal[]>;
+  pendingItems: Record<string, PendingItem[]>;
 }
 const key = 'flowsaldo.demo.v2';
 export async function loadLocal(): Promise<LocalData | null> {
@@ -146,6 +149,14 @@ export async function loadLocal(): Promise<LocalData | null> {
     )
   )
     throw new Error('Proyección local inválida.');
+  if (value.pendingItems === undefined) value.pendingItems = {};
+  if (
+    !value.pendingItems ||
+    typeof value.pendingItems !== 'object' ||
+    Array.isArray(value.pendingItems) ||
+    !Object.values(value.pendingItems).every(validPendingItems)
+  )
+    throw new Error('Pagos y cobros locales inválidos.');
   if (value.savingsGoals === undefined) value.savingsGoals = { demo: [], api: [] };
   if (
     !value.savingsGoals ||

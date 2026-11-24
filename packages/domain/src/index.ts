@@ -239,3 +239,15 @@ export function validateExportTable(
 }
 
 export { dominicanBanks, type BankRegistration } from './dominicanBanks.ts';
+
+export {
+  addPendingSettlement,
+  checkPendingDraft,
+  pendingOccurrence,
+  pendingRemaining,
+  settlementAmount,
+  validPendingItems,
+  type PendingDraft,
+  type PendingItem,
+  type PendingSettlement,
+} from './pendingPayments.ts';
