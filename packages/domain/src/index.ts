@@ -251,3 +251,11 @@ export {
   type PendingItem,
   type PendingSettlement,
 } from './pendingPayments.ts';
+
+export {
+  checkDebtPlan,
+  compareDebtPlan,
+  validDebtPlans,
+  type DebtPlan,
+  type DebtPlanDraft,
+} from './debtPlan.ts';

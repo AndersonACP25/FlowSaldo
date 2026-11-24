@@ -144,8 +144,33 @@ export async function checkCoreFlows(browser) {
       (await stored()).movements.find((item) => item.description === 'Apartado CORE').type,
       'TRANSFER',
     );
+    const beforePlanning = (await stored()).movements;
+    await button('Inicio').click();
+    await button('Plan de pago de tarjetas y préstamos').click();
+    await button('Nuevo plan de pago').click();
+    await button('DOP').click();
+    const debtFields = {
+      'Nombre del plan': 'Tarjeta CORE',
+      'Fecha y hora de corte': '2026-11-01T08:00',
+      'Fecha y hora del próximo vencimiento': '2026-11-30T19:00',
+      'Capital pendiente': '10000',
+      'Interés al corte': '250',
+      'Cargos al corte': '100',
+      'Tasa nominal anual (%)': '24',
+      'Cuota mensual': '3000',
+      'Abono adicional mensual': '1000',
+    };
+    for (const [label, value] of Object.entries(debtFields))
+      await page.getByLabel(label, { exact: true }).fill(value);
+    await button('Guardar y comparar').click();
+    const savings = page.getByText('DOP 92.14 menos en intereses · 1 cuota menos', { exact: true });
+    await savings.waitFor();
+    assert.deepEqual((await stored()).movements, beforePlanning);
     await page.reload({ waitUntil: 'networkidle' });
     await loginAsTestAccount(page);
+    await button('Plan de pago de tarjetas y préstamos').click();
+    await savings.waitFor();
+    await button('Volver').click();
     await button('Metas de ahorro').click();
     await page.getByText('EUR 500.00 de EUR 1,000.00', { exact: true }).waitFor();
     await button('Quitar aporte 2 de Laptop CORE').click();

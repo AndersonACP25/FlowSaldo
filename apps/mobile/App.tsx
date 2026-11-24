@@ -1,3 +1,4 @@
+import { DebtPlansScreen } from './src/DebtPlansScreen';
 import { PendingPaymentsScreen } from './src/PendingPaymentsScreen';
 import { SavingsGoalsScreen } from './src/SavingsGoalsScreen';
 import { CashProjectionScreen } from './src/CashProjectionScreen';
@@ -45,6 +46,8 @@ import {
   addSavingsContribution,
   addPendingSettlement,
   checkPendingDraft,
+  checkDebtPlan,
+  type DebtPlan,
   pendingOccurrence,
   pendingRemaining,
   type PendingDraft,
@@ -129,6 +132,7 @@ function initialData(): LocalData {
     cashProjections: {},
     savingsGoals: { demo: [], api: [] },
     pendingItems: {},
+    debtPlans: {},
     budgets: {},
     reviews: demoReviews(),
   };
@@ -178,6 +182,7 @@ function Home({
     | 'Disponible hasta el próximo cobro'
     | 'Metas de ahorro'
     | 'Pagos y cobros pendientes'
+    | 'Plan de pago de tarjetas y préstamos'
     | 'Tasas'
     | 'Editar movimiento'
     | 'Nueva plantilla mensual'
@@ -269,6 +274,8 @@ function Home({
   const savingsGoals = local.savingsGoals[savingsMode];
   const pendingScope = personal ? `owner:${personal.owner.id}` : savingsMode;
   const pendingItems = local.pendingItems[pendingScope] ?? [];
+  const debtScope = connected ? JSON.stringify([url, personal?.owner.id ?? 'development']) : 'demo';
+  const debtPlans = local.debtPlans[debtScope] ?? [];
   const pendingMovementIds = [
     ...new Set(
       pendingItems.flatMap((item) =>
@@ -950,6 +957,8 @@ function Home({
     next.savingsGoals.api = localRef.current.savingsGoals.api;
     next.pendingItems = { ...localRef.current.pendingItems };
     delete next.pendingItems.demo;
+    next.debtPlans = { ...localRef.current.debtPlans };
+    delete next.debtPlans.demo;
     await persist(next);
     setLoadError('');
     setReady(true);
@@ -1110,6 +1119,19 @@ function Home({
     return pendingLinks([...new Set(ids)]);
   }
 
+  function updateDebtPlans(update: (plans: DebtPlan[]) => DebtPlan[]) {
+    return saveForm(() => {
+      const current = localRef.current;
+      return persist({
+        ...current,
+        debtPlans: {
+          ...current.debtPlans,
+          [debtScope]: update(current.debtPlans[debtScope] ?? []),
+        },
+      });
+    });
+  }
+
   const addMovement = (
     <Button
       label="+ Nuevo movimiento"
@@ -1223,6 +1245,17 @@ function Home({
                   selected={false}
                   disabled={busy}
                   onPress={() => openPending(null, null, false)}
+                />
+                <Choice
+                  label="Plan de pago de tarjetas y préstamos"
+                  text="Plan de pago"
+                  selected={false}
+                  disabled={busy}
+                  onPress={() => {
+                    setNotice('');
+                    setError('');
+                    setScreen('Plan de pago de tarjetas y préstamos');
+                  }}
                 />
                 <Choice
                   label="Metas de ahorro"
@@ -1366,6 +1399,28 @@ function Home({
                 }
                 onRetry={() => void pendingLinksQuery.refetch()}
                 onClearLink={() => setMovementForPending(null)}
+              />
+            )}
+            {screen === 'Plan de pago de tarjetas y préstamos' && (
+              <DebtPlansScreen
+                key={debtScope}
+                plans={debtPlans}
+                defaultCurrency={currency}
+                saving={busy}
+                money={money}
+                onSave={async (input, id) => {
+                  const plan = { ...checkDebtPlan(input), id: id ?? newLocalId() };
+                  await updateDebtPlans((items) => {
+                    if (!id) return [...items, plan];
+                    if (!items.some((item) => item.id === id))
+                      throw new Error('El plan de pago ya no está disponible.');
+                    return items.map((item) => (item.id === id ? plan : item));
+                  });
+                  return plan.id;
+                }}
+                onRemove={(id) =>
+                  updateDebtPlans((items) => items.filter((item) => item.id !== id))
+                }
               />
             )}
             {screen === 'Metas de ahorro' && (

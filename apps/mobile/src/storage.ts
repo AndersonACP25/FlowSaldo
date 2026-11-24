@@ -4,6 +4,8 @@ import {
   isCurrency,
   validSavingsGoals,
   validPendingItems,
+  validDebtPlans,
+  type DebtPlan,
   type PendingItem,
   type SavingsGoal,
   parseDominicanDateTime,
@@ -31,6 +33,7 @@ export interface LocalData {
   cashProjections: Partial<Record<CashProjectionKey, CashProjectionPlan>>;
   savingsGoals: Record<'demo' | 'api', SavingsGoal[]>;
   pendingItems: Record<string, PendingItem[]>;
+  debtPlans: Record<string, DebtPlan[]>;
 }
 const key = 'flowsaldo.demo.v2';
 export async function loadLocal(): Promise<LocalData | null> {
@@ -157,6 +160,14 @@ export async function loadLocal(): Promise<LocalData | null> {
     !Object.values(value.pendingItems).every(validPendingItems)
   )
     throw new Error('Pagos y cobros locales inválidos.');
+  if (value.debtPlans === undefined) value.debtPlans = {};
+  if (
+    !value.debtPlans ||
+    typeof value.debtPlans !== 'object' ||
+    Array.isArray(value.debtPlans) ||
+    !Object.values(value.debtPlans).every(validDebtPlans)
+  )
+    throw new Error('Planes de pago locales inválidos.');
   if (value.savingsGoals === undefined) value.savingsGoals = { demo: [], api: [] };
   if (
     !value.savingsGoals ||

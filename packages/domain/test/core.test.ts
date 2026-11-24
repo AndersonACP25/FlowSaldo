@@ -16,6 +16,9 @@ import {
   nextMonthlyDate,
   prepareOccurrence,
   projectAvailableCash,
+  compareDebtPlan,
+  validDebtPlans,
+  type DebtPlanDraft,
   addSavingsContribution,
   addPendingSettlement,
   pendingRemaining,
@@ -321,6 +324,66 @@ test('CORE: partial settlements use the live movement exactly once and preserve 
   );
   assert.ok(validPendingItems(settled));
   assert.equal(validPendingItems([settled[0], { ...other, settlements: [link] }]), false);
+});
+test('CORE: debt scenarios preserve cents, first-cycle costs and the monthly due day', () => {
+  const plan: DebtPlanDraft = {
+    name: 'Tarjeta CORE',
+    kind: 'card',
+    currency: 'DOP',
+    statementAt: '2026-01-10T08:00',
+    dueAt: '2026-01-31T16:00',
+    principalMinor: 1_000_000,
+    statementInterestMinor: 25_000,
+    chargesMinor: 10_000,
+    annualRateBasisPoints: 2400,
+    monthlyPaymentMinor: 300_000,
+    extraMonthlyMinor: 100_000,
+  };
+  const result = compareDebtPlan(plan);
+  assert.deepEqual(result.base, {
+    status: 'paid',
+    months: 4,
+    payoffAt: '2026-04-30T16:00',
+    interestMinor: 51_868,
+    totalMinor: 1_061_868,
+    first: { paymentMinor: 300_000, principalMinor: 265_000 },
+  });
+  assert.equal(result.extra?.status === 'paid' && result.extra.payoffAt, '2026-03-31T16:00');
+  assert.deepEqual(result.savings, { months: 1, interestMinor: 9_214 });
+  const payOffNow = compareDebtPlan({ ...plan, monthlyPaymentMinor: 1_200_000 });
+  assert.equal(payOffNow.base.status === 'paid' && payOffNow.base.totalMinor, 1_035_000);
+  assert.deepEqual(compareDebtPlan({ ...plan, monthlyPaymentMinor: 34_999 }).base, {
+    status: 'first-payment-too-low',
+  });
+  const noAmortization = compareDebtPlan({
+    ...plan,
+    statementInterestMinor: 0,
+    chargesMinor: 0,
+    monthlyPaymentMinor: 15_000,
+  });
+  assert.deepEqual(noAmortization.base, { status: 'interest-too-high' });
+  assert.equal(noAmortization.extra?.status, 'paid');
+  assert.equal(noAmortization.savings, null);
+  const longPlan = {
+    ...plan,
+    annualRateBasisPoints: 0,
+    statementInterestMinor: 0,
+    chargesMinor: 0,
+    monthlyPaymentMinor: 1,
+    extraMonthlyMinor: 0,
+  };
+  assert.deepEqual(compareDebtPlan(longPlan).base, { status: 'beyond-horizon' });
+  assert.equal(compareDebtPlan(longPlan).extra, null);
+  assert.throws(() => compareDebtPlan({ ...plan, dueAt: plan.statementAt }), /vencimiento/);
+  assert.throws(() => compareDebtPlan({ ...plan, annualRateBasisPoints: 100_001 }), /tasa anual/);
+  assert.ok(validDebtPlans([{ ...plan, id: 'saved' }]));
+  assert.equal(
+    validDebtPlans([
+      { ...plan, id: 'saved' },
+      { ...plan, id: 'saved' },
+    ]),
+    false,
+  );
 });
 test('CORE: goal contributions preserve currency and reuse each transfer only once', () => {
   const goal: SavingsGoal = {

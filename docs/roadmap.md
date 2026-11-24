@@ -25,14 +25,14 @@ La siguiente implementación después de validar el acceso en una APK física es
 
 ## Funcionalidades de negocio por fases
 
-Las siete fases se trabajan en `feat/finanzas-personales-por-fases`. La proyección, las metas de ahorro y los pendientes pueden usarse con la cuenta de prueba.
+Las siete fases se trabajan en `feat/finanzas-personales-por-fases`. La proyección, las metas de ahorro, los pendientes y los planes de pago pueden usarse con la cuenta de prueba.
 
 | Fase | Funcionalidad | Estado y criterio de aceptación |
 | --- | --- | --- |
 | 1 | Disponible hasta el próximo cobro | Implementada. Con DOP 20,000 y DOP 12,000 en vencimientos pendientes, muestra DOP 8,000. Simular DOP 3,000 muestra DOP 5,000. La simulación se descarta al salir y el saldo base se guarda por moneda y modo. |
 | 2 | Metas de ahorro y apartados | Implementada. Crea una meta por moneda, registra aportes y consulta el avance. Cada transferencia propia puede vincularse a una sola meta y conserva su clasificación. Las metas y vínculos se guardan en el dispositivo por modo. |
 | 3 | Pagos y cobros pendientes | Implementada. Registra pagos y cobros con vencimiento, abonos parciales y vínculos a movimientos. La proyección usa el saldo por pagar antes del próximo cobro y contabiliza una vez cada vencimiento de plantilla. |
-| 4 | Plan de pago de tarjetas y préstamos | Pendiente. Registrar corte, vencimiento, capital, intereses y cargos. Comparar un escenario base con un abono adicional y mostrar los supuestos. |
+| 4 | Plan de pago de tarjetas y préstamos | Implementada. Guarda planes locales de tarjetas y préstamos con corte, vencimiento, capital, intereses y cargos. Compara cuotas, fecha estimada e intereses con un abono mensual adicional, con supuestos visibles. |
 | 5 | Dividir gastos por categoría | Pendiente. Las partes deben sumar el importe total en la misma moneda. Conservar una fila en el historial y asignar a cada presupuesto el importe de su parte. |
 | 6 | Cierre mensual personal | Pendiente. Revisar movimientos sin categorizar, pendientes y diferencias contra el presupuesto. Guardar un resumen comparable por mes y moneda. |
 | 7 | Reglas de categorización por comercio | Pendiente. Sugerir categorías para descripciones coincidentes. Permitir confirmar o corregir la sugerencia y aplicar las reglas al registro manual. |
