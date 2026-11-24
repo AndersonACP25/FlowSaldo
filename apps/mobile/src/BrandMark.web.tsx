@@ -2,15 +2,20 @@ import React from 'react';
 import { Image } from 'react-native';
 import type { BrandMarkProps } from './BrandMark';
 import './brand-mark.css';
+import { useTheme } from './theme';
 
 // Metro needs a static require for bundled React Native images.
 // eslint-disable-next-line @typescript-eslint/no-require-imports
 const icon = require('../assets/icon.png');
 
 export function BrandMark({ cover = false }: BrandMarkProps) {
+  const { palette } = useTheme();
   const size = cover ? 108 : 42;
   return (
-    <div className={cover ? 'brand-mark brand-mark--cover' : 'brand-mark'}>
+    <div
+      className={cover ? 'brand-mark brand-mark--cover' : 'brand-mark'}
+      style={{ color: palette.ink }}
+    >
       <Image
         source={icon}
         accessible={false}

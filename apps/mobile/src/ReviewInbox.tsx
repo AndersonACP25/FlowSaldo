@@ -5,14 +5,13 @@ import type { FinancialAccount } from './FinancePanel';
 import { MovementForm, type Draft } from './MovementForm';
 import type { ReviewItem } from './reviews';
 import { Button, Choice } from './ui';
-import { styles as s, palette } from './theme';
+import { useTheme } from './theme';
 export function ReviewInbox({
   items,
   currency,
   month,
   onResolve,
   onDiscard,
-  onOriginal,
   onSuggestion,
   total,
   showHistory = false,
@@ -34,15 +33,14 @@ export function ReviewInbox({
   month: string;
   onResolve: (id: string, draft: Draft) => Promise<void>;
   onDiscard: (id: string) => Promise<void>;
-  onOriginal: (id: string) => Promise<string>;
   onSuggestion?: (id: string) => Promise<Movement | undefined>;
 }) {
+  const { styles: s, palette } = useTheme();
   const [retry, setRetry] = useState<string | null>(null);
   const [movement, setMovement] = useState<Movement | null>(null);
   const [editing, setEditing] = useState<string | null>(null);
   const [suggestion, setSuggestion] = useState<Movement>();
   const [discard, setDiscard] = useState<string | null>(null);
-  const [original, setOriginal] = useState<Record<string, string>>({});
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
   const pending = showHistory ? items : items.filter((i) => i.status === 'REVIEW');
@@ -95,7 +93,7 @@ export function ReviewInbox({
         </View>
       )}
       {pending.map((item) => (
-        <View key={item.id} style={[s.card, { borderColor: '#2d3748' }]}>
+        <View key={item.id} style={s.card}>
           <View style={s.between}>
             <Text style={s.title}>{item.suggestion?.description ?? item.externalId}</Text>
             <Text style={{ color: palette.amber }}>
@@ -239,27 +237,6 @@ export function ReviewInbox({
             ) : (
               <Text style={s.muted}>El movimiento generado ya no está disponible.</Text>
             ))}
-          <Choice
-            label={original[item.id] ? 'Ocultar correo de prueba' : 'Ver correo de prueba'}
-            selected={!!original[item.id]}
-            onPress={() =>
-              void run(async () => {
-                if (original[item.id]) setOriginal((prev) => ({ ...prev, [item.id]: '' }));
-                else {
-                  const body = item.body ?? (await onOriginal(item.id));
-                  setOriginal((prev) => ({
-                    ...prev,
-                    [item.id]: body || 'Sin contenido disponible.',
-                  }));
-                }
-              })
-            }
-          />
-          {!!original[item.id] && (
-            <Text selectable style={s.muted}>
-              {original[item.id]}
-            </Text>
-          )}
         </View>
       ))}
     </View>

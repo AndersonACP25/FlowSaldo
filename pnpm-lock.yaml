@@ -233,6 +233,9 @@ importers:
       '@react-native-async-storage/async-storage':
         specifier: 2.2.0
         version: 2.2.0(react-native@0.88.0(@babel/core@7.29.7(supports-color@8.1.1))(@types/react@19.3.0)(react@19.3.0)(supports-color@8.1.1))
+      '@react-native-community/datetimepicker':
+        specifier: 9.2.1
+        version: 9.2.1(expo@58.0.17)(react-native@0.88.0(@babel/core@7.29.7(supports-color@8.1.1))(@types/react@19.3.0)(react@19.3.0)(supports-color@8.1.1))(react@19.3.0)
       '@tanstack/react-query':
         specifier: ^5.90.0
         version: 5.104.5(@types/react@19.3.0)(react@19.3.0)
@@ -1360,6 +1363,19 @@ packages:
     resolution: {integrity: sha512-gvRvjR5JAaUZF8tv2Kcq/Gbt3JHwbKFYfmb445rhOj6NUMx3qPLixmDx5pZAyb9at1bYvJ4/eTUipU5aki45xw==}
     peerDependencies:
       react-native: ^0.0.0-0 || >=0.65 <1.0
+
+  '@react-native-community/datetimepicker@9.2.1':
+    resolution: {integrity: sha512-P2dir8EcPYuS6g7N/E4jImugB99h2+e1kzNX6Ihg+2T2v5IZ5dB+4afLisG6rdua4YZ1mADYCZ2iqI34sPjIKA==}
+    peerDependencies:
+      expo: '>=52.0.0'
+      react: '*'
+      react-native: '*'
+      react-native-windows: '*'
+    peerDependenciesMeta:
+      expo:
+        optional: true
+      react-native-windows:
+        optional: true
 
   '@react-native/asset-utils@0.88.0':
     resolution: {integrity: sha512-Bj1DxQt5f4OrjdlgSVkZT37Z3hx5hUIN5AUDSqL/e99vgtTcqj5vnm067epZL1EF/QiqsniZO8Q1GSkItOakDg==}
@@ -5688,6 +5704,14 @@ snapshots:
     dependencies:
       merge-options: 3.0.4
       react-native: 0.88.0(@babel/core@7.29.7(supports-color@8.1.1))(@types/react@19.3.0)(react@19.3.0)(supports-color@8.1.1)
+
+  '@react-native-community/datetimepicker@9.2.1(expo@58.0.17)(react-native@0.88.0(@babel/core@7.29.7(supports-color@8.1.1))(@types/react@19.3.0)(react@19.3.0)(supports-color@8.1.1))(react@19.3.0)':
+    dependencies:
+      invariant: 2.2.4
+      react: 19.3.0
+      react-native: 0.88.0(@babel/core@7.29.7(supports-color@8.1.1))(@types/react@19.3.0)(react@19.3.0)(supports-color@8.1.1)
+    optionalDependencies:
+      expo: 58.0.17(@babel/core@7.29.7(supports-color@8.1.1))(@expo/dom-webview@58.0.2)(@expo/metro-runtime@58.0.15)(react-dom@19.3.0(react@19.3.0))(react-native-web@0.21.4(react-dom@19.3.0(react@19.3.0))(react@19.3.0))(react-native@0.88.0(@babel/core@7.29.7(supports-color@8.1.1))(@types/react@19.3.0)(react@19.3.0)(supports-color@8.1.1))(react@19.3.0)(supports-color@8.1.1)(typescript@5.9.3)
 
   '@react-native/asset-utils@0.88.0': {}
 

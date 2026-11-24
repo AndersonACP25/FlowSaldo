@@ -1,3 +1,6 @@
+import { SettingsMenu, settingsSections, type SettingsSection } from './src/SettingsMenu';
+import { ThemeProvider, ThemeSettings } from './src/ThemeProvider';
+import { DateTimeField } from './src/DateTimeField';
 import { AboutApp } from './src/AboutApp';
 import { BankConnections, BankSettings } from './src/BankDirectory';
 import { GmailConnection } from './src/GmailConnection';
@@ -44,11 +47,13 @@ import {
   categoryName,
   categoryKey,
   movementDate,
-  validDate,
   countLabel,
   pendingMailMessage,
   categoryExpenses,
   demoMovements,
+  dominicanDateTime,
+  parseDominicanDateTime,
+  recurringOccurrenceAt,
   dominicanBanks,
   type BankRegistration,
   filterMovements,
@@ -60,7 +65,7 @@ import {
   type Currency,
   type MovementType,
 } from '@flowsaldo/domain';
-import { styles as s, palette } from './src/theme';
+import { useTheme } from './src/theme';
 import { Button, Choice, Field } from './src/ui';
 import { ImportQueue, type ImportStats } from './src/ImportQueue';
 import { MonthlyComparison } from './src/MonthlyComparison';
@@ -120,6 +125,7 @@ function Home({
   onProfileChanged: (owner: Owner) => void;
   accessNotice?: string;
 }) {
+  const { styles: s, palette } = useTheme();
   const confirming = useRef(new Set<string>());
   const [preferences, setPreferences] = useState<Preferences>(defaultPreferences);
   useEffect(() => {
@@ -142,7 +148,7 @@ function Home({
   const tabs = ['Inicio', 'Movimientos', 'Por revisar', 'Conexiones'] as const;
   type Tab = (typeof tabs)[number];
   const [screen, setScreen] = useState<
-    Tab | 'Configuración' | 'Presupuestos' | 'Análisis' | 'Tasas' | 'Acerca de la aplicación'
+    Tab | 'Configuración' | 'Presupuestos' | 'Análisis' | 'Tasas' | SettingsSection
   >('Inicio');
   const [previousTab, setPreviousTab] = useState<Tab>('Inicio');
   const secondary =
@@ -156,12 +162,11 @@ function Home({
     screen === 'Presupuestos' ||
     screen === 'Análisis';
   const showSummary = screen === 'Inicio' || screen === 'Presupuestos' || screen === 'Análisis';
-  const backTo =
-    screen === 'Acerca de la aplicación'
-      ? 'Configuración'
-      : screen === 'Configuración'
-        ? previousTab
-        : 'Inicio';
+  const backTo = settingsSections.some((section) => section === screen)
+    ? 'Configuración'
+    : screen === 'Configuración'
+      ? previousTab
+      : 'Inicio';
   useEffect(() => {
     if (Platform.OS !== 'android' || !secondary) return;
     const subscription = BackHandler.addEventListener('hardwareBackPress', () => {
@@ -171,7 +176,6 @@ function Home({
     return () => subscription.remove();
   }, [backTo, secondary]);
   const [accountFilter, setAccountFilter] = useState('');
-  const [showFinance, setShowFinance] = useState(false);
   const [search, setSearch] = useState('');
   const [type, setType] = useState<MovementType | 'ALL'>('ALL');
   const [reviewStatus, setReviewStatus] = useState<ReviewItem['status'] | 'ALL'>('REVIEW');
@@ -242,7 +246,7 @@ function Home({
   }
   const bankDirectory = useQuery({
     queryKey: ['banks', personal?.owner.id],
-    enabled: !!personal && (screen === 'Configuración' || screen === 'Conexiones'),
+    enabled: !!personal && (screen === 'Mis bancos' || screen === 'Conexiones'),
     retry: false,
     queryFn: async (): Promise<BankRegistration[]> => request('/banks'),
   });
@@ -254,7 +258,10 @@ function Home({
     queryKey: ['accounts', connected],
     enabled:
       connected &&
-      (showFinance || !!editor || screen === 'Por revisar' || screen === 'Movimientos'),
+      (screen === 'Cuentas y conciliación' ||
+        !!editor ||
+        screen === 'Por revisar' ||
+        screen === 'Movimientos'),
     retry: false,
     queryFn: async (): Promise<FinancialAccount[]> => request('/accounts'),
   });
@@ -308,11 +315,14 @@ function Home({
     queryFn: async (): Promise<MonthlySummary> =>
       request(`/summary?month=${month}&currency=${currency}&weekEnd=${periodDate}`),
   });
-  const reviewParams = `${reviewStatus === 'ALL' ? '' : `&status=${reviewStatus}`}${reviewFrom ? `&from=${encodeURIComponent(reviewFrom)}` : ''}${reviewTo ? `&to=${encodeURIComponent(reviewTo)}` : ''}`;
+  const rangeStart = parseDominicanDateTime(reviewFrom);
+  const endMinute = parseDominicanDateTime(reviewTo);
+  const rangeEnd = endMinute ? new Date(endMinute.getTime() + 60_000) : null;
+  const reviewParams = `${reviewStatus === 'ALL' ? '' : `&status=${reviewStatus}`}${rangeStart ? `&from=${encodeURIComponent(rangeStart.toISOString())}` : ''}${rangeEnd ? `&to=${encodeURIComponent(rangeEnd.toISOString())}` : ''}`;
   const reviewDateError =
-    (reviewFrom && !validDate(reviewFrom)) ||
-    (reviewTo && !validDate(reviewTo)) ||
-    (reviewFrom && reviewTo && reviewFrom > reviewTo);
+    (reviewFrom && !rangeStart) ||
+    (reviewTo && !rangeEnd) ||
+    (rangeStart && rangeEnd && rangeStart >= rangeEnd);
   const imports = useInfiniteQuery({
     queryKey: ['imports', connected, reviewParams],
     enabled: connected && !reviewDateError,
@@ -331,8 +341,8 @@ function Home({
     : local.reviews.filter(
         (i) =>
           (reviewStatus === 'ALL' || i.status === reviewStatus) &&
-          (!reviewFrom || (!!i.createdAt && i.createdAt.slice(0, 10) >= reviewFrom)) &&
-          (!reviewTo || (!!i.createdAt && i.createdAt.slice(0, 10) <= reviewTo)),
+          (!rangeStart || (!!i.createdAt && Date.parse(i.createdAt) >= rangeStart.getTime())) &&
+          (!rangeEnd || (!!i.createdAt && Date.parse(i.createdAt) < rangeEnd.getTime())),
       );
   const pending = connected
     ? (imports.data?.pages[0]?.pendingTotal ?? 0)
@@ -529,12 +539,13 @@ function Home({
       categoryId: draft.categoryId,
       category: draft.category,
     };
+    const [startDate, timeOfDay] = dominicanDateTime(new Date(draft.occurredAt)).split('T');
     if (connected) {
       await request(id ? `/recurring/${id}` : '/recurring', {
         method: id ? 'PATCH' : 'POST',
         body: JSON.stringify({
           ...data,
-          ...(id ? {} : { startDate: draft.occurredAt.slice(0, 10) }),
+          ...(id ? {} : { startDate, timeOfDay }),
         }),
       });
       await recurringQuery.refetch();
@@ -544,15 +555,20 @@ function Home({
         localRef.current.categories,
         draft.categoryId ?? undefined,
         draft.category,
-        existing ? { ...existing, occurredAt: existing.nextDate + 'T12:00:00.000Z' } : undefined,
+        existing
+          ? {
+              ...existing,
+              occurredAt: recurringOccurrenceAt(existing.nextDate, existing.timeOfDay),
+            }
+          : undefined,
       );
-      const startDate = draft.occurredAt.slice(0, 10);
       const item: RecurringTemplate = {
         ...data,
         ...category,
         version: existing ? existing.version + 1 : 0,
         id: id ?? `recurring-${Date.now()}-${Math.random().toString(36).slice(2)}`,
         startDate: existing?.startDate ?? startDate,
+        timeOfDay: existing ? existing.timeOfDay : timeOfDay,
         nextDate: existing?.nextDate ?? startDate,
         anchorDay: existing?.anchorDay ?? Number(startDate.slice(8)),
         active: existing?.active ?? true,
@@ -602,7 +618,7 @@ function Home({
         const occurrence = prepareOccurrence(
           existing,
           template.nextDate,
-          new Date().toISOString().slice(0, 10),
+          new Date().toISOString(),
           localRef.current.receipts,
         );
         const movement: Movement = {
@@ -933,9 +949,9 @@ function Home({
             {screen === 'Inicio' && (!connected || totals.isSuccess) && (
               <>
                 <View style={s.hero}>
-                  <Text style={s.white}>Diferencia registrada · {month}</Text>
+                  <Text style={s.heroText}>Diferencia registrada · {month}</Text>
                   <Text style={s.heroValue}>{money(summary.differenceMinor, currency)}</Text>
-                  <Text style={s.white}>
+                  <Text style={s.heroText}>
                     Ingresos menos gastos. No equivale al saldo del banco.
                   </Text>
                 </View>
@@ -954,7 +970,7 @@ function Home({
                   </View>
                 </View>
                 {pending > 0 && (
-                  <View style={[s.card, { borderColor: '#53412b' }]}>
+                  <View style={[s.card, { borderColor: palette.amber }]}>
                     <View style={s.between}>
                       <Text style={s.text}>{pendingMailMessage(pending)}</Text>
                       <Button label="Ir a revisiones" onPress={() => setScreen('Por revisar')} />
@@ -1378,111 +1394,97 @@ function Home({
                 onPress={() => void query.fetchNextPage()}
               />
             )}
+            {screen === 'Configuración' && (
+              <SettingsMenu personal={!!personal} connected={connected} onOpen={setScreen} />
+            )}
             {screen === 'Acerca de la aplicación' && <AboutApp />}
-            {screen === 'Configuración' && (
-              <>
-                <Choice
-                  label="Acerca de la aplicación"
-                  selected={false}
-                  onPress={() => setScreen('Acerca de la aplicación')}
+            {screen === 'Apariencia' && <ThemeSettings />}
+            {screen === 'Mis bancos' &&
+              (!connected || bankDirectory.isSuccess ? (
+                <BankSettings
+                  banks={banks}
+                  busy={busy}
+                  local={!connected}
+                  onChange={(id, registered) => void action(() => changeBank(id, registered))}
                 />
-                {(!connected || bankDirectory.isSuccess) && (
-                  <BankSettings
-                    banks={banks}
-                    busy={busy}
-                    local={!connected}
-                    onChange={(id, registered) => void action(() => changeBank(id, registered))}
-                  />
-                )}
-                {personal && !bankDirectory.isSuccess && (
-                  <View style={s.card}>
-                    <Text style={s.title}>Mis bancos</Text>
-                    <Text style={s.muted}>
-                      {bankDirectory.isError
-                        ? 'No se pudieron cargar los bancos.'
-                        : 'Cargando bancos…'}
-                    </Text>
-                    {bankDirectory.isError && (
-                      <Choice
-                        label="Reintentar bancos"
-                        selected={false}
-                        onPress={() => void bankDirectory.refetch()}
-                      />
-                    )}
-                  </View>
-                )}
-              </>
-            )}
-            {screen === 'Configuración' && connected && (
-              <>
-                <Button
-                  label={
-                    showFinance
-                      ? 'Ocultar cuentas y conciliación'
-                      : 'Administrar cuentas y conciliación'
-                  }
-                  onPress={() => setShowFinance((v) => !v)}
-                />
-                {showFinance &&
-                  (accountsQuery.isSuccess ? (
-                    <FinancePanel
-                      items={accountsQuery.data}
-                      request={request}
-                      money={money}
-                      onRefresh={async () => {
-                        await accountsQuery.refetch();
-                      }}
+              ) : (
+                <View style={s.card}>
+                  <Text style={s.muted}>
+                    {bankDirectory.isError
+                      ? 'No se pudieron cargar los bancos.'
+                      : 'Cargando bancos…'}
+                  </Text>
+                  {bankDirectory.isError && (
+                    <Choice
+                      label="Reintentar bancos"
+                      selected={false}
+                      onPress={() => void bankDirectory.refetch()}
                     />
-                  ) : (
-                    <View style={s.card}>
-                      <Text style={s.muted}>
-                        {accountsQuery.error
-                          ? 'No se pudieron cargar las cuentas.'
-                          : 'Cargando cuentas…'}
-                      </Text>
-                      <Button
-                        label="Reintentar cuentas"
-                        onPress={() => void accountsQuery.refetch()}
-                      />
-                    </View>
-                  ))}
+                  )}
+                </View>
+              ))}
+            {screen === 'Cuentas y conciliación' &&
+              connected &&
+              (accountsQuery.isSuccess ? (
+                <FinancePanel
+                  items={accountsQuery.data}
+                  request={request}
+                  money={money}
+                  onRefresh={async () => {
+                    await accountsQuery.refetch();
+                  }}
+                />
+              ) : (
+                <View style={s.card}>
+                  <Text style={s.muted}>
+                    {accountsQuery.error
+                      ? 'No se pudieron cargar las cuentas.'
+                      : 'Cargando cuentas…'}
+                  </Text>
+                  {accountsQuery.error && (
+                    <Button
+                      label="Reintentar cuentas"
+                      onPress={() => void accountsQuery.refetch()}
+                    />
+                  )}
+                </View>
+              ))}
+            {screen === 'Mi cuenta' &&
+              (personal ? (
+                <PersonalAccount
+                  session={personal}
+                  onLogout={onLogout}
+                  onPasswordChanged={onExpired}
+                  onProfileChanged={onProfileChanged}
+                />
+              ) : (
+                <View style={s.card}>
+                  <Text style={s.title}>{testAccount.name}</Text>
+                  <Text style={s.muted}>{testAccount.email}</Text>
+                  <Button label="Ver inicio de sesión" onPress={() => onAuth('login')} />
+                  <Choice label="Registrarse" selected={false} onPress={() => onAuth('register')} />
+                  <IconButton icon="logout" label="Cerrar sesión" onPress={() => void onLogout()} />
+                </View>
+              ))}
+            {screen === 'Notificaciones' && personal && <NotificationSettings />}
+            {screen === 'Correo y Gmail' && personal && <GmailConnection token={personal.token} />}
+            {screen === 'Seguridad y privacidad' && personal && (
+              <>
+                <RecoverySettings token={personal.token} />
+                <DataRetention
+                  token={personal.token}
+                  onApplied={async () => {
+                    await Promise.all([
+                      client.invalidateQueries({ queryKey: ['imports'] }),
+                      client.invalidateQueries({ queryKey: ['import-stats'] }),
+                    ]);
+                  }}
+                />
               </>
             )}
-
-            {screen === 'Configuración' && personal && (
-              <PersonalAccount
-                session={personal}
-                onLogout={onLogout}
-                onPasswordChanged={onExpired}
-                onProfileChanged={onProfileChanged}
-              />
-            )}
-            {screen === 'Configuración' && !personal && (
-              <View style={s.card}>
-                <Text style={s.title}>{testAccount.name}</Text>
-                <Text style={s.muted}>{testAccount.email}</Text>
-                <IconButton icon="logout" label="Cerrar sesión" onPress={() => void onLogout()} />
-              </View>
-            )}
-            {screen === 'Configuración' && personal && <NotificationSettings />}
-            {screen === 'Configuración' && personal && <GmailConnection token={personal.token} />}
-            {screen === 'Configuración' && personal && <RecoverySettings token={personal.token} />}
-            {screen === 'Configuración' && personal && (
-              <DataRetention
-                token={personal.token}
-                onApplied={async () => {
-                  await Promise.all([
-                    client.invalidateQueries({ queryKey: ['imports'] }),
-                    client.invalidateQueries({ queryKey: ['import-stats'] }),
-                  ]);
-                }}
-              />
-            )}
-            {screen === 'Configuración' && (
+            {screen === 'Preferencias' && (
               <AccountSettings
-                personal={!!personal}
                 preferences={preferences}
-                onAuth={onAuth}
                 onSave={async (value) => {
                   await savePreferences(value);
                   setPreferences(value);
@@ -1490,7 +1492,7 @@ function Home({
                 }}
               />
             )}
-            {screen === 'Configuración' && catalogReady && (
+            {screen === 'Administrar categorías' && catalogReady && (
               <CategoryManager
                 items={categoryCatalog}
                 onSave={saveCategory}
@@ -1532,28 +1534,28 @@ function Home({
                       />
                     ))}
                   </FilterRow>
-                  <Text style={s.label}>Fecha de recepción</Text>
+                  <Text style={s.label}>Fecha de recepción · hora dominicana</Text>
                   <View style={filterStyles.dates}>
                     <View style={filterStyles.date}>
-                      <Field
-                        label="Recibido desde (AAAA-MM-DD)"
+                      <DateTimeField
+                        label="Recibido desde"
                         value={reviewFrom}
-                        onChangeText={setReviewFrom}
-                        maxLength={10}
+                        onChange={setReviewFrom}
+                        clearable
                       />
                     </View>
                     <View style={filterStyles.date}>
-                      <Field
-                        label="Recibido hasta (AAAA-MM-DD)"
+                      <DateTimeField
+                        label="Recibido hasta"
                         value={reviewTo}
-                        onChangeText={setReviewTo}
-                        maxLength={10}
+                        onChange={setReviewTo}
+                        clearable
                       />
                     </View>
                   </View>
                   {!!reviewDateError && (
                     <Text accessibilityRole="alert" style={s.error}>
-                      Escribe fechas válidas en orden: desde debe ser anterior o igual a hasta.
+                      Selecciona fechas y horas válidas. El inicio debe ser anterior o igual al fin.
                     </Text>
                   )}
                   <Button
@@ -1612,7 +1614,6 @@ function Home({
                           ? async (id) => (await request(`/imports/${id}`)).suggestion
                           : undefined
                       }
-                      onOriginal={async (id) => (await request(`/imports/${id}`)).body}
                     />
                   )}
               </>
@@ -1634,7 +1635,7 @@ function Home({
                   failed={bankDirectory.isError}
                   onSettings={() => {
                     setPreviousTab('Conexiones');
-                    setScreen('Configuración');
+                    setScreen(connected && !personal ? 'Mi cuenta' : 'Mis bancos');
                   }}
                 />
                 <Text style={s.title}>Centro de conexiones</Text>
@@ -1775,14 +1776,6 @@ function Home({
                     />
                   )}
                 </View>
-                <View style={s.card}>
-                  <Text style={s.title}>FlowSaldo 0.10</Text>
-                  <Text style={s.muted}>
-                    Dark Slate, esmeralda y cian, según DESIGN.md. Una base personal para aprender,
-                    registrar y revisar tus movimientos. Cuentas y conciliación manual disponibles
-                    en modo API. La sincronización de avisos bancarios sigue pendiente.
-                  </Text>
-                </View>
               </>
             )}
           </>
@@ -1820,6 +1813,15 @@ function Home({
   );
 }
 export default function App() {
+  return (
+    <ThemeProvider>
+      <FlowSaldo />
+    </ThemeProvider>
+  );
+}
+
+function FlowSaldo() {
+  const { styles: s, palette } = useTheme();
   const [route, setRoute] = useState<AuthRoute | 'demo' | 'personal'>('login');
   const [personal, setPersonal] = useState<PersonalSession>();
   const [cover, setCover] = useState(true);

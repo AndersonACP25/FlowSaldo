@@ -3,7 +3,7 @@ import React, { useState } from 'react';
 import { View, Text } from 'react-native';
 import { budgetStatus, parseAmount, type Category, type Currency } from '@flowsaldo/domain';
 import { Button, Choice, Field } from './ui';
-import { styles as s, palette } from './theme';
+import { useTheme } from './theme';
 export function BudgetProgress({
   spent,
   limit,
@@ -15,6 +15,7 @@ export function BudgetProgress({
   money: (minor: number, currency: Currency) => string;
   currency: Currency;
 }) {
+  const { styles: s, palette } = useTheme();
   const status = budgetStatus(spent, limit);
   const color =
     status.state === 'exceeded'
@@ -70,6 +71,7 @@ export function CategoryBudgets({
   money: (minor: number, currency: Currency) => string;
   currency: Currency;
 }) {
+  const { styles: s } = useTheme();
   const [selected, setSelected] = useState('');
   const [input, setInput] = useState('');
   const [busy, setBusy] = useState(false);

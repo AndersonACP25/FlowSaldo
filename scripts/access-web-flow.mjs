@@ -173,7 +173,7 @@ export async function checkAccessFlow(browser) {
     assert.equal(await page.getByLabel('Contraseña', { exact: true }).inputValue(), '');
     await page.getByLabel('Contraseña', { exact: true }).fill(password);
     await button('Entrar').click();
-    await page.getByRole('button', { name: 'Opciones de Inicio', exact: true }).waitFor();
+    await page.getByRole('button', { name: 'Menú de Inicio', exact: true }).waitFor();
     const persisted = await page.evaluate(() =>
       JSON.stringify({ local: { ...localStorage }, session: { ...sessionStorage } }),
     );
@@ -182,8 +182,11 @@ export async function checkAccessFlow(browser) {
       'Browser credentials stay out of web storage',
     );
     await button('Configuración').click();
-    await page.getByText('Cuenta personal', { exact: true }).waitFor();
+    await button('Correo y Gmail').click();
     await page.getByText('Gmail sin configurar en el servidor.', { exact: true }).waitFor();
+    await button('Volver').click();
+    await button('Mi cuenta').click();
+    await page.getByText('Cuenta personal', { exact: true }).waitFor();
     await button('Editar perfil').click();
     await page.getByLabel('Nombre de la cuenta', { exact: true }).fill('Anderson Castillo');
     await page.getByLabel('Correo de la cuenta', { exact: true }).fill('nuevo@correo.test');
@@ -192,8 +195,10 @@ export async function checkAccessFlow(browser) {
     await page.getByText('Perfil actualizado.', { exact: true }).waitFor();
     await page.getByText('Anderson Castillo · nuevo@correo.test', { exact: true }).waitFor();
     await button('Volver').click();
+    await button('Volver').click();
     await button('Configuración').getByText('AC', { exact: true }).waitFor();
     await button('Configuración').click();
+    await button('Seguridad y privacidad').click();
     await page.getByLabel('Contraseña para gestionar códigos', { exact: true }).fill(password);
     await button('Generar códigos de recuperación').click();
     await page.getByText(recoveryCode, { exact: true }).waitFor();
@@ -214,6 +219,8 @@ export async function checkAccessFlow(browser) {
         exact: true,
       })
       .waitFor();
+    await button('Volver').click();
+    await button('Mi cuenta').click();
     await button('Cerrar sesión').click();
     await page.getByText('Sesión cerrada.', { exact: true }).waitFor();
     await button('Recuperar cuenta con código').click();
@@ -232,6 +239,7 @@ export async function checkAccessFlow(browser) {
     await page.getByLabel('Contraseña', { exact: true }).fill(recoveredPassword);
     await button('Entrar').click();
     await button('Configuración').click();
+    await button('Mi cuenta').click();
     await page.getByLabel('Contraseña actual', { exact: true }).fill(recoveredPassword);
     await page.getByLabel('Nueva contraseña', { exact: true }).fill(updated);
     await page.getByLabel('Confirmar nueva contraseña', { exact: true }).fill(updated);
@@ -242,6 +250,7 @@ export async function checkAccessFlow(browser) {
     await page.getByLabel('Contraseña', { exact: true }).fill(updated);
     await button('Entrar').click();
     await button('Configuración').click();
+    await button('Mi cuenta').click();
     await button('Cerrar sesión').click();
     await page.getByText('Sesión cerrada.', { exact: true }).waitFor();
     assert.equal(loggedOut, true);

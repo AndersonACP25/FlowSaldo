@@ -2,11 +2,12 @@ import React from 'react';
 import { Alert, Linking, Platform, Text, View } from 'react-native';
 import { applicationId, nativeApplicationVersion, nativeBuildVersion } from 'expo-application';
 import { expo } from '../app.json';
-import { styles as s } from './theme';
+import { useTheme } from './theme';
 
 const repository = 'https://github.com/AndersonACP25/FlowSaldo';
 
 export function AboutApp() {
+  const { styles: s } = useTheme();
   const installedApk = Platform.OS === 'android' && applicationId === expo.android.package;
   const version = (installedApk && nativeApplicationVersion) || expo.version;
   return (

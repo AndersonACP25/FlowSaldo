@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { Image, Pressable, StyleSheet } from 'react-native';
-import { palette, styles as s } from './theme';
+import { useTheme } from './theme';
 
 // Metro resolves bundled images through static require calls.
 /* eslint-disable @typescript-eslint/no-require-imports */
@@ -12,6 +12,12 @@ const icons = {
   copy: require('../assets/icons/copy.png'),
   trash: require('../assets/icons/trash.png'),
   calendar: require('../assets/icons/calendar.png'),
+  menu: require('../assets/icons/menu.png'),
+  close: require('../assets/icons/close.png'),
+  archive: require('../assets/icons/archive.png'),
+  restore: require('../assets/icons/restore.png'),
+  add: require('../assets/icons/add.png'),
+  check: require('../assets/icons/check.png'),
 };
 /* eslint-enable @typescript-eslint/no-require-imports */
 
@@ -28,6 +34,7 @@ export function IconButton({
   disabled?: boolean;
   danger?: boolean;
 }) {
+  const { styles: s, palette } = useTheme();
   const [focused, setFocused] = useState(false);
   return (
     <Pressable
@@ -39,7 +46,8 @@ export function IconButton({
       onBlur={() => setFocused(false)}
       style={({ pressed }) => [
         styles.button,
-        focused && styles.focused,
+        { borderColor: palette.border, backgroundColor: palette.raised },
+        focused && { borderColor: palette.primary },
         pressed && s.selected,
         disabled && s.disabled,
       ]}
@@ -47,7 +55,7 @@ export function IconButton({
       <Image
         source={icons[icon]}
         accessible={false}
-        style={[styles.icon, danger && styles.danger]}
+        style={[styles.icon, { tintColor: danger ? palette.danger : palette.ink }]}
       />
     </Pressable>
   );
@@ -61,14 +69,10 @@ const styles = StyleSheet.create({
     paddingHorizontal: 10,
     borderRadius: 12,
     borderWidth: 1,
-    borderColor: palette.border,
-    backgroundColor: palette.raised,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
     gap: 8,
   },
-  focused: { borderColor: palette.primary },
-  icon: { width: 21, height: 21, tintColor: palette.ink },
-  danger: { tintColor: palette.danger },
+  icon: { width: 21, height: 21 },
 });

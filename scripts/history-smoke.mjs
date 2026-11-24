@@ -112,6 +112,11 @@ export async function checkHistory(request, connectionString) {
       (await get('/imports?page=true&status=DISMISSED&from=2040-01-02&to=2040-01-02')).total,
       1,
     );
+    const minute = await get(
+      '/imports?page=true&from=2040-01-01T19%3A59%3A00-04%3A00&to=2040-01-02T00%3A00%3A00Z',
+    );
+    assert.equal(minute.total, 105);
+    assert.ok(minute.items.every((item) => item.status === 'REVIEW'));
     for (const path of [
       '/movements?page=true&cursor=invalid',
       '/movements?page=true&limit=201',

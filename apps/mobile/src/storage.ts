@@ -2,6 +2,7 @@ import { demoReviews, type ReviewItem } from './reviews';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import {
   upgradeCategories,
+  validClockTime,
   validDate,
   type RecurringReceipt,
   type RecurringTemplate,
@@ -87,6 +88,7 @@ export async function loadLocal(): Promise<LocalData | null> {
         !['DOP', 'USD'].includes(t.currency) ||
         !['INCOME', 'EXPENSE', 'TRANSFER'].includes(t.type) ||
         !validDate(t.startDate) ||
+        (t.timeOfDay != null && !validClockTime(t.timeOfDay)) ||
         !validDate(t.nextDate) ||
         t.nextDate < t.startDate ||
         !Number.isInteger(t.anchorDay) ||

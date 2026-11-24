@@ -1,4 +1,5 @@
 import { validDate, type Movement } from './index.ts';
+import { parseDominicanDateTime } from './dateTime.ts';
 export interface RecurringTemplate {
   id: string;
   version: number;
@@ -9,6 +10,7 @@ export interface RecurringTemplate {
   category: string;
   categoryId: string;
   startDate: string;
+  timeOfDay?: string | null;
   nextDate: string;
   anchorDay: number;
   active: boolean;
@@ -32,21 +34,38 @@ export function nextMonthlyDate(date: string, anchorDay: number): string {
   if (!validDate(result)) throw new Error('Fecha fuera de rango.');
   return result;
 }
+export function recurringOccurrenceAt(date: string, timeOfDay?: string | null) {
+  if (!timeOfDay) return date + 'T12:00:00.000Z';
+  const timestamp = parseDominicanDateTime(date + 'T' + timeOfDay);
+  if (!timestamp) throw new Error('Fecha y hora de recurrencia inválidas.');
+  return timestamp.toISOString();
+}
+
+export function recurringIsDue(
+  template: Pick<RecurringTemplate, 'nextDate' | 'timeOfDay'>,
+  now: Date,
+) {
+  return template.timeOfDay
+    ? Date.parse(recurringOccurrenceAt(template.nextDate, template.timeOfDay)) <= now.getTime()
+    : template.nextDate <= now.toISOString().slice(0, 10);
+}
+
 export function prepareOccurrence(
   template: RecurringTemplate,
   scheduledFor: string,
-  today: string,
+  now: string,
   receipts: RecurringReceipt[] = [],
 ) {
   if (!template.active) throw new Error('La plantilla está pausada.');
   if (
     !validDate(scheduledFor) ||
-    !validDate(today) ||
+    (now.length === 10 ? !validDate(now) : !Number.isFinite(Date.parse(now))) ||
     scheduledFor !== template.nextDate ||
     receipts.some((r) => r.templateId === template.id && r.scheduledFor === scheduledFor)
   )
     throw new Error('El vencimiento ya se registró o cambió. Actualiza la lista.');
-  if (scheduledFor > today) throw new Error('El vencimiento todavía no ha llegado.');
+  if (!recurringIsDue(template, new Date(now)))
+    throw new Error('El vencimiento todavía no ha llegado.');
   return {
     nextDate: nextMonthlyDate(scheduledFor, template.anchorDay),
     movement: {
@@ -56,7 +75,7 @@ export function prepareOccurrence(
       type: template.type,
       category: template.category,
       categoryId: template.categoryId,
-      occurredAt: scheduledFor + 'T12:00:00.000Z',
+      occurredAt: recurringOccurrenceAt(scheduledFor, template.timeOfDay),
     },
   };
 }

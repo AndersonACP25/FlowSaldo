@@ -89,6 +89,7 @@ model RecurringTemplate {
  categoryId String
  categoryRef Category @relation(fields: [categoryId], references: [id], onDelete: Restrict)
  startDate String
+ timeOfDay String?
  nextDate String
  anchorDay Int
  active Boolean @default(true)

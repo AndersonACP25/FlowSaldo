@@ -124,13 +124,13 @@ export async function checkFinanceFlow(browser) {
       .getByLabel('Token de desarrollo', { exact: true })
       .fill('synthetic-finance-token-123456789');
     await button('Conectar API').click();
-    await page.getByRole('button', { name: 'Opciones de Inicio', exact: true }).waitFor();
+    await page.getByRole('button', { name: 'Menú de Inicio', exact: true }).waitFor();
   }
   try {
     await page.goto('http://127.0.0.1:8082', { waitUntil: 'networkidle' });
     await connect();
     await button('Configuración').click();
-    await button('Administrar cuentas y conciliación').click();
+    await button('Cuentas y conciliación').click();
     await page.getByText('Crear cuenta', { exact: true }).waitFor();
     await page.getByLabel('Nombre de la nueva cuenta', { exact: true }).fill('Banco CORE');
     await page.getByLabel('Saldo inicial de la cuenta', { exact: true }).fill('1000');
@@ -141,6 +141,7 @@ export async function checkFinanceFlow(browser) {
     await page.getByLabel('Saldo inicial de la cuenta', { exact: true }).fill('-500');
     await button('Crear cuenta financiera').click();
     await page.getByText('Tarjeta CORE', { exact: true }).waitFor();
+    await button('Volver').click();
     await button('Volver').click();
     await button('+ Nuevo movimiento').click();
     await page.getByLabel('Descripción', { exact: true }).fill('Pago tarjeta CORE');
@@ -153,6 +154,7 @@ export async function checkFinanceFlow(browser) {
     assert.equal(movements.length, 1);
     assert.equal(accounts[1].debtMinor, 24971);
     await button('Configuración').click();
+    await button('Cuentas y conciliación').click();
     await button('Gestionar Banco CORE').click();
     await page.getByLabel('Fecha de conciliación (AAAA-MM-DD)', { exact: true }).fill(today);
     await page.getByLabel('Saldo del estado de cuenta', { exact: true }).fill('749.71');
@@ -163,8 +165,9 @@ export async function checkFinanceFlow(browser) {
       .waitFor();
     assert.equal(reconciled, true);
     await button('Volver').click();
+    await button('Volver').click();
     await button('Inicio').click();
-    await button('Opciones de Inicio').click();
+    await button('Menú de Inicio').click();
     await button('Ver presupuestos').click();
     await page.getByLabel('Nuevo límite mensual', { exact: true }).fill('900');
     await button('Guardar presupuesto').click();
@@ -172,7 +175,7 @@ export async function checkFinanceFlow(browser) {
     assert.equal(budget.limitMinor, 90000);
     await page.reload({ waitUntil: 'networkidle' });
     await connect();
-    await button('Opciones de Inicio').click();
+    await button('Menú de Inicio').click();
     await button('Ver presupuestos').click();
     await page.getByText('0% utilizado · DOP 900.00', { exact: true }).waitFor();
     assert.equal(budget.version, 1);

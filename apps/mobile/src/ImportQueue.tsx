@@ -1,6 +1,6 @@
 import React from 'react';
 import { Text, View } from 'react-native';
-import { styles as s } from './theme';
+import { useTheme } from './theme';
 import { Button } from './ui';
 export interface ImportStats {
   counts: {
@@ -29,6 +29,7 @@ export function ImportQueue({
   onRefresh: () => void;
   onErrors: () => void;
 }) {
+  const { styles: s } = useTheme();
   return (
     <View style={s.card}>
       <Text style={s.title}>Estado de importaciones</Text>

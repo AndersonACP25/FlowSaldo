@@ -1,7 +1,7 @@
 import React from 'react';
 import { Text, View } from 'react-native';
 import { dailyCashFlow, type Currency, type Movement } from '@flowsaldo/domain';
-import { styles as s, palette } from './theme';
+import { useTheme } from './theme';
 export function WeeklyFlow({
   rows,
   end,
@@ -13,6 +13,7 @@ export function WeeklyFlow({
   currency: Currency;
   days?: ReturnType<typeof dailyCashFlow>;
 }) {
+  const { styles: s, palette } = useTheme();
   const days =
     aggregated ??
     dailyCashFlow(

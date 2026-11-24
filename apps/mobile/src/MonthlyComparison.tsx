@@ -1,7 +1,7 @@
 import React from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 import { type changeSince, type Currency } from '@flowsaldo/domain';
-import { styles as s, palette } from './theme';
+import { useTheme } from './theme';
 
 export interface Comparison {
   previousMonth: string;
@@ -20,6 +20,7 @@ export function MonthlyComparison({
   currency: Currency;
   hideAmounts: boolean;
 }) {
+  const { styles: s, palette } = useTheme();
   return (
     <View style={s.card}>
       <Text style={s.title}>Comparación con el mes anterior</Text>
@@ -35,7 +36,7 @@ export function MonthlyComparison({
           const tone =
             value.deltaMinor === 0 ? palette.muted : favorable ? palette.income : palette.expense;
           return (
-            <View key={key} style={styles.metric}>
+            <View key={key} style={[styles.metric, { backgroundColor: palette.raised }]}>
               <View style={s.between}>
                 <Text style={s.label}>{key === 'income' ? 'Ingresos' : 'Gastos'}</Text>
                 {!hideAmounts && (
@@ -58,7 +59,7 @@ export function MonthlyComparison({
                     <Text style={s.text}>{money(amount, currency)}</Text>
                   </View>
                   {!hideAmounts && (
-                    <View style={styles.track}>
+                    <View style={[styles.track, { backgroundColor: palette.soft }]}>
                       <View
                         style={{
                           height: 5,
@@ -86,9 +87,8 @@ const styles = StyleSheet.create({
     padding: 14,
     gap: 10,
     borderRadius: 14,
-    backgroundColor: palette.raised,
   },
   series: { gap: 4 },
   change: { fontSize: 13, fontWeight: '700' },
-  track: { height: 5, borderRadius: 5, backgroundColor: palette.soft },
+  track: { height: 5, borderRadius: 5 },
 });

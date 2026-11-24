@@ -1,9 +1,15 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { View, Text } from 'react-native';
-import type { Category, Currency, RecurringTemplate } from '@flowsaldo/domain';
+import {
+  recurringIsDue,
+  recurringOccurrenceAt,
+  type Category,
+  type Currency,
+  type RecurringTemplate,
+} from '@flowsaldo/domain';
 import { MovementForm, type Draft } from './MovementForm';
 import { Button } from './ui';
-import { styles as s } from './theme';
+import { useTheme } from './theme';
 export function RecurringPanel({
   items,
   categories,
@@ -23,12 +29,17 @@ export function RecurringPanel({
   onConfirm: (template: RecurringTemplate) => Promise<void>;
   money: (value: number, currency: Currency) => string;
 }) {
+  const { styles: s } = useTheme();
   const [editor, setEditor] = useState<RecurringTemplate | 'new' | null>(null);
   const [confirm, setConfirm] = useState<string>();
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   const [notice, setNotice] = useState('');
-  const today = new Date().toISOString().slice(0, 10);
+  const [now, setNow] = useState(() => new Date());
+  useEffect(() => {
+    const timer = setInterval(() => setNow(new Date()), 15_000);
+    return () => clearInterval(timer);
+  }, []);
   async function run(work: () => Promise<void>, message: string) {
     setError('');
     setNotice('');
@@ -65,10 +76,11 @@ export function RecurringPanel({
           title={editor === 'new' ? 'Crear plantilla mensual' : 'Editar plantilla mensual'}
           editing={editor !== 'new'}
           fixedDate={editor !== 'new'}
+          recurringDateTime={editor === 'new'}
           movement={
             editor === 'new'
               ? undefined
-              : { ...editor, occurredAt: editor.nextDate + 'T12:00:00.000Z' }
+              : { ...editor, occurredAt: recurringOccurrenceAt(editor.nextDate, editor.timeOfDay) }
           }
           onSave={async (draft) => {
             await onSave(draft, editor === 'new' ? undefined : editor.id);
@@ -96,12 +108,13 @@ export function RecurringPanel({
           </Text>
           <Text style={s.muted}>
             {item.active
-              ? item.nextDate <= today
+              ? recurringIsDue(item, now)
                 ? 'Pendiente de registrar'
                 : 'Próximo vencimiento'
               : 'Pausada'}
-            : {item.nextDate} · Día {item.anchorDay} de cada mes (ajustado al último día si hace
-            falta).
+            : {item.nextDate}
+            {item.timeOfDay ? ` · ${item.timeOfDay}` : ''} · Día {item.anchorDay} de cada mes
+            (ajustado al último día si hace falta).
           </Text>
           <View style={s.row}>
             <Button
@@ -122,7 +135,7 @@ export function RecurringPanel({
               <Button
                 label={`Registrar vencimiento ${item.description}`}
                 text="Registrar vencimiento"
-                disabled={busy || item.nextDate > today}
+                disabled={busy || !recurringIsDue(item, now)}
                 onPress={() => setConfirm(item.id)}
               />
             )}
@@ -130,8 +143,8 @@ export function RecurringPanel({
           {confirm === item.id && (
             <>
               <Text style={s.muted}>
-                ¿Registrar {money(item.amountMinor, item.currency)} con fecha {item.nextDate}? Esta
-                acción crea un movimiento.
+                ¿Registrar {money(item.amountMinor, item.currency)} con fecha {item.nextDate}
+                {item.timeOfDay ? ` a las ${item.timeOfDay}` : ''}? Esta acción crea un movimiento.
               </Text>
               <View style={s.row}>
                 <Button

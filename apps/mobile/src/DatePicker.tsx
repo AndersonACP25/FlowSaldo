@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { View, Text } from 'react-native';
 import { validDate } from '@flowsaldo/domain';
 import { Button, Choice, Field } from './ui';
-import { styles as s } from './theme';
+import { useTheme } from './theme';
 export function DatePicker({
   value,
   onChange,
@@ -10,6 +10,7 @@ export function DatePicker({
   value: string;
   onChange: (date: string) => void;
 }) {
+  const { styles: s } = useTheme();
   const [open, setOpen] = useState(false);
   const [month, setMonth] = useState(value.slice(0, 7));
   function move(delta: number) {

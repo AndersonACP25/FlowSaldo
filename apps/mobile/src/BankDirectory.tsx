@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { ActivityIndicator, Text, View } from 'react-native';
 import type { BankRegistration } from '@flowsaldo/domain';
-import { palette, styles as s } from './theme';
+import { useTheme } from './theme';
 import { Choice, Field } from './ui';
 
 const searchKey = (value: string) =>
@@ -22,6 +22,7 @@ export function BankSettings({
   local: boolean;
   onChange: (id: string, registered: boolean) => void;
 }) {
+  const { styles: s } = useTheme();
   const [editing, setEditing] = useState(false);
   const [search, setSearch] = useState('');
   const registered = banks.filter((bank) => bank.registered);
@@ -97,6 +98,7 @@ export function BankConnections({
   failed: boolean;
   onSettings: () => void;
 }) {
+  const { styles: s, palette } = useTheme();
   const registered = banks.filter((bank) => bank.registered);
   return (
     <View style={s.card}>

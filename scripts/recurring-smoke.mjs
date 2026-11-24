@@ -15,6 +15,7 @@ export async function checkRecurring(request) {
     type: 'EXPENSE',
     categoryId: category.id,
     startDate: '2026-01-31',
+    timeOfDay: '10:15',
   });
   assert.equal(response.status, 201);
   const t = await response.json();
@@ -26,6 +27,8 @@ export async function checkRecurring(request) {
   const results = await Promise.all([confirm(), confirm()]);
   assert.deepEqual(results.map((r) => r.status).sort(), [201, 409]);
   const result = await results.find((r) => r.status === 201).json();
+  assert.equal(t.timeOfDay, '10:15');
+  assert.equal(result.movement.occurredAt, '2026-01-31T14:15:00.000Z');
   assert.equal(result.nextDate, '2026-02-28');
   assert.equal(
     (
@@ -69,6 +72,7 @@ export async function checkRecurring(request) {
   });
   assert.equal(next.status, 201);
   const nextResult = await next.json();
+  assert.equal(nextResult.movement.occurredAt, '2026-02-28T14:15:00.000Z');
   assert.equal(nextResult.nextDate, '2026-03-31');
   await request('/movements/' + nextResult.movement.id, { method: 'DELETE' });
   const future = await send('/recurring', 'POST', {

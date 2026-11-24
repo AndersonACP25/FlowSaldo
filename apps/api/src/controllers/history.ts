@@ -17,6 +17,11 @@ const monthSchema = z
   .regex(/^\d{4}-\d{2}$/)
   .refine((v) => validDate(v + '-01'));
 const dateSchema = z.string().refine(validDate);
+const receiptBoundary = z.union([dateSchema, z.iso.datetime({ offset: true })]);
+const boundaryDate = (value: string, end: boolean) =>
+  validDate(value)
+    ? new Date(Date.parse(value + 'T00:00:00.000Z') + (end ? 86400000 : 0))
+    : new Date(value);
 const paging = z.object({
   page: z.literal('true').optional(),
   limit: z.coerce.number().int().min(1).max(200).default(50),
@@ -244,20 +249,18 @@ history.get('/imports', async (req, res, next) => {
       status: z
         .enum(['PENDING', 'PROCESSING', 'FAILED', 'REVIEW', 'PARSED', 'DISMISSED'])
         .optional(),
-      from: dateSchema.optional(),
-      to: dateSchema.optional(),
+      from: receiptBoundary.transform((value) => boundaryDate(value, false)).optional(),
+      to: receiptBoundary.transform((value) => boundaryDate(value, true)).optional(),
     })
-    .refine((v) => !v.from || !v.to || v.from <= v.to, { message: 'Rango de fechas inválido' })
+    .refine((v) => !v.from || !v.to || v.from < v.to, { message: 'Rango de fechas inválido' })
     .parse(req.query);
   const where = {
     status: filter.status,
     ...(filter.from || filter.to
       ? {
           createdAt: {
-            ...(filter.from ? { gte: new Date(filter.from + 'T00:00:00.000Z') } : {}),
-            ...(filter.to
-              ? { lt: new Date(Date.parse(filter.to + 'T00:00:00.000Z') + 86400000) }
-              : {}),
+            ...(filter.from ? { gte: filter.from } : {}),
+            ...(filter.to ? { lt: filter.to } : {}),
           },
         }
       : {}),

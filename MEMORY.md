@@ -179,3 +179,7 @@ El inicio de sesión permite rellenar las credenciales públicas de la cuenta de
 ## Bancos dominicanos y navegación (2026-11-24)
 
 El catálogo bancario inicial usa nombres de entidades operando del directorio de la Superintendencia de Bancos. La relación cuenta-banco se guarda en PostgreSQL para la cuenta personal y por dispositivo para la cuenta de prueba. Conexiones presenta una vista previa para los bancos registrados. Inicio mueve Presupuestos, Análisis y Tasas al menú de opciones. El área segura rodea la app y deja las barras del sistema fuera del contenido desplazable. Configuración incluye Acerca de la aplicación.
+
+## Configuración, temas y fecha con hora (2026-11-24)
+
+Configuración se divide en subpantallas y Acerca queda al final. Oscuro, Claro y Océano aplican tokens globales y persisten por dispositivo. Inicio abre Presupuestos, Análisis y Tasas desde un menú lateral. Los filtros de recepción y la creación de plantillas usan fecha y hora dominicana. Las plantillas con hora persisten su hora mensual y habilitan la confirmación al vencimiento. Las plantillas anteriores conservan el comportamiento UTC previo.

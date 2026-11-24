@@ -1,9 +1,10 @@
 import React, { useEffect, useState } from 'react';
 import { View, Text } from 'react-native';
 import { Button, Field } from './ui';
-import { styles as s } from './theme';
+import { useTheme } from './theme';
 import { accessRequest } from './access';
 export function RecoverySettings({ token }: { token: string }) {
+  const { styles: s } = useTheme();
   const [password, setPassword] = useState('');
   const [codes, setCodes] = useState<string[] | null>(null);
   const [expires, setExpires] = useState('');
