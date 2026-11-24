@@ -5,8 +5,10 @@ import { topInset } from './ScreenChrome';
 import { StatusBar } from 'expo-status-bar';
 import { Button, Field, Choice } from './ui';
 import { styles as s } from './theme';
-import { isTestAccount } from './testAccount';
+import { isTestAccountEmail, testAccount } from './testAccount';
 import { AccessError, accessRequest, type PersonalSession } from './access';
+const invalidCredentials = 'Correo o contraseña incorrectos. Revisa tus datos e intenta de nuevo.';
+
 export type AuthRoute = 'login' | 'register' | 'recover';
 export function AuthScreen({
   route,
@@ -54,9 +56,10 @@ export function AuthScreen({
         setPassword('');
         setConfirmation('');
         await onRecovered();
-      } else if (isTestAccount(email, password)) {
+      } else if (isTestAccountEmail(email)) {
         setPassword('');
-        onTestLogin();
+        if (password === testAccount.password) onTestLogin();
+        else setError(invalidCredentials);
       } else {
         const session: PersonalSession = await accessRequest('/auth/login', { email, password });
         setPassword('');
@@ -65,7 +68,7 @@ export function AuthScreen({
     } catch (e) {
       if (route === 'login' && e instanceof AccessError && e.status === 401) {
         setPassword('');
-        setError('Correo o contraseña incorrectos. Revisa tus datos e intenta de nuevo.');
+        setError(invalidCredentials);
       } else if (
         e instanceof TypeError ||
         (e instanceof Error && (e.name === 'AbortError' || e.name === 'TimeoutError'))
@@ -89,7 +92,11 @@ export function AuthScreen({
         <Text style={s.muted}>Tus finanzas, en orden.</Text>
         <View style={s.banner}>
           <Text style={s.text}>Acceso personal</Text>
-          <Text style={s.muted}>Usa el correo y la contraseña de tu cuenta FlowSaldo.</Text>
+          <Text style={s.muted}>
+            {route === 'login'
+              ? 'Entra con tu cuenta personal o usa la cuenta de prueba sin conexión.'
+              : 'Usa el correo y la contraseña de tu cuenta FlowSaldo.'}
+          </Text>
         </View>
         {!!notice && <Text style={s.muted}>{notice}</Text>}
         <View style={s.card}>
@@ -196,6 +203,18 @@ export function AuthScreen({
             }
             onPress={() => void submit()}
           />
+          {route === 'login' && (
+            <Choice
+              label="Usar cuenta de prueba"
+              selected={false}
+              disabled={busy}
+              onPress={() => {
+                setEmail(testAccount.email);
+                setPassword(testAccount.password);
+                setError('');
+              }}
+            />
+          )}
           <View style={register || recover ? { alignItems: 'center' } : undefined}>
             <Choice
               label={register || recover ? 'Ir a iniciar sesión' : 'Registrarse'}

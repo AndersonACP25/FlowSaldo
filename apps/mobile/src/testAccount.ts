@@ -5,6 +5,6 @@ export const testAccount = {
   password: 'FlowSaldo-Prueba-2026',
 } as const;
 
-export function isTestAccount(email: string, password: string) {
-  return email.trim().toLowerCase() === testAccount.email && password === testAccount.password;
+export function isTestAccountEmail(email: string) {
+  return email.trim().toLowerCase() === testAccount.email;
 }
