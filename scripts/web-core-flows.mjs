@@ -38,7 +38,7 @@ export async function checkCoreFlows(browser) {
       await context.close();
     }
   }
-  await scenario('register → persist → export filtered CSV', async (page, button) => {
+  await scenario('register → persist → export filtered CSV', async (page, button, stored) => {
     let apiRequests = 0;
     await page.route(apiUrl + '/**', (route) => {
       apiRequests++;
@@ -115,6 +115,44 @@ export async function checkCoreFlows(browser) {
     await button('Exportar CSV').click();
     const file = await waiting;
     assert.equal(file.suggestedFilename(), `FlowSaldo-${month}.csv`);
+    await button('Inicio').click();
+    await button('Metas de ahorro').click();
+    await button('Nueva meta de ahorro').click();
+    await page.getByLabel('Nombre de la meta', { exact: true }).fill('Laptop CORE');
+    await page.getByLabel('Monto objetivo', { exact: true }).fill('1000');
+    await button('Guardar meta').click();
+    await page.getByRole('heading', { name: 'Laptop CORE', exact: true }).waitFor();
+    await button('Aportar a Laptop CORE').click();
+    await page.getByLabel('Monto del aporte', { exact: true }).fill('150');
+    await button('Guardar aporte').click();
+    await page.getByText('EUR 150.00 de EUR 1,000.00', { exact: true }).waitFor();
+    await button('Movimientos').click();
+    await button('+ Nuevo movimiento').click();
+    await page.getByLabel('Descripción', { exact: true }).fill('Apartado CORE');
+    await page.getByLabel('Monto (sin separadores de miles)', { exact: true }).fill('350');
+    await button('Transferencia').first().click();
+    await button('Guardar movimiento').click();
+    await button('Vincular a meta: Apartado CORE').click();
+    await button('Vincular transferencia a Laptop CORE').click();
+    await page.getByText('EUR 500.00 de EUR 1,000.00', { exact: true }).waitFor();
+    assert.equal(await button('Vincular transferencia a Laptop CORE').count(), 0);
+    assert.equal(
+      (await stored()).movements.filter((item) => item.description === 'Apartado CORE').length,
+      1,
+    );
+    assert.equal(
+      (await stored()).movements.find((item) => item.description === 'Apartado CORE').type,
+      'TRANSFER',
+    );
+    await page.reload({ waitUntil: 'networkidle' });
+    await loginAsTestAccount(page);
+    await button('Metas de ahorro').click();
+    await page.getByText('EUR 500.00 de EUR 1,000.00', { exact: true }).waitFor();
+    await button('Quitar aporte 2 de Laptop CORE').click();
+    await button('Confirmar retiro de aporte').click();
+    await page.getByText('EUR 150.00 de EUR 1,000.00', { exact: true }).waitFor();
+    assert.ok((await stored()).movements.some((item) => item.description === 'Apartado CORE'));
+    await button('Inicio').click();
     await page.route('https://api.frankfurter.dev/v2/rate/**', async (route) => {
       const url = new URL(route.request().url());
       const base = url.pathname.split('/').at(-2);

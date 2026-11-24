@@ -2,6 +2,8 @@ import { demoReviews, type ReviewItem } from './reviews';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import {
   isCurrency,
+  validSavingsGoals,
+  type SavingsGoal,
   parseDominicanDateTime,
   type CashProjectionPlan,
   type Currency,
@@ -25,6 +27,7 @@ export interface LocalData {
   bankIds: string[];
   receipts: RecurringReceipt[];
   cashProjections: Partial<Record<CashProjectionKey, CashProjectionPlan>>;
+  savingsGoals: Record<'demo' | 'api', SavingsGoal[]>;
 }
 const key = 'flowsaldo.demo.v2';
 export async function loadLocal(): Promise<LocalData | null> {
@@ -143,6 +146,13 @@ export async function loadLocal(): Promise<LocalData | null> {
     )
   )
     throw new Error('Proyección local inválida.');
+  if (value.savingsGoals === undefined) value.savingsGoals = { demo: [], api: [] };
+  if (
+    !value.savingsGoals ||
+    !validSavingsGoals(value.savingsGoals.demo) ||
+    !validSavingsGoals(value.savingsGoals.api)
+  )
+    throw new Error('Metas locales inválidas.');
   value.reviews = value.reviews.map((r) =>
     r.status === 'PARSED' && !r.movement
       ? {

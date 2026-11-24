@@ -16,6 +16,10 @@ import {
   nextMonthlyDate,
   prepareOccurrence,
   projectAvailableCash,
+  addSavingsContribution,
+  savingsProgress,
+  validSavingsGoals,
+  type SavingsGoal,
   changeSince,
   previousMonth,
   movementsCsv,
@@ -233,6 +237,52 @@ test('CORE: cash projection counts pending installments by currency and exact cu
   assert.throws(
     () => projectAvailableCash({ ...input, nextIncomeAt: '2026-02-28T10:00' }),
     /futuro/,
+  );
+});
+test('CORE: goal contributions preserve currency and reuse each transfer only once', () => {
+  const goal: SavingsGoal = {
+    id: 'emergency',
+    name: 'Emergencia',
+    currency: 'DOP',
+    targetMinor: 100_000,
+    contributions: [{ id: 'manual-1', kind: 'manual', amountMinor: 25_000 }],
+  };
+  const other = { ...goal, id: 'laptop', contributions: [] };
+  const transfer = {
+    ...demoMovements[0],
+    id: 'saving-transfer',
+    type: 'TRANSFER',
+    currency: 'DOP',
+    amountMinor: 25_000,
+  } as const;
+  const transfers = new Map([[transfer.id, transfer]]);
+  const link = { id: 'transfer-1', kind: 'transfer', movementId: transfer.id } as const;
+  const goals = addSavingsContribution([goal, other], goal.id, link, transfers);
+  assert.deepEqual(savingsProgress(goals[0], transfers), {
+    savedMinor: 50_000,
+    remainingMinor: 50_000,
+    percent: 50,
+  });
+  assert.deepEqual(summarize([transfer], 'DOP'), {
+    incomeMinor: 0,
+    expenseMinor: 0,
+    differenceMinor: 0,
+  });
+  assert.throws(
+    () => addSavingsContribution(goals, other.id, link, transfers),
+    /ya está vinculada/,
+  );
+  assert.throws(
+    () => addSavingsContribution([{ ...goal, currency: 'EUR' }], goal.id, link, transfers),
+    /moneda de la meta/,
+  );
+  assert.equal(validSavingsGoals(goals), true);
+  assert.equal(validSavingsGoals([goals[0], { ...other, contributions: [link] }]), false);
+  assert.equal(savingsProgress(goals[0], new Map()).savedMinor, 25_000);
+  assert.equal(
+    savingsProgress(goals[0], new Map([[transfer.id, { ...transfer, amountMinor: 35_000 }]]))
+      .percent,
+    60,
   );
 });
 test('CORE: monthly comparison handles zero baselines and year rollover', () => {

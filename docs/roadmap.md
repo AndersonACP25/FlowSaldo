@@ -25,12 +25,12 @@ La siguiente implementación después de validar el acceso en una APK física es
 
 ## Funcionalidades de negocio por fases
 
-Las siete fases se trabajan en `feat/finanzas-personales-por-fases`. La proyección inicial puede usarse con la cuenta de prueba.
+Las siete fases se trabajan en `feat/finanzas-personales-por-fases`. La proyección y las metas de ahorro pueden usarse con la cuenta de prueba.
 
 | Fase | Funcionalidad | Estado y criterio de aceptación |
 | --- | --- | --- |
 | 1 | Disponible hasta el próximo cobro | Implementada. Con DOP 20,000 y DOP 12,000 en vencimientos pendientes, muestra DOP 8,000. Simular DOP 3,000 muestra DOP 5,000. La simulación se descarta al salir y el saldo base se guarda por moneda y modo. |
-| 2 | Metas de ahorro y apartados | Pendiente. Crear una meta, registrar aportes y consultar el avance. Vincular una transferencia propia conserva su clasificación y evita contabilizar el aporte dos veces. |
+| 2 | Metas de ahorro y apartados | Implementada. Crea una meta por moneda, registra aportes y consulta el avance. Cada transferencia propia puede vincularse a una sola meta y conserva su clasificación. Las metas y vínculos se guardan en el dispositivo por modo. |
 | 3 | Pagos y cobros pendientes | Pendiente. Registrar vencimientos, aplicar pagos parciales y reconciliar el pendiente con un movimiento. Incorporar los pagos previstos a la proyección sin duplicar las recurrencias. |
 | 4 | Plan de pago de tarjetas y préstamos | Pendiente. Registrar corte, vencimiento, capital, intereses y cargos. Comparar un escenario base con un abono adicional y mostrar los supuestos. |
 | 5 | Dividir gastos por categoría | Pendiente. Las partes deben sumar el importe total en la misma moneda. Conservar una fila en el historial y asignar a cada presupuesto el importe de su parte. |

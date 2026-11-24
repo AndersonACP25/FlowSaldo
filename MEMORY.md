@@ -195,3 +195,7 @@ Las cuatro pestañas inferiores se muestran en las pantallas de la app, incluida
 ## Funcionalidades de negocio por fases (2026-11-24)
 
 La rama feat/finanzas-personales-por-fases reúne proyección de efectivo, metas de ahorro, pendientes, plan de deuda, gastos divididos, cierre mensual y reglas por comercio. La primera fase resta los gastos recurrentes activos pendientes hasta antes de la hora del próximo cobro, incluidos los vencidos. Calcula por moneda en centavos y guarda el saldo y el próximo cobro en el dispositivo, separados por modo. El gasto simulado se descarta al salir.
+
+## Metas de ahorro y apartados (2026-11-24)
+
+Fase 2 en la misma rama y PR que la proyección de efectivo. Metas por moneda con aportes manuales y vínculos a transferencias propias del historial. Cada transferencia se vincula a una meta como máximo. El avance considera el monto vigente del movimiento de origen y descuenta vínculos que ya no cumplen los requisitos. Quitar un aporte conserva el movimiento. Las metas se guardan en el dispositivo con separación demo/API.

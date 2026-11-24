@@ -1,3 +1,4 @@
+import { SavingsGoalsScreen } from './src/SavingsGoalsScreen';
 import { CashProjectionScreen } from './src/CashProjectionScreen';
 import { SettingsMenu, settingsSections, type SettingsSection } from './src/SettingsMenu';
 import { ThemeProvider, ThemeSettings } from './src/ThemeProvider';
@@ -40,6 +41,10 @@ import {
 } from '@tanstack/react-query';
 import {
   formatMinorAmount,
+  addSavingsContribution,
+  checkSavingsGoal,
+  type SavingsGoal,
+  type SavingsContribution,
   currencies,
   prepareOccurrence,
   changeSince,
@@ -84,7 +89,13 @@ import { RecoverySettings } from './src/RecoverySettings';
 import { FinancePanel, type FinancialAccount, type ServerBudget } from './src/FinancePanel';
 import { DataRetention } from './src/DataRetention';
 import { PersonalAccount } from './src/PersonalAccount';
-import { apiBase, accessRequest, type Owner, type PersonalSession } from './src/access';
+import {
+  AccessError,
+  apiBase,
+  accessRequest,
+  type Owner,
+  type PersonalSession,
+} from './src/access';
 import { readAccess, writeAccess, clearAccess } from './src/accessVault';
 import { AccountSettings } from './src/AccountSettings';
 import {
@@ -109,6 +120,7 @@ function initialData(): LocalData {
     receipts: [],
     categoryBudgets: {},
     cashProjections: {},
+    savingsGoals: { demo: [], api: [] },
     budgets: {},
     reviews: demoReviews(),
   };
@@ -156,11 +168,13 @@ function Home({
     | 'Presupuestos'
     | 'Análisis'
     | 'Disponible hasta el próximo cobro'
+    | 'Metas de ahorro'
     | 'Tasas'
     | 'Editar movimiento'
     | 'Nueva plantilla mensual'
     | SettingsSection
   >('Inicio');
+  const [transferForSavings, setTransferForSavings] = useState<Movement | null>(null);
   const [projectionCurrency, setProjectionCurrency] = useState<Currency>('DOP');
   const [previousTab, setPreviousTab] = useState<Tab>('Inicio');
   const secondary =
@@ -176,7 +190,10 @@ function Home({
   const showSummary = screen === 'Inicio' || screen === 'Presupuestos' || screen === 'Análisis';
   const settingsSection = settingsSections.some((section) => section === screen);
   const inSettings = settingsSection || screen === 'Configuración';
-  const fromMovements = screen === 'Editar movimiento' || screen === 'Nueva plantilla mensual';
+  const fromMovements =
+    screen === 'Editar movimiento' ||
+    screen === 'Nueva plantilla mensual' ||
+    (screen === 'Metas de ahorro' && !!transferForSavings);
   const activeTab = inSettings
     ? previousTab
     : fromMovements
@@ -212,6 +229,7 @@ function Home({
     if (fromMovements) {
       setEditor(null);
       setDuplicate(null);
+      setTransferForSavings(null);
     }
     setScreen(backTo);
   }, [backTo, busy, fromMovements]);
@@ -234,6 +252,15 @@ function Home({
     /* Auth screen explains invalid API configuration. Demo stays available. */
   }
   const connected = !!session;
+  const savingsMode = connected ? 'api' : 'demo';
+  const savingsGoals = local.savingsGoals[savingsMode];
+  const savingsTransferIds = [
+    ...new Set(
+      savingsGoals.flatMap((goal) =>
+        goal.contributions.flatMap((item) => (item.kind === 'transfer' ? [item.movementId] : [])),
+      ),
+    ),
+  ].sort();
   const projectionKey = `${connected ? 'api' : 'demo'}:${projectionCurrency}` as const;
   useEffect(() => {
     let active = true;
@@ -273,10 +300,30 @@ function Home({
     }
     if (!response.ok) {
       const data = await response.json().catch(() => null);
-      throw new Error(data?.error ?? 'No se pudo conectar con la API.');
+      throw new AccessError(data?.error ?? 'No se pudo conectar con la API.', response.status);
     }
     return response.status === 204 ? null : response.json();
   }
+  async function savingsMovement(id: string): Promise<Movement | null> {
+    if (!connected)
+      return localRef.current.movements.find((movement) => movement.id === id) ?? null;
+    try {
+      return await request(`/movements/${encodeURIComponent(id)}`);
+    } catch (error) {
+      if (error instanceof AccessError && error.status === 404) return null;
+      throw error;
+    }
+  }
+  const savingsTransfersQuery = useQuery({
+    queryKey: ['savings-transfers', url, savingsTransferIds],
+    enabled: connected && screen === 'Metas de ahorro' && savingsTransferIds.length > 0,
+    retry: false,
+    queryFn: async () => {
+      const results = await Promise.all(savingsTransferIds.map(savingsMovement));
+      return results.filter((movement): movement is Movement => movement !== null);
+    },
+  });
+
   const bankDirectory = useQuery({
     queryKey: ['banks', personal?.owner.id],
     enabled: !!personal && (screen === 'Mis bancos' || screen === 'Conexiones'),
@@ -409,6 +456,7 @@ function Home({
   async function refreshMovements() {
     await Promise.all([
       client.invalidateQueries({ queryKey: ['movements'] }),
+      client.invalidateQueries({ queryKey: ['savings-transfers'] }),
       client.invalidateQueries({ queryKey: ['summary'] }),
       client.invalidateQueries({ queryKey: ['accounts'] }),
     ]);
@@ -829,6 +877,7 @@ function Home({
     next.cashProjections = Object.fromEntries(
       Object.entries(localRef.current.cashProjections).filter(([key]) => key.startsWith('api:')),
     );
+    next.savingsGoals.api = localRef.current.savingsGoals.api;
     await persist(next);
     setLoadError('');
     setReady(true);
@@ -853,6 +902,61 @@ function Home({
     } finally {
       setBusy(false);
     }
+  }
+
+  function updateSavingsGoals(update: (goals: SavingsGoal[]) => SavingsGoal[]) {
+    const current = localRef.current;
+    return persist({
+      ...current,
+      savingsGoals: {
+        ...current.savingsGoals,
+        [savingsMode]: update(current.savingsGoals[savingsMode]),
+      },
+    });
+  }
+
+  function savingsId() {
+    return `${Date.now()}-${Math.random().toString(36).slice(2)}`;
+  }
+
+  function saveSavingsGoal(
+    input: Pick<SavingsGoal, 'name' | 'currency' | 'targetMinor'>,
+    id?: string,
+  ) {
+    return saveForm(() =>
+      updateSavingsGoals((goals) => {
+        const goal = checkSavingsGoal(input);
+        if (!id) return [...goals, { ...goal, id: savingsId(), contributions: [] }];
+        if (!goals.some((item) => item.id === id))
+          throw new Error('La meta ya no está disponible.');
+        return goals.map((item) =>
+          item.id === id ? { ...item, name: goal.name, targetMinor: goal.targetMinor } : item,
+        );
+      }),
+    );
+  }
+
+  function addSavings(goalId: string, item: SavingsContribution) {
+    return saveForm(async () => {
+      const transfer = item.kind === 'transfer' ? await savingsMovement(item.movementId) : null;
+      const transfers = new Map(transfer ? [[transfer.id, transfer]] : []);
+      await updateSavingsGoals((goals) => addSavingsContribution(goals, goalId, item, transfers));
+    });
+  }
+
+  function removeSavings(goalId: string, contributionId: string) {
+    return saveForm(() =>
+      updateSavingsGoals((goals) =>
+        goals.map((goal) =>
+          goal.id === goalId
+            ? {
+                ...goal,
+                contributions: goal.contributions.filter((item) => item.id !== contributionId),
+              }
+            : goal,
+        ),
+      ),
+    );
   }
 
   const addMovement = (
@@ -951,17 +1055,30 @@ function Home({
               </View>
             )}
             {screen === 'Inicio' && (
-              <Choice
-                label="Disponible hasta el próximo cobro"
-                selected={false}
-                disabled={busy}
-                onPress={() => {
-                  setProjectionCurrency(currency);
-                  setNotice('');
-                  setError('');
-                  setScreen('Disponible hasta el próximo cobro');
-                }}
-              />
+              <View style={s.row}>
+                <Choice
+                  label="Disponible hasta el próximo cobro"
+                  selected={false}
+                  disabled={busy}
+                  onPress={() => {
+                    setProjectionCurrency(currency);
+                    setNotice('');
+                    setError('');
+                    setScreen('Disponible hasta el próximo cobro');
+                  }}
+                />
+                <Choice
+                  label="Metas de ahorro"
+                  selected={false}
+                  disabled={busy}
+                  onPress={() => {
+                    setTransferForSavings(null);
+                    setNotice('');
+                    setError('');
+                    setScreen('Metas de ahorro');
+                  }}
+                />
+              </View>
             )}
             {screen === 'Disponible hasta el próximo cobro' &&
               (!connected || recurringQuery.isSuccess ? (
@@ -1000,6 +1117,40 @@ function Home({
                   )}
                 </View>
               ))}
+            {screen === 'Metas de ahorro' && (
+              <SavingsGoalsScreen
+                goals={savingsGoals}
+                defaultCurrency={currency}
+                linkedTransfer={transferForSavings}
+                transfers={
+                  new Map(
+                    (connected ? (savingsTransfersQuery.data ?? []) : local.movements).map(
+                      (movement) => [movement.id, movement],
+                    ),
+                  )
+                }
+                linksPending={
+                  connected &&
+                  savingsTransferIds.length > 0 &&
+                  !savingsTransfersQuery.isError &&
+                  (!savingsTransfersQuery.isSuccess || savingsTransfersQuery.isFetching)
+                }
+                linksError={
+                  connected && savingsTransferIds.length > 0 && savingsTransfersQuery.isError
+                }
+                onRetry={() => void savingsTransfersQuery.refetch()}
+                saving={busy}
+                onSaveGoal={saveSavingsGoal}
+                onAddManual={(goalId, amountMinor) =>
+                  addSavings(goalId, { id: savingsId(), kind: 'manual', amountMinor })
+                }
+                onLink={(goalId, movementId) =>
+                  addSavings(goalId, { id: savingsId(), kind: 'transfer', movementId })
+                }
+                onRemove={removeSavings}
+                money={money}
+              />
+            )}
             {showMonth && (
               <>
                 <PeriodPicker date={periodDate} onChange={setPeriodDate} />
@@ -1458,6 +1609,25 @@ function Home({
                         danger
                         onPress={() => setDeleteId(m.id)}
                       />
+                      {m.type === 'TRANSFER' && (
+                        <Choice
+                          label={`Vincular a meta: ${m.description}`}
+                          text={
+                            savingsTransferIds.includes(m.id) ? 'Ver aporte' : 'Vincular a meta'
+                          }
+                          selected={false}
+                          disabled={busy}
+                          onPress={() => {
+                            setEditor(null);
+                            setDuplicate(null);
+                            setDeleteId(null);
+                            setNotice('');
+                            setError('');
+                            setTransferForSavings(m);
+                            setScreen('Metas de ahorro');
+                          }}
+                        />
+                      )}
                     </View>
                     {deleteId === m.id && (
                       <>
@@ -1913,6 +2083,7 @@ function Home({
               onPress={() => {
                 setScreen(item);
                 setEditor(null);
+                setTransferForSavings(null);
                 setDuplicate(null);
                 setDeleteId(null);
               }}
