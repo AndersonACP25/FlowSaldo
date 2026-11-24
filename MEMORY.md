@@ -187,3 +187,7 @@ Configuración se divide en subpantallas y Acerca queda al final. Oscuro, Claro 
 ## Opciones de Configuración, tasas y EUR (2026-11-24)
 
 Configuración utiliza opciones sin bordes ni flechas. Tasa del día abre la consulta existente de USD y EUR frente a DOP desde Configuración. EUR se admite en el modo local y en el conectado. La migración agrega un valor al enum de PostgreSQL. La moneda se conserva al guardar, exportar y agregar datos. Los parsers de retiros BHD y Popular siguen limitados a DOP.
+
+## Navegación, formularios y apariencia (2026-11-24)
+
+Las cuatro pestañas inferiores se muestran en las pantallas de la app, incluidas las abiertas desde el menú lateral. Editar un movimiento y crear una plantilla mensual abren pantallas separadas y vuelven a Movimientos. Se redujo el texto de la interfaz y se ampliaron los controles de acceso. El histórico de tasas usa fecha y hora dominicana y consulta al proveedor por día. Apariencia agrega Bosque, Violeta y Arena con la preferencia local existente.

@@ -46,10 +46,7 @@ export function AccountSettings({
       <View style={s.between}>
         <View style={{ flex: 1, minWidth: 180 }}>
           <Text style={s.text}>Ocultar importes</Text>
-          <Text style={s.muted}>
-            Oculta cifras en las consultas. Los archivos exportados y formularios conservan sus
-            valores.
-          </Text>
+          <Text style={s.muted}>Los formularios y el CSV muestran los importes.</Text>
         </View>
         <Switch
           accessibilityLabel="Ocultar importes"

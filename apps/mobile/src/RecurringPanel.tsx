@@ -16,6 +16,7 @@ export function RecurringPanel({
   currency,
   month,
   onSave,
+  onCreate,
   onToggle,
   onConfirm,
   money,
@@ -24,13 +25,14 @@ export function RecurringPanel({
   categories: Category[];
   currency: Currency;
   month: string;
-  onSave: (draft: Draft, id?: string) => Promise<void>;
+  onSave: (draft: Draft, id: string) => Promise<void>;
+  onCreate: () => void;
   onToggle: (id: string, active: boolean) => Promise<void>;
   onConfirm: (template: RecurringTemplate) => Promise<void>;
   money: (value: number, currency: Currency) => string;
 }) {
   const { styles: s } = useTheme();
-  const [editor, setEditor] = useState<RecurringTemplate | 'new' | null>(null);
+  const [editor, setEditor] = useState<RecurringTemplate | null>(null);
   const [confirm, setConfirm] = useState<string>();
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
@@ -56,34 +58,24 @@ export function RecurringPanel({
   return (
     <View style={s.card}>
       <Text style={s.title}>Movimientos recurrentes</Text>
-      <Text style={s.muted}>
-        Plantillas mensuales de {currency}. El vencimiento no se contabiliza hasta confirmarlo. Se
-        muestran también fechas fuera del mes del historial. Pausar conserva los vencimientos
-        pendientes.
-      </Text>
-      <Button
-        label="Nueva plantilla mensual"
-        disabled={busy || !!editor}
-        onPress={() => setEditor('new')}
-      />
+      <Text style={s.muted}>{currency} · Confirma cada vencimiento para registrarlo.</Text>
+      <Button label="Nueva plantilla mensual" disabled={busy || !!editor} onPress={onCreate} />
       {editor && (
         <MovementForm
           saveLabel="Guardar plantilla mensual"
-          key={editor === 'new' ? 'new' : editor.id}
+          key={editor.id}
           categories={categories}
           currency={currency}
           month={month}
-          title={editor === 'new' ? 'Crear plantilla mensual' : 'Editar plantilla mensual'}
-          editing={editor !== 'new'}
-          fixedDate={editor !== 'new'}
-          recurringDateTime={editor === 'new'}
-          movement={
-            editor === 'new'
-              ? undefined
-              : { ...editor, occurredAt: recurringOccurrenceAt(editor.nextDate, editor.timeOfDay) }
-          }
+          title="Editar plantilla mensual"
+          editing
+          fixedDate
+          movement={{
+            ...editor,
+            occurredAt: recurringOccurrenceAt(editor.nextDate, editor.timeOfDay),
+          }}
           onSave={async (draft) => {
-            await onSave(draft, editor === 'new' ? undefined : editor.id);
+            await onSave(draft, editor.id);
             setEditor(null);
             setNotice('Plantilla mensual guardada.');
           }}
@@ -114,7 +106,6 @@ export function RecurringPanel({
               : 'Pausada'}
             : {item.nextDate}
             {item.timeOfDay ? ` · ${item.timeOfDay}` : ''} · Día {item.anchorDay} de cada mes
-            (ajustado al último día si hace falta).
           </Text>
           <View style={s.row}>
             <Button
@@ -144,7 +135,7 @@ export function RecurringPanel({
             <>
               <Text style={s.muted}>
                 ¿Registrar {money(item.amountMinor, item.currency)} con fecha {item.nextDate}
-                {item.timeOfDay ? ` a las ${item.timeOfDay}` : ''}? Esta acción crea un movimiento.
+                {item.timeOfDay ? ` a las ${item.timeOfDay}` : ''}?
               </Text>
               <View style={s.row}>
                 <Button

@@ -58,14 +58,10 @@ export function ReviewInbox({
   return (
     <View style={{ gap: 16 }}>
       <View>
-        <Text style={s.eyebrow}>TU CRITERIO ES PRIMERO</Text>
         <Text style={s.title}>
           {showHistory
             ? countLabel(total ?? pending.length, 'correo', 'correos')
             : countLabel(total ?? pending.length, 'movimiento', 'movimientos') + ' por confirmar'}
-        </Text>
-        <Text style={s.muted}>
-          Ningún pendiente afecta tus totales hasta que confirmes todos sus datos.
         </Text>
       </View>
       {movement && (
@@ -89,7 +85,6 @@ export function ReviewInbox({
       {!pending.length && (
         <View style={s.card}>
           <Text style={s.income}>Sin resultados</Text>
-          <Text style={s.muted}>No hay correos con estos filtros.</Text>
         </View>
       )}
       {pending.map((item) => (

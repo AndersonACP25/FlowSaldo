@@ -1,9 +1,9 @@
 import React, { useState } from 'react';
 import { ActivityIndicator, Linking, StyleSheet, Text, View } from 'react-native';
 import { useQuery } from '@tanstack/react-query';
-import { parseAmount, validDate } from '@flowsaldo/domain';
+import { dominicanDateTime, parseAmount, parseDominicanDateTime } from '@flowsaldo/domain';
 import { fetchRates, rateCurrencies, type RateCurrency } from './Servicios/tasas';
-import { localToday } from './PeriodPicker';
+import { DateTimeField } from './DateTimeField';
 import { useTheme } from './theme';
 import { Button, Choice, Field } from './ui';
 
@@ -35,7 +35,9 @@ export function RatesScreen() {
       /* Invalid input is described below. */
     }
   }
-  const canSearch = validDate(draft) && draft <= localToday();
+  const selectedDay = draft.slice(0, 10);
+  const canSearch =
+    !!parseDominicanDateTime(draft) && selectedDay <= dominicanDateTime(new Date()).slice(0, 10);
   return (
     <>
       <View style={s.card}>
@@ -48,9 +50,6 @@ export function RatesScreen() {
             onPress={() => void rates.refetch()}
           />
         </View>
-        <Text style={s.muted}>
-          Valores de referencia en pesos dominicanos por una unidad de USD o EUR.
-        </Text>
         {rates.isFetching && (
           <ActivityIndicator color={palette.primary} accessibilityLabel="Consultando tasas" />
         )}
@@ -79,17 +78,13 @@ export function RatesScreen() {
       </View>
       <View style={s.card}>
         <Text style={s.title}>Histórico</Text>
-        <Field
-          label="Fecha de la tasa (AAAA-MM-DD)"
-          value={draft}
-          onChangeText={setDraft}
-          maxLength={10}
-        />
+        <DateTimeField label="Fecha y hora de consulta" value={draft} onChange={setDraft} />
+        <Text style={s.muted}>Tasas diarias por fecha dominicana.</Text>
         <View style={s.row}>
           <Button
             label="Consultar fecha"
-            disabled={!canSearch || draft === date}
-            onPress={() => setDate(draft)}
+            disabled={!canSearch || selectedDay === date}
+            onPress={() => setDate(selectedDay)}
           />
           <Choice
             label="Ver tasas recientes"
@@ -129,9 +124,7 @@ export function RatesScreen() {
             Escribe un monto positivo con hasta dos decimales y sin separadores de miles.
           </Text>
         )}
-        <Text style={s.muted}>
-          La conversión es informativa. Los bancos pueden aplicar sus propias tasas y comisiones.
-        </Text>
+        <Text style={s.muted}>Tasa de referencia. Los bancos pueden aplicar otra tasa.</Text>
       </View>
     </>
   );

@@ -48,7 +48,7 @@ export function MovementForm({
   month: string;
   onSave: (draft: Draft) => Promise<void>;
   onCancel: () => void;
-  title?: string;
+  title?: string | null;
 }) {
   const { styles: s } = useTheme();
   const [accountId, setAccountId] = useState(movement?.accountId ?? '');
@@ -129,7 +129,11 @@ export function MovementForm({
   }
   return (
     <View style={s.card}>
-      <Text style={s.title}>{title ?? (movement ? 'Editar movimiento' : 'Nuevo movimiento')}</Text>
+      {title !== null && (
+        <Text style={s.title}>
+          {title ?? (movement ? 'Editar movimiento' : 'Nuevo movimiento')}
+        </Text>
+      )}
       <View style={s.row}>
         {(['INCOME', 'EXPENSE', 'TRANSFER'] as const).map((t) => (
           <Choice
@@ -176,8 +180,7 @@ export function MovementForm({
             {type === 'TRANSFER' ? 'Cuenta de origen' : 'Cuenta del movimiento'}
           </Text>
           <Text style={s.muted}>
-            Administra tus cuentas en Configuración. Sin cuenta conserva el registro fuera de los
-            saldos y la conciliación.
+            Sin cuenta asignada, el movimiento queda fuera de la conciliación.
           </Text>
           <FilterRow label="Seleccionar cuenta del movimiento">
             <Choice
@@ -217,8 +220,7 @@ export function MovementForm({
                   ))}
               </FilterRow>
               <Text style={s.muted}>
-                El pago de tarjeta o préstamo se registra aquí como transferencia; el destino reduce
-                su deuda sin duplicar gastos.
+                Los pagos de deuda reducen el saldo pendiente de la cuenta de destino.
               </Text>
             </>
           )}
@@ -239,9 +241,6 @@ export function MovementForm({
         <DatePicker value={date} onChange={setDate} />
       )}
       <Text style={s.label}>Categoría</Text>
-      <Text style={s.muted}>
-        Selecciona una categoría activa. Puedes administrarlas en Configuración.
-      </Text>
       {recent.length > 0 && (
         <>
           <Text style={s.label}>Categorías recientes</Text>

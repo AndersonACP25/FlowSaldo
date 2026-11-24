@@ -54,6 +54,53 @@ export const colorThemes = {
     selected: '#143b54',
     primaryInk: '#082f49',
   },
+  forest: {
+    ...slate,
+    background: '#0b1912',
+    surface: '#11241a',
+    raised: '#193325',
+    primary: '#a3e635',
+    cyan: '#67e8c5',
+    ink: '#f3faf0',
+    muted: '#b1c7b5',
+    border: '#355241',
+    soft: '#274334',
+    selected: '#304b22',
+    primaryInk: '#172505',
+  },
+  violet: {
+    ...slate,
+    background: '#171020',
+    surface: '#21162d',
+    raised: '#2d1f3d',
+    primary: '#c4b5fd',
+    cyan: '#a5b4fc',
+    ink: '#faf5ff',
+    muted: '#d1c2e0',
+    border: '#49385c',
+    soft: '#3a2a4b',
+    selected: '#45365f',
+    primaryInk: '#271445',
+  },
+  sand: {
+    ...slate,
+    scheme: 'light',
+    background: '#f4ede3',
+    surface: '#fffaf3',
+    raised: '#f7eee1',
+    primary: '#854d0e',
+    cyan: '#0e6974',
+    ink: '#302218',
+    muted: '#665343',
+    border: '#cdbca7',
+    soft: '#ecdfce',
+    income: '#166534',
+    expense: '#a61b35',
+    danger: '#a61b35',
+    amber: '#92400e',
+    selected: '#f1dfc6',
+    primaryInk: '#ffffff',
+  },
 } satisfies Record<string, typeof slate>;
 
 export type ThemeId = keyof typeof colorThemes;
@@ -62,6 +109,9 @@ export const themeLabels: Record<ThemeId, string> = {
   slate: 'Oscuro',
   light: 'Claro',
   ocean: 'Océano',
+  forest: 'Bosque',
+  violet: 'Violeta',
+  sand: 'Arena',
 };
 
 function createStyles(palette: typeof slate) {
@@ -225,6 +275,9 @@ const styles = {
   slate: createStyles(colorThemes.slate),
   light: createStyles(colorThemes.light),
   ocean: createStyles(colorThemes.ocean),
+  forest: createStyles(colorThemes.forest),
+  violet: createStyles(colorThemes.violet),
+  sand: createStyles(colorThemes.sand),
 };
 
 export function getTheme(theme: ThemeId) {
