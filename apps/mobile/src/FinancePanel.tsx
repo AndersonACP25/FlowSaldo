@@ -3,7 +3,7 @@ import React, { useState } from 'react';
 import { View, Text } from 'react-native';
 import { parseAmount, parseSignedAmount, validDate, type Currency } from '@flowsaldo/domain';
 import { Button, Choice, Field } from './ui';
-import { styles as s } from './theme';
+import { useTheme } from './theme';
 export interface FinancialAccount {
   id: string;
   name: string;
@@ -48,6 +48,7 @@ export function FinancePanel({
   onRefresh: () => Promise<void>;
   money: (n: number, c: Currency) => string;
 }) {
+  const { styles: s } = useTheme();
   const [name, setName] = useState('');
   const [kind, setKind] = useState<FinancialAccount['kind']>('BANK');
   const [currency, setCurrency] = useState<Currency>('DOP');

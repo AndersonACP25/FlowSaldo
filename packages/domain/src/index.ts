@@ -1,5 +1,6 @@
 export * from './bank-mail.ts';
 export * from './recurring.ts';
+export * from './dateTime.ts';
 export * from './planning.ts';
 export * from './finance.ts';
 export type Currency = 'DOP' | 'USD';

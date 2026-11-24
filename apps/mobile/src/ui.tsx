@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { IconButton } from './IconButton';
 import { Pressable, Text, TextInput, View, type TextInputProps } from 'react-native';
-import { styles as s, palette } from './theme';
+import { useTheme } from './theme';
 export function Button({
   label,
   onPress,
@@ -13,6 +13,7 @@ export function Button({
   disabled?: boolean;
   text?: string;
 }) {
+  const { styles: s } = useTheme();
   return (
     <Pressable
       accessibilityRole="button"
@@ -40,6 +41,7 @@ export function Choice({
   disabled?: boolean;
   text?: string;
 }) {
+  const { styles: s } = useTheme();
   return (
     <Pressable
       accessibilityRole="button"
@@ -64,6 +66,7 @@ export function Field({
   style,
   ...props
 }: TextInputProps & { label: string }) {
+  const { styles: s, palette } = useTheme();
   const [revealed, setRevealed] = useState(false);
   useEffect(() => {
     if (props.value === '') setRevealed(false);

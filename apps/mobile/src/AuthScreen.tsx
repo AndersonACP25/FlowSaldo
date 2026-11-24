@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { ScrollView, Text, View } from 'react-native';
 import { BrandMark } from './BrandMark';
 import { Button, Field, Choice } from './ui';
-import { styles as s } from './theme';
+import { useTheme } from './theme';
 import { isTestAccountEmail, testAccount } from './testAccount';
 import { AccessError, accessRequest, type PersonalSession } from './access';
 const invalidCredentials = 'Correo o contraseña incorrectos. Revisa tus datos e intenta de nuevo.';
@@ -23,6 +23,7 @@ export function AuthScreen({
   onSession: (session: PersonalSession) => Promise<void>;
   notice?: string;
 }) {
+  const { styles: s } = useTheme();
   const register = route === 'register';
   const recover = route === 'recover';
   const [code, setCode] = useState('');

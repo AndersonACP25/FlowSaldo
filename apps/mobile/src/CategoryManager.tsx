@@ -2,8 +2,8 @@ import React, { useState } from 'react';
 import { View, Text } from 'react-native';
 import type { Category } from '@flowsaldo/domain';
 import { IconButton } from './IconButton';
-import { Button, Field } from './ui';
-import { styles as s } from './theme';
+import { Field } from './ui';
+import { useTheme } from './theme';
 export function CategoryManager({
   items,
   onSave,
@@ -15,6 +15,7 @@ export function CategoryManager({
   onArchive: (id: string, archived: boolean) => Promise<void>;
   onDelete: (id: string) => Promise<void>;
 }) {
+  const { styles: s } = useTheme();
   const [name, setName] = useState('');
   const [editing, setEditing] = useState<string>();
   const [confirm, setConfirm] = useState<{ id: string; action: 'archive' | 'delete' }>();
@@ -48,7 +49,8 @@ export function CategoryManager({
         maxLength={60}
       />
       <View style={s.row}>
-        <Button
+        <IconButton
+          icon={editing ? 'check' : 'add'}
           label={editing ? 'Guardar nombre' : 'Crear categoría'}
           disabled={busy || !name.trim()}
           onPress={() =>
@@ -60,7 +62,8 @@ export function CategoryManager({
           }
         />
         {editing && (
-          <Button
+          <IconButton
+            icon="close"
             label="Cancelar edición de categoría"
             disabled={busy}
             onPress={() => {
@@ -88,18 +91,18 @@ export function CategoryManager({
             </Text>
             {!c.system && (
               <View style={s.row}>
-                <Button
+                <IconButton
+                  icon="edit"
                   label={`Renombrar ${c.name}`}
-                  text="Renombrar"
                   disabled={busy}
                   onPress={() => {
                     setEditing(c.id);
                     setName(c.name);
                   }}
                 />
-                <Button
+                <IconButton
+                  icon={c.archived ? 'restore' : 'archive'}
                   label={`${c.archived ? 'Reactivar' : 'Archivar'} ${c.name}`}
-                  text={c.archived ? 'Reactivar' : 'Archivar'}
                   disabled={busy}
                   onPress={() =>
                     c.archived
@@ -125,7 +128,8 @@ export function CategoryManager({
                   : '¿Archivar esta categoría? Sus movimientos y presupuestos se conservarán.'}
               </Text>
               <View style={s.row}>
-                <Button
+                <IconButton
+                  icon="check"
                   label={
                     confirm.action === 'delete'
                       ? 'Confirmar eliminación de categoría'
@@ -148,7 +152,12 @@ export function CategoryManager({
                     )
                   }
                 />
-                <Button label="Cancelar" disabled={busy} onPress={() => setConfirm(undefined)} />
+                <IconButton
+                  icon="close"
+                  label="Cancelar"
+                  disabled={busy}
+                  onPress={() => setConfirm(undefined)}
+                />
               </View>
             </>
           )}

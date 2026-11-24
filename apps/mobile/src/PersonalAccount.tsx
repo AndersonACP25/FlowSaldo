@@ -2,7 +2,7 @@ import { IconButton } from './IconButton';
 import React, { useState } from 'react';
 import { View, Text } from 'react-native';
 import { Button, Field } from './ui';
-import { styles as s } from './theme';
+import { useTheme } from './theme';
 import { accessRequest, type Owner, type PersonalSession } from './access';
 export function PersonalAccount({
   session,
@@ -15,6 +15,7 @@ export function PersonalAccount({
   onPasswordChanged: () => Promise<void>;
   onProfileChanged: (owner: Owner) => void;
 }) {
+  const { styles: s } = useTheme();
   const [editing, setEditing] = useState(false);
   const [name, setName] = useState(session.owner.name);
   const [email, setEmail] = useState(session.owner.email);

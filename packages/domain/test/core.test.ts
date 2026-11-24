@@ -150,6 +150,12 @@ test('CORE: recurrence requires due/active/unconfirmed occurrence before posting
   const prepared = prepareOccurrence(t, t.nextDate, '2026-02-01');
   assert.equal(prepared.nextDate, '2026-02-28');
   assert.equal(prepared.movement.amountMinor, 10000);
+  const timed = { ...t, timeOfDay: '23:50' };
+  assert.equal(prepared.movement.occurredAt, '2026-01-31T12:00:00.000Z');
+  assert.throws(() => prepareOccurrence(timed, t.nextDate, '2026-02-01T03:49:59Z'));
+  const timedMovement = prepareOccurrence(timed, t.nextDate, '2026-02-01T03:50:00Z');
+  assert.equal(timedMovement.movement.occurredAt, '2026-02-01T03:50:00.000Z');
+  assert.equal(timedMovement.nextDate, '2026-02-28');
   assert.throws(() => prepareOccurrence(t, t.nextDate, '2026-01-30'));
   assert.throws(() => prepareOccurrence({ ...t, active: false }, t.nextDate, '2026-02-01'));
   assert.throws(() =>

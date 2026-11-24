@@ -4,7 +4,7 @@ import { useQuery } from '@tanstack/react-query';
 import { parseAmount, validDate } from '@flowsaldo/domain';
 import { fetchRates, rateCurrencies, type RateCurrency } from './Servicios/tasas';
 import { localToday } from './PeriodPicker';
-import { palette, styles as s } from './theme';
+import { useTheme } from './theme';
 import { Button, Choice, Field } from './ui';
 
 const rateFormat = new Intl.NumberFormat('es-DO', { maximumFractionDigits: 6 });
@@ -15,6 +15,7 @@ const pesos = new Intl.NumberFormat('es-DO', {
 });
 
 export function RatesScreen() {
+  const { styles: s, palette } = useTheme();
   const [draft, setDraft] = useState('');
   const [date, setDate] = useState('');
   const [amount, setAmount] = useState('');
@@ -62,7 +63,7 @@ export function RatesScreen() {
         )}
         <View style={styles.grid}>
           {rates.data?.map((row) => (
-            <View key={row.base} style={styles.rate}>
+            <View key={row.base} style={[styles.rate, { backgroundColor: palette.raised }]}>
               <Text style={s.label}>{row.base} → DOP</Text>
               <Text style={s.heroValue}>{rateFormat.format(row.rate)}</Text>
               <Text style={s.muted}>Publicada el {row.date}</Text>
@@ -141,7 +142,6 @@ const styles = StyleSheet.create({
   rate: {
     flex: 1,
     minWidth: 185,
-    backgroundColor: palette.raised,
     borderRadius: 14,
     padding: 16,
     gap: 8,

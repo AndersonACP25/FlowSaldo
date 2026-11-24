@@ -3,6 +3,8 @@ import React, { useState } from 'react';
 import { Text, View } from 'react-native';
 import {
   movementDate,
+  dominicanDateTime,
+  parseDominicanDateTime,
   selectedCategory,
   parseAmount,
   validDate,
@@ -13,7 +15,8 @@ import {
 } from '@flowsaldo/domain';
 import { Button, Choice, Field } from './ui';
 import { DatePicker } from './DatePicker';
-import { styles as s } from './theme';
+import { DateTimeField } from './DateTimeField';
+import { useTheme } from './theme';
 import type { FinancialAccount } from './FinancePanel';
 export const typeLabels = { INCOME: 'Ingreso', EXPENSE: 'Gasto', TRANSFER: 'Transferencia' };
 export type Draft = Omit<Movement, 'id'>;
@@ -28,12 +31,14 @@ export function MovementForm({
   recent = [],
   editing = false,
   fixedDate = false,
+  recurringDateTime = false,
   saveLabel = 'Guardar movimiento',
   accounts,
 }: {
   accounts?: FinancialAccount[];
   saveLabel?: string;
   fixedDate?: boolean;
+  recurringDateTime?: boolean;
   categories: Category[];
   recent?: string[];
   editing?: boolean;
@@ -44,6 +49,7 @@ export function MovementForm({
   onCancel: () => void;
   title?: string;
 }) {
+  const { styles: s } = useTheme();
   const [accountId, setAccountId] = useState(movement?.accountId ?? '');
   const [targetAccountId, setTargetAccountId] = useState(movement?.targetAccountId ?? '');
   const [requestKey] = useState(
@@ -57,6 +63,10 @@ export function MovementForm({
   const [date, setDate] = useState(
     movement?.occurredAt.slice(0, 10) ?? movementDate(month, todayLabel),
   );
+  const [dateTime, setDateTime] = useState(() => {
+    const current = dominicanDateTime(today);
+    return movementDate(month, current.slice(0, 10)) + current.slice(10);
+  });
   const [categoryId, setCategoryId] = useState(
     movement?.categoryId ??
       categories.find(
@@ -74,7 +84,13 @@ export function MovementForm({
     try {
       const amountMinor = parseAmount(amount);
       if (!description.trim()) throw new Error('Escribe una descripción.');
-      if (!validDate(date)) throw new Error('Escribe una fecha válida: AAAA-MM-DD.');
+      const selectedTime = recurringDateTime ? parseDominicanDateTime(dateTime) : null;
+      if (recurringDateTime ? !selectedTime : !validDate(date))
+        throw new Error(
+          recurringDateTime
+            ? 'Selecciona una fecha y hora válidas.'
+            : 'Escribe una fecha válida: AAAA-MM-DD.',
+        );
       if (
         accounts &&
         type === 'TRANSFER' &&
@@ -92,7 +108,7 @@ export function MovementForm({
       await onSave({
         description: description.trim(),
         amountMinor,
-        occurredAt: date + 'T12:00:00.000Z',
+        occurredAt: selectedTime?.toISOString() ?? date + 'T12:00:00.000Z',
         ...category,
         type,
         currency: unit,
@@ -209,8 +225,15 @@ export function MovementForm({
       )}
       {fixedDate ? (
         <Text style={s.muted}>
-          Próximo vencimiento: {date}. Editar conserva el calendario original.
+          Próximo vencimiento:{' '}
+          {movement ? dominicanDateTime(new Date(movement.occurredAt)).replace('T', ' · ') : date}.
+          Editar conserva el calendario original.
         </Text>
+      ) : recurringDateTime ? (
+        <>
+          <DateTimeField label="Fecha y hora de inicio" value={dateTime} onChange={setDateTime} />
+          <Text style={s.muted}>Hora dominicana</Text>
+        </>
       ) : (
         <DatePicker value={date} onChange={setDate} />
       )}

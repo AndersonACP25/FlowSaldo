@@ -2,11 +2,12 @@ import { useCallback, useEffect, useState } from 'react';
 import { Linking, Text, View } from 'react-native';
 import { accessRequest } from './access';
 import { Button } from './ui';
-import { styles as s } from './theme';
+import { useTheme } from './theme';
 
 type Status = 'unavailable' | 'disconnected' | 'connected';
 
 export function GmailConnection({ token }: { token: string }) {
+  const { styles: s } = useTheme();
   const [status, setStatus] = useState<Status>();
   const [authorizationUrl, setAuthorizationUrl] = useState('');
   const [message, setMessage] = useState('');

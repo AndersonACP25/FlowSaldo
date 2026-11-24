@@ -2,9 +2,10 @@ import React, { useState } from 'react';
 import { Platform, Text, View } from 'react-native';
 import { enableTransactionNotifications } from './transactionNotifications';
 import { Button } from './ui';
-import { styles as s } from './theme';
+import { useTheme } from './theme';
 
 export function NotificationSettings() {
+  const { styles: s } = useTheme();
   const [message, setMessage] = useState('');
   const [busy, setBusy] = useState(false);
   if (Platform.OS !== 'android') return null;

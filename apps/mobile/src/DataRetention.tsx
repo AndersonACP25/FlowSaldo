@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { View, Text } from 'react-native';
 import { Button, Field } from './ui';
-import { styles as s } from './theme';
+import { useTheme } from './theme';
 import { accessRequest } from './access';
 interface Preview {
   previewId: string;
@@ -20,6 +20,7 @@ export function DataRetention({
   token: string;
   onApplied: () => Promise<void>;
 }) {
+  const { styles: s } = useTheme();
   const [days, setDays] = useState('30');
   const [preview, setPreview] = useState<Preview | null>(null);
   const [password, setPassword] = useState('');

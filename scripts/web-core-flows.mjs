@@ -3,7 +3,12 @@ import { loginAsTestAccount } from './test-account-flow.mjs';
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 import { URL } from 'node:url';
-import { demoCategoryCatalog, demoMovements, movementsCsv } from '../packages/domain/src/index.ts';
+import {
+  demoCategoryCatalog,
+  demoMovements,
+  dominicanDateTime,
+  movementsCsv,
+} from '../packages/domain/src/index.ts';
 import { parseCsv } from './export-guardian.mjs';
 
 // Three independent critical journeys. Business-rule combinations live in domain/API tests.
@@ -52,18 +57,31 @@ export async function checkCoreFlows(browser) {
     await button('Guardar movimiento').click();
     await page.getByText('Movimiento guardado.', { exact: true }).waitFor();
     await button('Configuración').click();
+    await button('Mis bancos').click();
     await button('Agregar bancos').click();
     await page.getByLabel('Buscar banco', { exact: true }).fill('BHD');
     await button('Agregar Banco BHD').click();
     await button('Quitar Banco BHD').waitFor();
+    await button('Volver').click();
+    await button('Apariencia').click();
+    await button('Claro').click();
+    await page.waitForFunction(() => localStorage.getItem('flowsaldo.theme.v1') === 'light');
     await page.reload({ waitUntil: 'networkidle' });
     await loginAsTestAccount(page);
     await button('Conexiones').click();
     await page.getByText('Conexión pendiente', { exact: true }).waitFor();
     await button('Administrar mis bancos').click();
     await button('Quitar Banco BHD').waitFor();
+    await button('Volver').click();
     await button('Acerca de la aplicación').click();
-    await page.getByRole('heading', { name: 'Acerca de la aplicación', exact: true }).waitFor();
+    const about = page.getByRole('heading', { name: 'Acerca de la aplicación', exact: true });
+    await about.waitFor();
+    assert.equal(
+      await about.evaluate(
+        (element) => element.ownerDocument.defaultView.getComputedStyle(element).color,
+      ),
+      'rgb(18, 35, 52)',
+    );
     await page.getByText('Versión', { exact: true }).waitFor();
     await button('Volver').click();
     await button('Volver').click();
@@ -95,7 +113,7 @@ export async function checkCoreFlows(browser) {
     await page.getByText('2040-02-29', { exact: true }).waitFor();
     await button('Semana siguiente').click();
     await page.getByText('2040-03-07', { exact: true }).waitFor();
-    await button('Opciones de Inicio').click();
+    await button('Menú de Inicio').click();
     await button('Ver tasas de cambio').click();
     await page.getByText('USD → DOP', { exact: true }).waitFor();
     await page.getByText('EUR → DOP', { exact: true }).waitFor();
@@ -143,6 +161,8 @@ export async function checkCoreFlows(browser) {
       await loginAsTestAccount(page);
       await button('Movimientos').click();
       await button('Nueva plantilla mensual').click();
+      const day = dominicanDateTime(new Date()).slice(0, 10);
+      await page.getByLabel('Fecha y hora de inicio', { exact: true }).fill(day + 'T00:00');
       await page.getByLabel('Descripción', { exact: true }).fill('Alquiler CORE');
       await page.getByLabel('Monto (sin separadores de miles)', { exact: true }).fill('100');
       await button('Categoría: Servicios').click();
@@ -153,12 +173,16 @@ export async function checkCoreFlows(browser) {
       await button('Confirmar registro de vencimiento').click();
       await page.getByText('Vencimiento registrado una sola vez.', { exact: true }).waitFor();
       assert.equal((await stored()).movements.length, 1);
+      assert.equal((await stored()).movements[0].occurredAt, day + 'T04:00:00.000Z');
       assert.equal((await stored()).receipts.length, 1);
       await page.reload({ waitUntil: 'networkidle' });
       await loginAsTestAccount(page);
       await button('Movimientos').click();
       assert.ok(await button('Registrar vencimiento Alquiler CORE').isDisabled());
       await button('Por revisar').click();
+      await page.getByLabel('Recibido desde', { exact: true }).fill('2026-01-01T09:45');
+      await page.getByText('Sin resultados', { exact: true }).waitFor();
+      await button('Limpiar filtros de revisiones').click();
       await button('Revisar y confirmar').click();
       await button('Guardar movimiento').click();
       await page

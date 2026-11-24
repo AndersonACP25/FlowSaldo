@@ -1,7 +1,12 @@
 import { Router } from 'express';
 import { z } from 'zod';
 import { db } from '@flowsaldo/database';
-import { prepareOccurrence, validDate, type RecurringTemplate } from '@flowsaldo/domain';
+import {
+  prepareOccurrence,
+  validClockTime,
+  validDate,
+  type RecurringTemplate,
+} from '@flowsaldo/domain';
 import { assignCategory, CategoryError } from '../models/categories';
 const fields = z.object({
   description: z.string().trim().min(1).max(100),
@@ -17,7 +22,9 @@ recurringRoutes.get('/recurring', async (_req, res) =>
   res.json(await db.recurringTemplate.findMany({ orderBy: [{ nextDate: 'asc' }, { id: 'asc' }] })),
 );
 recurringRoutes.post('/recurring', async (req, res) => {
-  const { startDate, ...data } = fields.extend({ startDate: date }).parse(req.body);
+  const { startDate, ...data } = fields
+    .extend({ startDate: date, timeOfDay: z.string().refine(validClockTime).optional() })
+    .parse(req.body);
   res.status(201).json(
     await db.$transaction(async (tx) =>
       tx.recurringTemplate.create({
@@ -78,7 +85,7 @@ recurringRoutes.post('/recurring/:id/confirm', async (req, res) => {
       );
     let occurrence;
     try {
-      occurrence = prepareOccurrence(template, scheduledFor, new Date().toISOString().slice(0, 10));
+      occurrence = prepareOccurrence(template, scheduledFor, new Date().toISOString());
     } catch (e) {
       throw new CategoryError((e as Error).message, 409);
     }
