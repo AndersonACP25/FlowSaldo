@@ -1,3 +1,4 @@
+import { FilterRow } from './ScreenChrome';
 import React, { useState } from 'react';
 import { View, Text } from 'react-native';
 import { parseAmount, parseSignedAmount, validDate, type Currency } from '@flowsaldo/domain';
@@ -260,7 +261,7 @@ export function FinancePanel({
       )}
       <Text style={s.title}>Crear cuenta</Text>
       <Field label="Nombre de la nueva cuenta" value={name} onChangeText={setName} maxLength={60} />
-      <View style={s.row}>
+      <FilterRow label="Seleccionar tipo de cuenta">
         {Object.entries(kinds).map(([value, label]) => (
           <Choice
             key={value}
@@ -269,7 +270,7 @@ export function FinancePanel({
             onPress={() => setKind(value as FinancialAccount['kind'])}
           />
         ))}
-      </View>
+      </FilterRow>
       <View style={s.row}>
         {(['DOP', 'USD'] as const).map((c) => (
           <Choice

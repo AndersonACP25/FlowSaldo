@@ -116,6 +116,22 @@ model AppOwner {
  cleanups DataCleanup[]
  cleanupPreview CleanupPreview?
  gmailConnection GmailConnection?
+ banks OwnerBank[]
+}
+
+model Bank {
+ id String @id
+ name String
+ owners OwnerBank[]
+}
+
+model OwnerBank {
+ ownerId Int
+ bankId String
+ owner AppOwner @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+ bank Bank @relation(fields: [bankId], references: [id], onDelete: Restrict)
+ @@id([ownerId,bankId])
+ @@index([bankId])
 }
 model AccessSession {
  id String @id @default(cuid())

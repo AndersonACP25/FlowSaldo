@@ -196,3 +196,14 @@ Los endpoints que consultan PostgreSQL devuelven 503 con un mensaje de diagnóst
 ### Conexión OAuth de Gmail
 
 Con una sesión personal, GET /integrations/gmail consulta el estado, POST /integrations/gmail/connect inicia la autorización y DELETE /integrations/gmail elimina la conexión local. Google retorna a GET /integrations/gmail/callback. Ese retorno exige un estado de un solo uso vinculado a una sesión vigente. El token de renovación cifrado se excluye de los respaldos de datos.
+
+## Bancos dominicanos
+
+Estas rutas requieren una sesión de la cuenta personal.
+
+| Método y ruta | Entrada y respuesta |
+| --- | --- |
+| `GET /banks` | Devuelve la lista de bancos con `id`, `name` y `registered`, ordenada por nombre. |
+| `PATCH /banks/:id` | Recibe `{"registered": true}` para agregar el banco, o `{"registered": false}` para quitarlo. Devuelve `204`. Repetir la solicitud conserva el mismo estado. Un ID válido que no pertenezca al catálogo devuelve `404`. |
+
+La migración `20261124000000_dominican_banks` agrega el catálogo y la selección de la cuenta personal. Se incluyeron bancos múltiples, bancos de ahorro y crédito, Banco Agrícola y Bandex que figuran como operando en el [directorio de la Superintendencia de Bancos](https://www.sb.gob.do/supervisados/entidades-de-intermediacion-financiera/). En la cuenta de prueba, el cliente guarda la selección en el dispositivo. La vista previa de Conexiones muestra los bancos seleccionados y su estado de conexión pendiente.

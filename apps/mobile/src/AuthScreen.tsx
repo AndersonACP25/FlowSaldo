@@ -1,8 +1,6 @@
 import React, { useState } from 'react';
-import { SafeAreaView, ScrollView, Text, View } from 'react-native';
+import { ScrollView, Text, View } from 'react-native';
 import { BrandMark } from './BrandMark';
-import { topInset } from './ScreenChrome';
-import { StatusBar } from 'expo-status-bar';
 import { Button, Field, Choice } from './ui';
 import { styles as s } from './theme';
 import { isTestAccountEmail, testAccount } from './testAccount';
@@ -82,11 +80,10 @@ export function AuthScreen({
     }
   }
   return (
-    <SafeAreaView style={s.root}>
-      <StatusBar style="light" />
+    <View style={s.root}>
       <ScrollView
         keyboardShouldPersistTaps="handled"
-        contentContainerStyle={[s.content, { maxWidth: 520, paddingTop: topInset + 32 }]}
+        contentContainerStyle={[s.content, { maxWidth: 520, paddingTop: 32 }]}
       >
         <BrandMark />
         <Text style={s.muted}>Tus finanzas, en orden.</Text>
@@ -237,6 +234,6 @@ export function AuthScreen({
           )}
         </View>
       </ScrollView>
-    </SafeAreaView>
+    </View>
   );
 }

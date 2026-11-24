@@ -175,3 +175,7 @@ El próximo feature usa un buzón de prueba y sincronización manual. El primer 
 ## Acceso de prueba local y plan de funcionalidades (2026-11-24)
 
 El inicio de sesión permite rellenar las credenciales públicas de la cuenta de prueba. Correo reconocido y contraseña incorrecta se validan localmente. La cuenta abre el modo local en web y Android, con datos separados por instalación. PostgreSQL y el traspaso a la cuenta personal quedan para una fase posterior. El plan vigente prioriza validar la APK, respaldo JSON, importación CSV y recordatorios locales. Gmail OAuth ya está incorporado al piloto conectado. Importar mensajes sigue pendiente.
+
+## Bancos dominicanos y navegación (2026-11-24)
+
+El catálogo bancario inicial usa nombres de entidades operando del directorio de la Superintendencia de Bancos. La relación cuenta-banco se guarda en PostgreSQL para la cuenta personal y por dispositivo para la cuenta de prueba. Conexiones presenta una vista previa para los bancos registrados. Inicio mueve Presupuestos, Análisis y Tasas al menú de opciones. El área segura rodea la app y deja las barras del sistema fuera del contenido desplazable. Configuración incluye Acerca de la aplicación.

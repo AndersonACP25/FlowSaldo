@@ -113,7 +113,7 @@ export async function checkAccessFlow(browser) {
       data = { status: 'unavailable' };
     } else if (url.pathname === '/accounts') data = [];
     else if (url.pathname === '/categories') data = demoCategoryCatalog([]);
-    else if (url.pathname === '/recurring') data = [];
+    else if (['/recurring', '/banks'].includes(url.pathname)) data = [];
     else if (url.pathname === '/imports')
       data = { items: [], total: 0, nextCursor: null, pendingTotal: 0 };
     else if (url.pathname === '/imports/stats')
@@ -173,7 +173,7 @@ export async function checkAccessFlow(browser) {
     assert.equal(await page.getByLabel('Contraseña', { exact: true }).inputValue(), '');
     await page.getByLabel('Contraseña', { exact: true }).fill(password);
     await button('Entrar').click();
-    await page.getByRole('button', { name: 'Ver presupuestos', exact: true }).waitFor();
+    await page.getByRole('button', { name: 'Opciones de Inicio', exact: true }).waitFor();
     const persisted = await page.evaluate(() =>
       JSON.stringify({ local: { ...localStorage }, session: { ...sessionStorage } }),
     );

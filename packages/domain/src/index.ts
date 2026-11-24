@@ -230,3 +230,5 @@ export function validateExportTable(
   )
     throw new Error('Cada fila debe tener una celda por columna');
 }
+
+export { dominicanBanks, type BankRegistration } from './dominicanBanks.ts';

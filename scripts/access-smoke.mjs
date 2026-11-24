@@ -6,6 +6,7 @@ import { PrismaClient } from '@prisma/client';
 import { PrismaPg } from '@prisma/adapter-pg';
 import { createHash } from 'node:crypto';
 import { apiBase } from '../apps/mobile/src/access.ts';
+import { dominicanBanks } from '../packages/domain/src/dominicanBanks.ts';
 export async function checkPersonalAccess(bootstrapToken, connectionString) {
   const db = new PrismaClient({ adapter: new PrismaPg({ connectionString }) });
   const base = 'http://127.0.0.1:3000';
@@ -28,6 +29,7 @@ export async function checkPersonalAccess(bootstrapToken, connectionString) {
   try {
     assert.equal((await (await call('/auth/status')).json()).configured, false);
     assert.equal((await call('/auth/setup', credentials, 'incorrect-bootstrap')).status, 401);
+    assert.equal((await call('/banks', undefined, bootstrapToken)).status, 401);
     assert.equal(
       (await call('/auth/setup', { ...credentials, password: 'short' }, bootstrapToken)).status,
       400,
@@ -65,6 +67,31 @@ export async function checkPersonalAccess(bootstrapToken, connectionString) {
     const second = await login(credentials.password);
     assert.match(first.token, /^fs_[\w-]{43}$/);
     assert.equal((await call('/movements', undefined, first.token)).status, 200);
+    const catalog = await (await call('/banks', undefined, first.token)).json();
+    assert.deepEqual(
+      new Map(catalog.map(({ id, name, registered }) => [id, [name, registered]])),
+      new Map(dominicanBanks.map(({ id, name }) => [id, [name, false]])),
+    );
+    const registerBank = (id, registered) =>
+      call('/banks/' + id, { registered }, first.token, 'PATCH');
+    assert.equal((await call('/banks')).status, 401);
+    assert.equal((await registerBank('banco-inexistente', true)).status, 404);
+    assert.equal((await registerBank('banco-bhd', 'true')).status, 400);
+    const bankChanges = await Promise.all(
+      ['banco-bhd', 'banco-bhd', 'banreservas'].map((id) => registerBank(id, true)),
+    );
+    assert.deepEqual(
+      bankChanges.map((response) => response.status),
+      [204, 204, 204],
+    );
+    assert.equal(await db.ownerBank.count(), 2);
+    assert.equal((await registerBank('banreservas', false)).status, 204);
+    assert.equal((await registerBank('banreservas', false)).status, 204);
+    const otherSession = await (await call('/banks', undefined, second.token)).json();
+    assert.deepEqual(
+      otherSession.filter((bank) => bank.registered).map((bank) => bank.id),
+      ['banco-bhd'],
+    );
     const stored = await db.accessSession.findUniqueOrThrow({ where: { id: first.sessionId } });
     await checkGmailConnection(connectionString, first.sessionId, db);
     assert.equal(stored.tokenHash, digest(first.token));

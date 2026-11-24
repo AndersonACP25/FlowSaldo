@@ -15,6 +15,7 @@ export interface LocalData {
   categories: Category[];
   categoryBudgets: Record<string, number>;
   recurring: RecurringTemplate[];
+  bankIds: string[];
   receipts: RecurringReceipt[];
 }
 const key = 'flowsaldo.demo.v2';
@@ -110,6 +111,13 @@ export async function loadLocal(): Promise<LocalData | null> {
       value.receipts.length
   )
     throw new Error('Confirmaciones locales inválidas');
+  if (value.bankIds === undefined) value.bankIds = [];
+  if (
+    !Array.isArray(value.bankIds) ||
+    value.bankIds.some((id) => typeof id !== 'string' || !id) ||
+    new Set(value.bankIds).size !== value.bankIds.length
+  )
+    throw new Error('Bancos locales inválidos');
   value.reviews = value.reviews.map((r) =>
     r.status === 'PARSED' && !r.movement
       ? {

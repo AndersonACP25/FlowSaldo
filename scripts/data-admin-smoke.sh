@@ -39,6 +39,8 @@ SELECT (SELECT count(*) FROM "Movement"),
        (SELECT count(*) FROM "Reconciliation"),
        (SELECT count(*) FROM "BudgetPeriod"),
        (SELECT count(*) FROM "AppOwner"),
+       (SELECT count(*) FROM "OwnerBank"),
+       (SELECT count(*) FROM "Bank"),
        (SELECT md5(COALESCE(string_agg(id || ':' || "amountMinor"::text, ',' ORDER BY id), '')) FROM "Movement");
 SQL
 }
@@ -57,6 +59,7 @@ test "$(psql -XqAtw -c 'SELECT (SELECT count(*) FROM "AccessSession")+(SELECT co
 if pnpm data:admin erase flowsaldo; then exit 1; fi
 test "$(snapshot)" = "$before"
 pnpm data:admin erase flowsaldo_restore_smoke
-test "$(snapshot | cut -d'|' -f1-5)" = '0|0|0|0|0'
+test "$(snapshot | cut -d'|' -f1-6)" = '0|0|0|0|0|0'
+test "$(snapshot | cut -d'|' -f7)" = "$(cut -d'|' -f7 <<< "$before")"
 test "$(psql -XqAtw -c 'SELECT (SELECT count(*) FROM "Category" WHERE system),(SELECT count(*) FROM "FinanceLock")')" = '1|1'
 printf '%s\n' 'PASS CORE DATA ADMIN: verified restore, checksum and target guards, exclusion of credentials, complete erase of isolated restored database'

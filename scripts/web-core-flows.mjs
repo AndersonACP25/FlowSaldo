@@ -51,8 +51,22 @@ export async function checkCoreFlows(browser) {
     await page.getByLabel('Monto (sin separadores de miles)', { exact: true }).fill('100.29');
     await button('Guardar movimiento').click();
     await page.getByText('Movimiento guardado.', { exact: true }).waitFor();
+    await button('Configuración').click();
+    await button('Agregar bancos').click();
+    await page.getByLabel('Buscar banco', { exact: true }).fill('BHD');
+    await button('Agregar Banco BHD').click();
+    await button('Quitar Banco BHD').waitFor();
     await page.reload({ waitUntil: 'networkidle' });
     await loginAsTestAccount(page);
+    await button('Conexiones').click();
+    await page.getByText('Conexión pendiente', { exact: true }).waitFor();
+    await button('Administrar mis bancos').click();
+    await button('Quitar Banco BHD').waitFor();
+    await button('Acerca de la aplicación').click();
+    await page.getByRole('heading', { name: 'Acerca de la aplicación', exact: true }).waitFor();
+    await page.getByText('Versión', { exact: true }).waitFor();
+    await button('Volver').click();
+    await button('Volver').click();
     await button('Movimientos').click();
     await page.getByLabel('Buscar descripción o categoría', { exact: true }).fill('Compra CORE');
     await page.getByText('1 movimiento', { exact: true }).waitFor();
@@ -81,6 +95,7 @@ export async function checkCoreFlows(browser) {
     await page.getByText('2040-02-29', { exact: true }).waitFor();
     await button('Semana siguiente').click();
     await page.getByText('2040-03-07', { exact: true }).waitFor();
+    await button('Opciones de Inicio').click();
     await button('Ver tasas de cambio').click();
     await page.getByText('USD → DOP', { exact: true }).waitFor();
     await page.getByText('EUR → DOP', { exact: true }).waitFor();
@@ -183,7 +198,7 @@ export async function checkCoreFlows(browser) {
           data = { version: 0, limitMinor: null, categoryLimits: [] };
         else if (url.pathname === '/accounts') data = [];
         else if (url.pathname === '/categories') data = demoCategoryCatalog([]);
-        else if (url.pathname === '/recurring') data = [];
+        else if (['/recurring', '/banks'].includes(url.pathname)) data = [];
         else if (url.pathname === '/imports/stats')
           data = {
             counts: {

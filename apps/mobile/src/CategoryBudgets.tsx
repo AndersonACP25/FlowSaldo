@@ -1,3 +1,4 @@
+import { FilterRow } from './ScreenChrome';
 import React, { useState } from 'react';
 import { View, Text } from 'react-native';
 import { budgetStatus, parseAmount, type Category, type Currency } from '@flowsaldo/domain';
@@ -99,7 +100,7 @@ export function CategoryBudgets({
           ? 'guardados en el servidor para el mes y moneda seleccionados.'
           : 'guardados en este dispositivo para el mes, moneda y modo seleccionados.'}
       </Text>
-      <View style={s.row}>
+      <FilterRow label="Seleccionar categoría del presupuesto">
         {items
           .filter((c) => !c.archived)
           .map((c) => (
@@ -114,7 +115,7 @@ export function CategoryBudgets({
               }}
             />
           ))}
-      </View>
+      </FilterRow>
       <Field
         label="Límite por categoría"
         value={input}
