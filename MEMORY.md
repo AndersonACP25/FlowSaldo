@@ -191,3 +191,7 @@ Configuración utiliza opciones sin bordes ni flechas. Tasa del día abre la con
 ## Navegación, formularios y apariencia (2026-11-24)
 
 Las cuatro pestañas inferiores se muestran en las pantallas de la app, incluidas las abiertas desde el menú lateral. Editar un movimiento y crear una plantilla mensual abren pantallas separadas y vuelven a Movimientos. Se redujo el texto de la interfaz y se ampliaron los controles de acceso. El histórico de tasas usa fecha y hora dominicana y consulta al proveedor por día. Apariencia agrega Bosque, Violeta y Arena con la preferencia local existente.
+
+## Funcionalidades de negocio por fases (2026-11-24)
+
+La rama feat/finanzas-personales-por-fases reúne proyección de efectivo, metas de ahorro, pendientes, plan de deuda, gastos divididos, cierre mensual y reglas por comercio. La primera fase resta los gastos recurrentes activos pendientes hasta antes de la hora del próximo cobro, incluidos los vencidos. Calcula por moneda en centavos y guarda el saldo y el próximo cobro en el dispositivo, separados por modo. El gasto simulado se descarta al salir.

@@ -1,6 +1,7 @@
 export * from './bank-mail.ts';
 export * from './recurring.ts';
 export * from './dateTime.ts';
+export * from './cashProjection.ts';
 export * from './planning.ts';
 export * from './finance.ts';
 export const currencies = ['DOP', 'USD', 'EUR'] as const;

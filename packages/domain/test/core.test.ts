@@ -15,6 +15,7 @@ import {
   budgetStatus,
   nextMonthlyDate,
   prepareOccurrence,
+  projectAvailableCash,
   changeSince,
   previousMonth,
   movementsCsv,
@@ -179,6 +180,59 @@ test('CORE: recurrence requires due/active/unconfirmed occurrence before posting
   );
   assert.throws(() =>
     prepareOccurrence({ ...t, nextDate: prepared.nextDate }, t.nextDate, '2026-02-01'),
+  );
+});
+test('CORE: cash projection counts pending installments by currency and exact cutoff', () => {
+  const rent: RecurringTemplate = {
+    id: 'rent',
+    version: 1,
+    description: 'Alquiler',
+    amountMinor: 600_000,
+    currency: 'DOP',
+    type: 'EXPENSE',
+    categoryId: 'services',
+    category: 'Servicios',
+    startDate: '2026-01-31',
+    nextDate: '2026-01-31',
+    anchorDay: 31,
+    timeOfDay: '09:00',
+    active: true,
+  };
+  const input = {
+    currency: 'DOP',
+    balanceMinor: 2_000_000,
+    nextIncomeAt: '2026-03-31T09:00',
+    now: new Date('2026-02-28T14:00:00Z'),
+    templates: [
+      rent,
+      { ...rent, id: 'paused', active: false },
+      { ...rent, id: 'foreign', currency: 'USD' },
+      { ...rent, id: 'transfer', type: 'TRANSFER' },
+      { ...rent, id: 'income', type: 'INCOME' },
+    ],
+  } satisfies Parameters<typeof projectAvailableCash>[0];
+  const result = projectAvailableCash(input);
+  assert.equal(result.commitments.length, 1);
+  assert.equal(result.commitments[0].occurrences, 2);
+  assert.equal(result.committedMinor, 1_200_000);
+  assert.equal(result.availableMinor, 800_000);
+  assert.equal(
+    projectAvailableCash({ ...input, nextIncomeAt: '2026-03-31T09:01' }).availableMinor,
+    200_000,
+  );
+  assert.equal(
+    projectAvailableCash({ ...input, balanceMinor: 100_000 }).availableMinor,
+    -1_100_000,
+  );
+  const legacy = { ...rent, nextDate: '2026-03-31', timeOfDay: null };
+  assert.equal(
+    projectAvailableCash({ ...input, templates: [legacy], nextIncomeAt: '2026-03-31T08:00' })
+      .committedMinor,
+    0,
+  );
+  assert.throws(
+    () => projectAvailableCash({ ...input, nextIncomeAt: '2026-02-28T10:00' }),
+    /futuro/,
   );
 });
 test('CORE: monthly comparison handles zero baselines and year rollover', () => {

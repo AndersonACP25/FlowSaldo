@@ -23,6 +23,20 @@ La prioridad es que FlowSaldo se pueda usar desde el navegador de la PC y una AP
 
 La siguiente implementación después de validar el acceso en una APK física es el respaldo JSON. Puede servir para mover datos entre PC y Android y preparar el traspaso posterior a la cuenta personal.
 
+## Funcionalidades de negocio por fases
+
+Las siete fases se trabajan en `feat/finanzas-personales-por-fases`. La proyección inicial puede usarse con la cuenta de prueba.
+
+| Fase | Funcionalidad | Estado y criterio de aceptación |
+| --- | --- | --- |
+| 1 | Disponible hasta el próximo cobro | Implementada. Con DOP 20,000 y DOP 12,000 en vencimientos pendientes, muestra DOP 8,000. Simular DOP 3,000 muestra DOP 5,000. La simulación se descarta al salir y el saldo base se guarda por moneda y modo. |
+| 2 | Metas de ahorro y apartados | Pendiente. Crear una meta, registrar aportes y consultar el avance. Vincular una transferencia propia conserva su clasificación y evita contabilizar el aporte dos veces. |
+| 3 | Pagos y cobros pendientes | Pendiente. Registrar vencimientos, aplicar pagos parciales y reconciliar el pendiente con un movimiento. Incorporar los pagos previstos a la proyección sin duplicar las recurrencias. |
+| 4 | Plan de pago de tarjetas y préstamos | Pendiente. Registrar corte, vencimiento, capital, intereses y cargos. Comparar un escenario base con un abono adicional y mostrar los supuestos. |
+| 5 | Dividir gastos por categoría | Pendiente. Las partes deben sumar el importe total en la misma moneda. Conservar una fila en el historial y asignar a cada presupuesto el importe de su parte. |
+| 6 | Cierre mensual personal | Pendiente. Revisar movimientos sin categorizar, pendientes y diferencias contra el presupuesto. Guardar un resumen comparable por mes y moneda. |
+| 7 | Reglas de categorización por comercio | Pendiente. Sugerir categorías para descripciones coincidentes. Permitir confirmar o corregir la sugerencia y aplicar las reglas al registro manual. |
+
 ## Historial del roadmap
 
 ## Completado en v0.2

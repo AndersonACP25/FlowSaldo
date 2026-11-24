@@ -1,3 +1,4 @@
+import { CashProjectionScreen } from './src/CashProjectionScreen';
 import { SettingsMenu, settingsSections, type SettingsSection } from './src/SettingsMenu';
 import { ThemeProvider, ThemeSettings } from './src/ThemeProvider';
 import { DateTimeField } from './src/DateTimeField';
@@ -107,6 +108,7 @@ function initialData(): LocalData {
     bankIds: [],
     receipts: [],
     categoryBudgets: {},
+    cashProjections: {},
     budgets: {},
     reviews: demoReviews(),
   };
@@ -153,11 +155,13 @@ function Home({
     | 'Configuración'
     | 'Presupuestos'
     | 'Análisis'
+    | 'Disponible hasta el próximo cobro'
     | 'Tasas'
     | 'Editar movimiento'
     | 'Nueva plantilla mensual'
     | SettingsSection
   >('Inicio');
+  const [projectionCurrency, setProjectionCurrency] = useState<Currency>('DOP');
   const [previousTab, setPreviousTab] = useState<Tab>('Inicio');
   const secondary =
     screen !== 'Inicio' &&
@@ -230,6 +234,7 @@ function Home({
     /* Auth screen explains invalid API configuration. Demo stays available. */
   }
   const connected = !!session;
+  const projectionKey = `${connected ? 'api' : 'demo'}:${projectionCurrency}` as const;
   useEffect(() => {
     let active = true;
     void loadLocal()
@@ -821,6 +826,9 @@ function Home({
   }
   async function reset() {
     const next = initialData();
+    next.cashProjections = Object.fromEntries(
+      Object.entries(localRef.current.cashProjections).filter(([key]) => key.startsWith('api:')),
+    );
     await persist(next);
     setLoadError('');
     setReady(true);
@@ -942,6 +950,56 @@ function Home({
                 <Button label="Reintentar categorías" onPress={() => void catalog.refetch()} />
               </View>
             )}
+            {screen === 'Inicio' && (
+              <Choice
+                label="Disponible hasta el próximo cobro"
+                selected={false}
+                disabled={busy}
+                onPress={() => {
+                  setProjectionCurrency(currency);
+                  setNotice('');
+                  setError('');
+                  setScreen('Disponible hasta el próximo cobro');
+                }}
+              />
+            )}
+            {screen === 'Disponible hasta el próximo cobro' &&
+              (!connected || recurringQuery.isSuccess ? (
+                <CashProjectionScreen
+                  key={projectionKey}
+                  currency={projectionCurrency}
+                  onCurrency={setProjectionCurrency}
+                  templates={recurring}
+                  saved={local.cashProjections[projectionKey]}
+                  saving={busy}
+                  onSave={(plan) =>
+                    saveForm(() =>
+                      persist({
+                        ...localRef.current,
+                        cashProjections: {
+                          ...localRef.current.cashProjections,
+                          [projectionKey]: plan,
+                        },
+                      }),
+                    )
+                  }
+                  money={money}
+                />
+              ) : (
+                <View style={s.card}>
+                  <Text style={s.muted}>
+                    {recurringQuery.isError
+                      ? 'No se pudieron cargar los compromisos.'
+                      : 'Cargando compromisos…'}
+                  </Text>
+                  {recurringQuery.isError && (
+                    <Button
+                      label="Reintentar compromisos"
+                      onPress={() => void recurringQuery.refetch()}
+                    />
+                  )}
+                </View>
+              ))}
             {showMonth && (
               <>
                 <PeriodPicker date={periodDate} onChange={setPeriodDate} />
