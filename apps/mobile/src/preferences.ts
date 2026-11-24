@@ -1,5 +1,5 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import type { Currency } from '@flowsaldo/domain';
+import { isCurrency, type Currency } from '@flowsaldo/domain';
 export interface Preferences {
   currency: Currency;
   hideAmounts: boolean;
@@ -10,7 +10,7 @@ export async function loadPreferences(): Promise<Preferences> {
   const raw = await AsyncStorage.getItem(key);
   if (!raw) return defaultPreferences;
   const parsed = JSON.parse(raw) as Preferences;
-  if (!['DOP', 'USD'].includes(parsed.currency) || typeof parsed.hideAmounts !== 'boolean')
+  if (!isCurrency(parsed.currency) || typeof parsed.hideAmounts !== 'boolean')
     throw new Error('Preferencias locales inválidas');
   return { currency: parsed.currency, hideAmounts: parsed.hideAmounts };
 }

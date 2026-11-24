@@ -1,6 +1,7 @@
 import { demoReviews, type ReviewItem } from './reviews';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import {
+  isCurrency,
   upgradeCategories,
   validClockTime,
   validDate,
@@ -37,7 +38,7 @@ export async function loadLocal(): Promise<LocalData | null> {
       !Number.isInteger(m.amountMinor) ||
       m.amountMinor <= 0 ||
       m.amountMinor > 2147483647 ||
-      !['DOP', 'USD'].includes(m.currency) ||
+      !isCurrency(m.currency) ||
       !['INCOME', 'EXPENSE', 'TRANSFER'].includes(m.type)
     )
       throw new Error('Movimiento local inválido');
@@ -85,7 +86,7 @@ export async function loadLocal(): Promise<LocalData | null> {
         !Number.isInteger(t.amountMinor) ||
         t.amountMinor <= 0 ||
         t.amountMinor > 2147483647 ||
-        !['DOP', 'USD'].includes(t.currency) ||
+        !isCurrency(t.currency) ||
         !['INCOME', 'EXPENSE', 'TRANSFER'].includes(t.type) ||
         !validDate(t.startDate) ||
         (t.timeOfDay != null && !validClockTime(t.timeOfDay)) ||

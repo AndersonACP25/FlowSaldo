@@ -1,7 +1,13 @@
 import { Router } from 'express';
 import { z } from 'zod';
 import { db } from '@flowsaldo/database';
-import { parseBankWithdrawal, validDate, summarize, type Movement } from '@flowsaldo/domain';
+import {
+  parseBankWithdrawal,
+  currencies,
+  validDate,
+  summarize,
+  type Movement,
+} from '@flowsaldo/domain';
 import { importMetadata } from './imports';
 import { createMovement, updateMovement, deleteMovement, resolveImport } from '../models/records';
 
@@ -10,7 +16,7 @@ const movementSchema = z.object({
   accountId: z.string().min(1).max(200).nullish(),
   targetAccountId: z.string().min(1).max(200).nullish(),
   amountMinor: z.number().int().positive().max(2147483647),
-  currency: z.enum(['DOP', 'USD']),
+  currency: z.enum(currencies),
   type: z.enum(['INCOME', 'EXPENSE', 'TRANSFER']),
   description: z.string().trim().min(1).max(100),
   categoryId: z.string().min(1).max(200).nullish(),
@@ -20,7 +26,7 @@ const movementSchema = z.object({
 records.get('/movements', async (req, res) => {
   const filter = z
     .object({
-      currency: z.enum(['DOP', 'USD']).optional(),
+      currency: z.enum(currencies).optional(),
       month: z
         .string()
         .regex(/^\d{4}-\d{2}$/)
@@ -73,7 +79,7 @@ records.delete('/movements/:id', async (req, res) => {
   res.status(204).end();
 });
 records.get('/summary', async (req, res) => {
-  const currency = z.enum(['DOP', 'USD']).parse(req.query.currency ?? 'DOP');
+  const currency = z.enum(currencies).parse(req.query.currency ?? 'DOP');
   const rows = await db.movement.findMany({ where: { currency } });
   res.json({
     currency,

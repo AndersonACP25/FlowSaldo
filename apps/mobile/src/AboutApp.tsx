@@ -14,7 +14,7 @@ export function AboutApp() {
     <View style={s.card}>
       <Text style={s.title}>FlowSaldo</Text>
       <Text style={s.muted}>
-        Organiza tus ingresos, gastos y presupuestos personales en DOP y USD.
+        Organiza tus ingresos, gastos y presupuestos personales en DOP, USD y EUR.
       </Text>
       <View style={s.divider} />
       <View style={s.between}>

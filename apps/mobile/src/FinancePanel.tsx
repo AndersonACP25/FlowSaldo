@@ -1,7 +1,13 @@
 import { FilterRow } from './ScreenChrome';
 import React, { useState } from 'react';
 import { View, Text } from 'react-native';
-import { parseAmount, parseSignedAmount, validDate, type Currency } from '@flowsaldo/domain';
+import {
+  parseAmount,
+  currencies,
+  parseSignedAmount,
+  validDate,
+  type Currency,
+} from '@flowsaldo/domain';
 import { Button, Choice, Field } from './ui';
 import { useTheme } from './theme';
 export interface FinancialAccount {
@@ -273,7 +279,7 @@ export function FinancePanel({
         ))}
       </FilterRow>
       <View style={s.row}>
-        {(['DOP', 'USD'] as const).map((c) => (
+        {currencies.map((c) => (
           <Choice
             key={c}
             label={`Moneda de cuenta: ${c}`}

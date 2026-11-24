@@ -5,7 +5,7 @@ Base local: http://127.0.0.1:3000. Salvo health/preflight y las rutas públicas 
 | Método | Ruta | Resultado |
 |---|---|---|
 | GET | /health | Estado del proceso (no comprueba PostgreSQL) |
-| GET | /movements | Últimos 200 movimientos, fecha descendente; filtros opcionales month=AAAA-MM y currency=DOP o USD |
+| GET | /movements | Últimos 200 movimientos, fecha descendente; filtros opcionales month=AAAA-MM y currency=DOP, USD o EUR |
 | POST | /movements | Crear movimiento manual, 201 |
 | PATCH | /movements/:id | Sustituir los campos editables con el mismo cuerpo de creación; 404 si no existe |
 | DELETE | /movements/:id | Eliminar, 204; 404 si no existe |
@@ -22,7 +22,7 @@ POST /movements:
 {"amountMinor":125050,"currency":"DOP","type":"EXPENSE","description":"Compra de ejemplo","category":"Alimentación","occurredAt":"2026-10-22T12:00:00.000Z"}
 ```
 
-Monedas: DOP, USD. Tipos: INCOME, EXPENSE, TRANSFER. amountMinor entero positivo hasta 2147483647. Fecha ISO UTC con Z. Categoría opcional, por defecto Sin categorizar.
+Monedas: DOP, USD y EUR. La migración `20261124020000_euro_currency` añade EUR al enum compartido por movimientos, recurrencias, cuentas y presupuestos. Aplica `pnpm db:setup` antes de arrancar la API y el worker. Los totales y presupuestos se calculan por moneda. Tipos: INCOME, EXPENSE, TRANSFER. amountMinor entero positivo hasta 2147483647. Fecha ISO UTC con Z. Categoría opcional, por defecto Sin categorizar.
 
 POST /imports:
 
@@ -159,7 +159,7 @@ Migración aditiva financial_accounts. Nuevos FinancialAccount, FinanceLock sing
 | Método | Ruta | Contrato |
 |---|---|---|
 | GET | /accounts | Lista completa (máximo 100 cuentas), balanceMinor/debtMinor/availableCreditMinor calculados sobre todos los movimientos vinculados, revision, reconciledThrough |
-| POST | /accounts | name 1–60, kind BANK/CASH/CREDIT_CARD/LOAN, currency DOP/USD, openingMinor firmado ±2147483647, creditLimitMinor positivo opcional solo tarjeta; tarjeta/préstamo openingMinor <= 0; 201 |
+| POST | /accounts | name 1–60, kind BANK/CASH/CREDIT_CARD/LOAN, currency DOP/USD/EUR, openingMinor firmado ±2147483647, creditLimitMinor positivo opcional solo tarjeta; tarjeta/préstamo openingMinor <= 0; 201 |
 | PATCH | /accounts/:id | expectedRevision y name/archived; 200, versión desactualizada 409, inexistente 404; tipo/moneda/saldo inicial inmutables |
 | POST | /accounts/:id/reconciliation/preview | asOf AAAA-MM-DD y statementMinor entero seguro firmado; devuelve expectedMinor/differenceMinor/expectedRevision, accountId/asOf/statementMinor |
 | POST | /accounts/:id/reconciliation | Mismo cuerpo + expectedRevision; 201, diferencia o versión cambiada 409. Solo fecha no futura y posterior al último período; sin ajustes automáticos |

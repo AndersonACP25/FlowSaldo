@@ -6,6 +6,7 @@ import { Choice } from './ui';
 export const settingsSections = [
   'Mi cuenta',
   'Preferencias',
+  'Tasa del día',
   'Apariencia',
   'Mis bancos',
   'Administrar categorías',
@@ -41,15 +42,9 @@ export function SettingsMenu({
   });
 
   return (
-    <View style={s.card}>
+    <View style={[s.card, { borderWidth: 0 }]}>
       {visible.map((section) => (
-        <Choice
-          key={section}
-          label={section}
-          text={section + '  ›'}
-          selected={false}
-          onPress={() => onOpen(section)}
-        />
+        <Choice key={section} label={section} selected={false} onPress={() => onOpen(section)} />
       ))}
     </View>
   );

@@ -1,7 +1,7 @@
-import React, { useEffect, useState } from 'react';
+import React, { useContext, useEffect, useState } from 'react';
 import { IconButton } from './IconButton';
 import { Pressable, Text, TextInput, View, type TextInputProps } from 'react-native';
-import { useTheme } from './theme';
+import { SettingsOptionsContext, useTheme } from './theme';
 export function Button({
   label,
   onPress,
@@ -41,7 +41,8 @@ export function Choice({
   disabled?: boolean;
   text?: string;
 }) {
-  const { styles: s } = useTheme();
+  const { styles: s, palette } = useTheme();
+  const plain = useContext(SettingsOptionsContext);
   return (
     <Pressable
       accessibilityRole="button"
@@ -49,10 +50,12 @@ export function Choice({
       accessibilityState={{ selected, disabled }}
       disabled={disabled}
       onPress={onPress}
-      style={[
+      style={({ pressed }) => [
         s.pill,
+        plain && s.settingsOption,
         compact && { paddingHorizontal: 0 },
         selected && s.selected,
+        plain && pressed && { backgroundColor: palette.raised },
         disabled && s.disabled,
       ]}
     >

@@ -20,6 +20,7 @@ enum MovementType {
 enum Currency {
  DOP
  USD
+ EUR
 }
 model MailImport {
  id String @id @default(cuid())

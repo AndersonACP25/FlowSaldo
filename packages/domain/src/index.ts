@@ -3,7 +3,10 @@ export * from './recurring.ts';
 export * from './dateTime.ts';
 export * from './planning.ts';
 export * from './finance.ts';
-export type Currency = 'DOP' | 'USD';
+export const currencies = ['DOP', 'USD', 'EUR'] as const;
+export type Currency = (typeof currencies)[number];
+export const isCurrency = (value: unknown): value is Currency =>
+  currencies.some((currency) => currency === value);
 export type MovementType = 'INCOME' | 'EXPENSE' | 'TRANSFER';
 export interface Movement {
   id: string;
@@ -27,11 +30,12 @@ export type ParseResult =
 // Only a synthetic, strict fixture format. Real banks need separate versioned parsers.
 export function parseDemoMail(body: string): ParseResult {
   const match =
-    /^FLOWSALDO-DEMO\|(INCOME|EXPENSE|TRANSFER)\|(DOP|USD)\|([0-9]+)\.([0-9]{2})\|(\d{4}-\d{2}-\d{2})\|([^|\r\n]{1,100})$/.exec(
+    /^FLOWSALDO-DEMO\|(INCOME|EXPENSE|TRANSFER)\|([A-Z]{3})\|([0-9]+)\.([0-9]{2})\|(\d{4}-\d{2}-\d{2})\|([^|\r\n]{1,100})$/.exec(
       body.trim(),
     );
   if (!match) return { status: 'REVIEW', reason: 'Formato desconocido o incompleto' };
   const [, type, currency, major, minor, date, description] = match;
+  if (!isCurrency(currency)) return { status: 'REVIEW', reason: 'Moneda desconocida' };
   const amountMinor = Number(major) * 100 + Number(minor);
   const occurredAt = date + 'T12:00:00.000Z';
   if (
@@ -45,7 +49,7 @@ export function parseDemoMail(body: string): ParseResult {
     status: 'PARSED',
     movement: {
       type: type as MovementType,
-      currency: currency as Currency,
+      currency,
       amountMinor,
       occurredAt,
       description,

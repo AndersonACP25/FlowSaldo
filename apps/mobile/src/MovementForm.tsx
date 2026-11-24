@@ -3,6 +3,7 @@ import React, { useState } from 'react';
 import { Text, View } from 'react-native';
 import {
   movementDate,
+  currencies,
   dominicanDateTime,
   parseDominicanDateTime,
   selectedCategory,
@@ -156,7 +157,7 @@ export function MovementForm({
         placeholder="1250.50"
       />
       <View style={s.row}>
-        {(['DOP', 'USD'] as const).map((c) => (
+        {currencies.map((c) => (
           <Choice
             key={c}
             label={c}

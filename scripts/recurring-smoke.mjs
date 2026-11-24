@@ -11,7 +11,7 @@ export async function checkRecurring(request) {
   const response = await send('/recurring', 'POST', {
     description: name,
     amountMinor: 12345,
-    currency: 'DOP',
+    currency: 'EUR',
     type: 'EXPENSE',
     categoryId: category.id,
     startDate: '2026-01-31',
@@ -28,12 +28,13 @@ export async function checkRecurring(request) {
   assert.deepEqual(results.map((r) => r.status).sort(), [201, 409]);
   const result = await results.find((r) => r.status === 201).json();
   assert.equal(t.timeOfDay, '10:15');
+  assert.equal(result.movement.currency, 'EUR');
   assert.equal(result.movement.occurredAt, '2026-01-31T14:15:00.000Z');
   assert.equal(result.nextDate, '2026-02-28');
   assert.equal(
     (
       await get(
-        `/movements?page=true&month=2026-01&currency=DOP&search=${encodeURIComponent(name)}`,
+        `/movements?page=true&month=2026-01&currency=EUR&search=${encodeURIComponent(name)}`,
       )
     ).total,
     1,

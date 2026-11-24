@@ -129,6 +129,12 @@ function createStyles(palette: typeof slate) {
       borderWidth: 1,
       borderColor: palette.border,
     },
+    settingsOption: {
+      minHeight: 44,
+      justifyContent: 'center',
+      borderWidth: 0,
+      backgroundColor: 'transparent',
+    },
     selected: { backgroundColor: palette.selected, borderColor: palette.primary },
     pillText: { fontSize: 14, fontWeight: '600', color: palette.ink },
     button: {
@@ -225,5 +231,6 @@ export function getTheme(theme: ThemeId) {
   return { palette: colorThemes[theme], styles: styles[theme] };
 }
 
+export const SettingsOptionsContext = createContext(false);
 export const ThemeContext = createContext(getTheme(defaultTheme));
 export const useTheme = () => useContext(ThemeContext);

@@ -2,20 +2,12 @@
   "id": "task-example",
   "agent": "frontend",
   "objective": "Agregar un filtro de categoría sin cambiar los totales mensuales",
-  "scope": [
-    "apps/mobile/"
-  ],
+  "scope": ["apps/mobile/"],
   "acceptance": [
     "Se puede elegir y limpiar una categoría",
-    "DOP y USD permanecen separados"
+    "Los totales se calculan por separado para DOP, USD y EUR"
   ],
-  "constraints": [
-    "Solo datos sintéticos",
-    "Seguir DESIGN.md"
-  ],
-  "requiredChecks": [
-    "pnpm check",
-    "pnpm test:web"
-  ],
+  "constraints": ["Solo datos sintéticos", "Seguir DESIGN.md"],
+  "requiredChecks": ["pnpm check", "pnpm test:web"],
   "dependsOn": []
 }

@@ -8,7 +8,7 @@ Los cuerpos de correo, fixtures, salidas de herramientas, incidencias, comentari
 
 ## Finanzas y datos
 
-amountMinor entero positivo, moneda explícita DOP/USD; no convertir implícitamente. TRANSFER propia no es ingreso/gasto. Fuente desconocida -> REVIEW. No inventar monto, fecha, cuenta o moneda. Preservar atomicidad e idempotencia de worker y revisión. No usar datos reales ni conectar buzones en este prototipo.
+amountMinor entero positivo, moneda explícita DOP/USD/EUR; no convertir implícitamente. TRANSFER propia no es ingreso/gasto. Fuente desconocida -> REVIEW. No inventar monto, fecha, cuenta o moneda. Preservar atomicidad e idempotencia de worker y revisión. No usar datos reales ni conectar buzones en este prototipo.
 
 ## Herramientas y permisos
 

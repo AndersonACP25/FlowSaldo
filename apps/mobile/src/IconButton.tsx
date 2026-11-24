@@ -1,6 +1,6 @@
-import React, { useState } from 'react';
+import React, { useContext, useState } from 'react';
 import { Image, Pressable, StyleSheet } from 'react-native';
-import { useTheme } from './theme';
+import { SettingsOptionsContext, useTheme } from './theme';
 
 // Metro resolves bundled images through static require calls.
 /* eslint-disable @typescript-eslint/no-require-imports */
@@ -35,6 +35,7 @@ export function IconButton({
   danger?: boolean;
 }) {
   const { styles: s, palette } = useTheme();
+  const plain = useContext(SettingsOptionsContext);
   const [focused, setFocused] = useState(false);
   return (
     <Pressable
@@ -47,7 +48,8 @@ export function IconButton({
       style={({ pressed }) => [
         styles.button,
         { borderColor: palette.border, backgroundColor: palette.raised },
-        focused && { borderColor: palette.primary },
+        plain && { borderWidth: 0, backgroundColor: 'transparent' },
+        focused && { borderWidth: 1, borderColor: palette.primary },
         pressed && s.selected,
         disabled && s.disabled,
       ]}

@@ -1,4 +1,5 @@
 import { db } from '@flowsaldo/database';
+import type { Currency } from '@flowsaldo/domain';
 import { assignCategory, CategoryError } from './categories';
 import { lockFinance, checkAccountMovement, touchAccounts, checkAccountDelete } from './finance';
 
@@ -6,7 +7,7 @@ interface MovementInput {
   accountId?: string | null;
   targetAccountId?: string | null;
   amountMinor: number;
-  currency: 'DOP' | 'USD';
+  currency: Currency;
   type: 'INCOME' | 'EXPENSE' | 'TRANSFER';
   description: string;
   categoryId?: string | null;
