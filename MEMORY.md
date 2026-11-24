@@ -183,3 +183,7 @@ El catálogo bancario inicial usa nombres de entidades operando del directorio d
 ## Configuración, temas y fecha con hora (2026-11-24)
 
 Configuración se divide en subpantallas y Acerca queda al final. Oscuro, Claro y Océano aplican tokens globales y persisten por dispositivo. Inicio abre Presupuestos, Análisis y Tasas desde un menú lateral. Los filtros de recepción y la creación de plantillas usan fecha y hora dominicana. Las plantillas con hora persisten su hora mensual y habilitan la confirmación al vencimiento. Las plantillas anteriores conservan el comportamiento UTC previo.
+
+## Opciones de Configuración, tasas y EUR (2026-11-24)
+
+Configuración utiliza opciones sin bordes ni flechas. Tasa del día abre la consulta existente de USD y EUR frente a DOP desde Configuración. EUR se admite en el modo local y en el conectado. La migración agrega un valor al enum de PostgreSQL. La moneda se conserva al guardar, exportar y agregar datos. Los parsers de retiros BHD y Popular siguen limitados a DOP.

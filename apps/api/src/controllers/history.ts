@@ -4,6 +4,7 @@ import { z } from 'zod';
 import { db } from '@flowsaldo/database';
 import {
   changeSince,
+  currencies,
   previousMonth,
   movementsCsv,
   validDate,
@@ -41,7 +42,7 @@ const paging = z.object({
     .optional(),
 });
 const filters = z.object({
-  currency: z.enum(['DOP', 'USD']).optional(),
+  currency: z.enum(currencies).optional(),
   month: monthSchema.optional(),
   accountId: z.string().min(1).max(200).optional(),
   categoryId: z.string().min(1).max(200).optional(),
@@ -128,7 +129,7 @@ history.get('/movements', async (req, res, next) => {
 });
 history.get('/movements/export', async (req, res) => {
   const filter = filters
-    .extend({ month: monthSchema, currency: z.enum(['DOP', 'USD']) })
+    .extend({ month: monthSchema, currency: z.enum(currencies) })
     .parse(req.query);
   const rows = await db.movement.findMany({
     where: movementWhere(filter),
@@ -146,7 +147,7 @@ history.get('/summary', async (req, res, next) => {
   const { month, currency, weekEnd } = filters
     .extend({
       month: monthSchema,
-      currency: z.enum(['DOP', 'USD']).default('DOP'),
+      currency: z.enum(currencies).default('DOP'),
       weekEnd: dateSchema.optional(),
     })
     .refine((value) => !value.weekEnd || value.weekEnd.startsWith(value.month), {

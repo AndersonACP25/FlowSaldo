@@ -51,6 +51,13 @@ export async function checkCoreFlows(browser) {
     await page.getByRole('alert').filter({ hasText: 'Correo o contraseña incorrectos' }).waitFor();
     await button('Usar cuenta de prueba').click();
     await button('Entrar').click();
+    await button('Configuración').click();
+    await button('Preferencias').click();
+    await button('EUR').click();
+    await button('Guardar preferencias').click();
+    await page.getByText('Preferencias guardadas en este dispositivo.', { exact: true }).waitFor();
+    await button('Volver').click();
+    await button('Volver').click();
     await button('+ Nuevo movimiento').click();
     await page.getByLabel('Descripción', { exact: true }).fill('Compra CORE');
     await page.getByLabel('Monto (sin separadores de miles)', { exact: true }).fill('100.29');
@@ -106,6 +113,20 @@ export async function checkCoreFlows(browser) {
         },
       });
     });
+    await button('Configuración').click();
+    const dailyRate = button('Tasa del día');
+    assert.equal(await dailyRate.innerText(), 'Tasa del día');
+    assert.equal(
+      await dailyRate.evaluate(
+        (element) => element.ownerDocument.defaultView.getComputedStyle(element).borderTopWidth,
+      ),
+      '0px',
+    );
+    await dailyRate.click();
+    await page.getByText('USD → DOP', { exact: true }).waitFor();
+    await page.getByText('EUR → DOP', { exact: true }).waitFor();
+    await button('Volver').click();
+    await button('Volver').click();
     await button('Inicio').click();
     await button('Elegir período').click();
     await page.getByLabel('Año', { exact: true }).fill('2040');
@@ -128,6 +149,7 @@ export async function checkCoreFlows(browser) {
     await page.getByText('Iniciar sesión', { exact: true }).waitFor();
     const csv = parseCsv(await readFile(await file.path(), 'utf8'));
     assert.equal(csv.length, 2);
+    assert.equal(csv[1][2], 'EUR');
     assert.equal(csv[1][3], '100.29');
     assert.equal(csv[1][4], 'Compra CORE');
     assert.equal(apiRequests, 0, 'El flujo local funciona sin solicitudes a la API');

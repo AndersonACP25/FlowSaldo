@@ -63,7 +63,7 @@ Ejecuta los comandos desde la raíz tras instalar las dependencias. Prepara la b
 
 Docker Compose ejecuta PostgreSQL. Después de configurar Docker y el archivo `.env`, `pnpm setup:local` instala las dependencias y prepara la base y `pnpm dev` arranca la web, la API y el worker juntos. Usa **Registrarse** para crear tu cuenta personal. La [guía de instalación](docs/setup.md) indica cómo configurar los archivos `.env`, preparar las tablas, arrancar los servicios y crear tu primera cuenta. Si el APK debe conectarse desde un teléfono, prepara una URL HTTPS accesible y configúrala antes de compilar. [Guía del piloto Android](docs/pilot.md)
 
-Desde **Inicio → Tasas** puedes consultar valores recientes o históricos y estimar conversiones a DOP. Las tasas son de referencia. Los movimientos y presupuestos se registran en DOP y USD.
+Desde **Configuración → Tasa del día** o **Inicio → Menú → Tasas de cambio** puedes consultar las últimas tasas publicadas de USD y EUR frente al DOP, ver el histórico y estimar conversiones. Las tasas son de referencia. FlowSaldo registra movimientos, presupuestos, plantillas y cuentas financieras en DOP, USD y EUR. Cada moneda tiene su propio saldo, total y presupuesto.
 
 Los saldos son registros que introduces en FlowSaldo. En **Conexiones → Laboratorio de correo sintético**, el importador prepara retiros aprobados en DOP de BHD y Popular para confirmación manual. El modo conectado ya permite autorizar y desconectar Gmail en el piloto local. La importación desde Gmail y los demás formatos de bancos dominicanos y PayPal siguen pendientes. [Formatos admitidos](docs/api.md#avisos-bancarios-de-prueba)
 

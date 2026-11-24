@@ -39,6 +39,7 @@ import {
 } from '@tanstack/react-query';
 import {
   formatMinorAmount,
+  currencies,
   prepareOccurrence,
   changeSince,
   previousMonth,
@@ -65,7 +66,7 @@ import {
   type Currency,
   type MovementType,
 } from '@flowsaldo/domain';
-import { useTheme } from './src/theme';
+import { SettingsOptionsContext, useTheme } from './src/theme';
 import { Button, Choice, Field } from './src/ui';
 import { ImportQueue, type ImportStats } from './src/ImportQueue';
 import { MonthlyComparison } from './src/MonthlyComparison';
@@ -162,7 +163,9 @@ function Home({
     screen === 'Presupuestos' ||
     screen === 'Análisis';
   const showSummary = screen === 'Inicio' || screen === 'Presupuestos' || screen === 'Análisis';
-  const backTo = settingsSections.some((section) => section === screen)
+  const settingsSection = settingsSections.some((section) => section === screen);
+  const inSettings = settingsSection || screen === 'Configuración';
+  const backTo = settingsSection
     ? 'Configuración'
     : screen === 'Configuración'
       ? previousTab
@@ -824,7 +827,7 @@ function Home({
       }}
     />
   );
-  return (
+  const content = (
     <View style={s.root}>
       <ScrollView
         key={screen}
@@ -852,7 +855,7 @@ function Home({
             </Text>
             <Choice
               label="Volver"
-              text="‹ Volver"
+              text={inSettings ? 'Volver' : '‹ Volver'}
               selected={false}
               onPress={() => setScreen(backTo)}
             />
@@ -911,7 +914,7 @@ function Home({
               <>
                 <PeriodPicker date={periodDate} onChange={setPeriodDate} />
                 <FilterRow label="Filtrar por moneda">
-                  {(['DOP', 'USD'] as const).map((c) => (
+                  {currencies.map((c) => (
                     <Choice
                       key={c}
                       label={c}
@@ -982,7 +985,7 @@ function Home({
                 )}
               </>
             )}
-            {screen === 'Tasas' && <RatesScreen />}
+            {(screen === 'Tasas' || screen === 'Tasa del día') && <RatesScreen />}
             {screen === 'Análisis' && (!connected || totals.isSuccess) && (
               <>
                 {comparison && (
@@ -1810,6 +1813,9 @@ function Home({
         </View>
       )}
     </View>
+  );
+  return (
+    <SettingsOptionsContext.Provider value={inSettings}>{content}</SettingsOptionsContext.Provider>
   );
 }
 export default function App() {

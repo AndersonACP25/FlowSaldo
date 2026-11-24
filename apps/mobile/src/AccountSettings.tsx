@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { Text, View, Switch } from 'react-native';
+import { currencies } from '@flowsaldo/domain';
 import { Button, Choice } from './ui';
 import type { Preferences } from './preferences';
 import { useTheme } from './theme';
@@ -33,7 +34,7 @@ export function AccountSettings({
       <Text style={s.title}>Preferencias locales</Text>
       <Text style={s.label}>Moneda predeterminada</Text>
       <View style={s.row}>
-        {(['DOP', 'USD'] as const).map((currency) => (
+        {currencies.map((currency) => (
           <Choice
             key={currency}
             label={currency}

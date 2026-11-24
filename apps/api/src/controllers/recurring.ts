@@ -3,6 +3,7 @@ import { z } from 'zod';
 import { db } from '@flowsaldo/database';
 import {
   prepareOccurrence,
+  currencies,
   validClockTime,
   validDate,
   type RecurringTemplate,
@@ -11,7 +12,7 @@ import { assignCategory, CategoryError } from '../models/categories';
 const fields = z.object({
   description: z.string().trim().min(1).max(100),
   amountMinor: z.number().int().positive().max(2147483647),
-  currency: z.enum(['DOP', 'USD']),
+  currency: z.enum(currencies),
   type: z.enum(['INCOME', 'EXPENSE', 'TRANSFER']),
   categoryId: z.string().min(1).max(200),
   category: z.string().trim().min(1).max(60).default('Sin categorizar'),

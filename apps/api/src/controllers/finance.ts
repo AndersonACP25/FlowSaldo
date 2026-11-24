@@ -2,7 +2,7 @@ import { Router } from 'express';
 import { z } from 'zod';
 import type { Prisma } from '@prisma/client';
 import { db } from '@flowsaldo/database';
-import { ledgerBalance, validDate } from '@flowsaldo/domain';
+import { ledgerBalance, currencies, validDate } from '@flowsaldo/domain';
 import { CategoryError } from '../models/categories';
 import { lockFinance, balance } from '../models/finance';
 type Tx = Prisma.TransactionClient;
@@ -18,7 +18,7 @@ const month = z
   .string()
   .regex(/^\d{4}-\d{2}$/)
   .refine((v) => validDate(v + '-01'));
-const currency = z.enum(['DOP', 'USD']);
+const currency = z.enum(currencies);
 financeRoutes.get('/accounts', async (_req, res) => {
   const result = await db.$transaction(
     async (tx) => {

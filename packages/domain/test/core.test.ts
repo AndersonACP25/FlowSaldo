@@ -46,7 +46,17 @@ test('CORE: totals isolate currencies/months and exclude own transfers', () => {
     expenseMinor: 245050,
     differenceMinor: 4254950,
   });
-  assert.equal(summarize(demoMovements, 'USD').expenseMinor, 1299);
+  const euro = {
+    ...demoMovements[0],
+    currency: 'EUR',
+    type: 'EXPENSE',
+    amountMinor: 1299,
+  } as const;
+  const mixed = [...demoMovements, euro];
+  assert.equal(summarize(mixed, 'USD').expenseMinor, 1299);
+  assert.equal(summarize(mixed, 'EUR').expenseMinor, 1299);
+  assert.equal(summarize(mixed, 'DOP').expenseMinor, 245050);
+  assert.deepEqual(filterMovements(mixed, { month: '2026-10', currency: 'EUR' }), [euro]);
   // Payment transfers reduce source cash and debt equally; no new expense.
   assert.equal(ledgerBalance(100000, 0, 25000, 0), 75000);
   assert.equal(ledgerBalance(-50000, 0, 0, 25000), -25000);
@@ -59,8 +69,12 @@ test('CORE: only explicit valid synthetic messages become movements', () => {
     parseDemoMail('FLOWSALDO-DEMO|EXPENSE|DOP|12.50|2026-10-21|Compra').status,
     'PARSED',
   );
+  const euro = parseDemoMail('FLOWSALDO-DEMO|EXPENSE|EUR|12.50|2026-10-21|Compra');
+  assert.equal(euro.status, 'PARSED');
+  if (euro.status === 'PARSED') assert.equal(euro.movement.currency, 'EUR');
   for (const body of [
     'desconocido',
+    'FLOWSALDO-DEMO|EXPENSE|GBP|12.50|2026-10-21|Compra',
     'FLOWSALDO-DEMO|EXPENSE|DOP|0.00|2026-10-21|Compra',
     'FLOWSALDO-DEMO|INCOME|USD|10.00|2026-02-30|Ingreso',
   ])

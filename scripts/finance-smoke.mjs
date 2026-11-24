@@ -23,14 +23,14 @@ export async function checkFinance(request) {
     accounts.push(a.id);
     return a;
   };
-  const bank = await create('Bank', 'BANK', 'DOP', 100000);
-  const card = await create('Card', 'CREDIT_CARD', 'DOP', -50000, 200000);
+  const bank = await create('Bank', 'BANK', 'EUR', 100000);
+  const card = await create('Card', 'CREDIT_CARD', 'EUR', -50000, 200000);
   const usd = await create('USD', 'BANK', 'USD', 1000);
   await create('Loan', 'LOAN', 'DOP', -100000);
   const input = {
     description: prefix,
     amountMinor: 25000,
-    currency: 'DOP',
+    currency: 'EUR',
     type: 'TRANSFER',
     category: 'Sin categorizar',
     occurredAt: '2026-02-02T12:00:00.000Z',
@@ -38,7 +38,7 @@ export async function checkFinance(request) {
     targetAccountId: card.id,
     requestKey: prefix + '-payment',
   };
-  const before = await read('/summary?month=2026-02&currency=DOP');
+  const before = await read('/summary?month=2026-02&currency=EUR');
   assert.equal(
     (await post('/movements', { ...input, targetAccountId: usd.id })).status,
     400,
@@ -62,17 +62,18 @@ export async function checkFinance(request) {
   assert.equal(accountPage.total, 1);
   assert.equal(accountPage.items[0].id, copies[0].id);
   const accountCsv = await request(
-    `/movements/export?month=2026-02&currency=DOP&accountId=${card.id}`,
+    `/movements/export?month=2026-02&currency=EUR&accountId=${card.id}`,
   );
   assert.equal(accountCsv.status, 200);
-  assert.ok((await accountCsv.text()).includes(prefix));
-  const after = await read('/summary?month=2026-02&currency=DOP');
+  assert.match(await accountCsv.text(), new RegExp('EUR.*' + prefix));
+  const after = await read('/summary?month=2026-02&currency=EUR');
   assert.equal(after.incomeMinor, before.incomeMinor);
+  assert.equal(after.currency, 'EUR');
   assert.equal(after.expenseMinor, before.expenseMinor, 'Debt payment must not double expense');
   const expense = {
     description: prefix + ' expense',
     amountMinor: 1000,
-    currency: 'DOP',
+    currency: 'EUR',
     type: 'EXPENSE',
     category: 'Sin categorizar',
     occurredAt: '2026-02-03T12:00:00.000Z',
@@ -81,6 +82,7 @@ export async function checkFinance(request) {
   const er = await post('/movements', expense);
   assert.equal(er.status, 201);
   const e = await er.json();
+  assert.equal(e.currency, 'EUR');
   movements.push(e.id);
   let rows = await read('/accounts');
   assert.equal(rows.find((a) => a.id === bank.id).balanceMinor, 74000);
@@ -196,7 +198,7 @@ export async function checkFinance(request) {
   const category = categories.find((c) => !c.archived && !c.system) ?? categories[0];
   const budget = {
     month: '2036-02',
-    currency: 'DOP',
+    currency: 'EUR',
     expectedVersion: 0,
     limitMinor: 100000,
     categoryLimits: [{ categoryId: category.id, limitMinor: 20000 }],
@@ -206,7 +208,7 @@ export async function checkFinance(request) {
     post('/budgets', { ...budget, limitMinor: 99999 }),
   ]);
   assert.deepEqual(writes.map((r) => r.status).sort(), [200, 409]);
-  const saved = await read('/budgets?month=2036-02&currency=DOP');
+  const saved = await read('/budgets?month=2036-02&currency=EUR');
   assert.equal(saved.version, 1);
   assert.equal(saved.categoryLimits[0].limitMinor, 20000);
   assert.deepEqual(await read('/budgets?month=2036-02&currency=USD'), {
@@ -226,7 +228,7 @@ export async function checkFinance(request) {
     200,
   );
   assert.equal(
-    (await read('/budgets?month=2036-02&currency=DOP')).version,
+    (await read('/budgets?month=2036-02&currency=EUR')).version,
     2,
     'Removing limits preserves version tombstone',
   );
