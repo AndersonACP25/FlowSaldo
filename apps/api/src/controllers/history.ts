@@ -61,15 +61,32 @@ function movementWhere(filter: z.infer<typeof filters>) {
   return {
     currency: filter.currency,
     type: filter.type,
-    categoryId: filter.categoryId,
     ...(filter.month ? { occurredAt: monthRange(filter.month) } : {}),
     AND: [
+      ...(filter.categoryId
+        ? [
+            {
+              OR: [
+                { categoryId: filter.categoryId, splits: { none: {} } },
+                { splits: { some: { categoryId: filter.categoryId } } },
+              ],
+            },
+          ]
+        : []),
       ...(search
         ? [
             {
               OR: [
                 { description: { contains: search, mode: 'insensitive' as const } },
-                { category: { contains: search, mode: 'insensitive' as const } },
+                {
+                  category: { contains: search, mode: 'insensitive' as const },
+                  splits: { none: {} },
+                },
+                {
+                  splits: {
+                    some: { category: { contains: search, mode: 'insensitive' as const } },
+                  },
+                },
               ],
             },
           ]
@@ -112,6 +129,7 @@ history.get('/movements', async (req, res, next) => {
           where: { AND: [where, after(page.cursor, 'occurredAt')] },
           orderBy: [{ occurredAt: 'desc' }, { id: 'asc' }],
           take: page.limit + 1,
+          include: { splits: true },
         }),
         tx.movement.count({ where }),
       ]);
@@ -133,6 +151,7 @@ history.get('/movements/export', async (req, res) => {
     .parse(req.query);
   const rows = await db.movement.findMany({
     where: movementWhere(filter),
+    include: { splits: true },
     orderBy: [{ occurredAt: 'desc' }, { id: 'asc' }],
   });
   const movements = rows.map((row) => ({ ...row, occurredAt: row.occurredAt.toISOString() }));
@@ -166,23 +185,22 @@ history.get('/summary', async (req, res, next) => {
   start.setUTCDate(start.getUTCDate() - 6);
   const result = await db.$transaction(
     async (tx) => {
-      const [types, categories, daily, total, categoryTotals, prior] = await Promise.all([
+      const [types, categoryRows, daily, total, prior] = await Promise.all([
         tx.movement.groupBy({ by: ['type'], where, _sum: { amountMinor: true } }),
-        tx.movement.groupBy({
-          by: ['category'],
-          where: { ...where, type: 'EXPENSE' },
-          _sum: { amountMinor: true },
-          orderBy: { _sum: { amountMinor: 'desc' } },
-        }),
+        tx.$queryRaw<Array<{ categoryId: string | null; category: string; amount: bigint }>>`
+          SELECT COALESCE(s."categoryId", m."categoryId") AS "categoryId",
+                 COALESCE(s.category, m.category) AS category,
+                 SUM(COALESCE(s."amountMinor", m."amountMinor")) AS amount
+          FROM "Movement" m
+          LEFT JOIN "MovementSplit" s ON s."movementId" = m.id
+          WHERE m.currency::text = ${currency} AND m.type = 'EXPENSE'
+            AND m."occurredAt" >= ${where.occurredAt.gte} AND m."occurredAt" < ${where.occurredAt.lt}
+          GROUP BY 1, 2
+        `,
         tx.$queryRaw<
           Array<{ day: string; type: string; amount: bigint }>
         >`SELECT to_char("occurredAt", 'YYYY-MM-DD') AS day, type, SUM("amountMinor") AS amount FROM "Movement" WHERE currency::text=${currency} AND "occurredAt">=${start} AND "occurredAt"<${new Date(Date.parse(end + 'T00:00:00.000Z') + 86400000)} AND "occurredAt">=${weekEnd ? start : where.occurredAt.gte} GROUP BY day,type`,
         tx.movement.count({ where }),
-        tx.movement.groupBy({
-          by: ['categoryId'],
-          where: { ...where, type: 'EXPENSE' },
-          _sum: { amountMinor: true },
-        }),
         tx.movement.groupBy({
           by: ['type'],
           where: { currency, occurredAt: monthRange(priorMonth) },
@@ -194,6 +212,13 @@ history.get('/summary', async (req, res, next) => {
         if (!Number.isSafeInteger(n)) throw new Error('Total fuera de rango');
         return n;
       };
+      const byName = new Map<string, number>();
+      const byId = new Map<string | null, number>();
+      for (const row of categoryRows) {
+        const amount = safe(row.amount);
+        byName.set(row.category, safe((byName.get(row.category) ?? 0) + amount));
+        byId.set(row.categoryId, safe((byId.get(row.categoryId) ?? 0) + amount));
+      }
       const incomeMinor = safe(types.find((v) => v.type === 'INCOME')?._sum.amountMinor);
       const expenseMinor = safe(types.find((v) => v.type === 'EXPENSE')?._sum.amountMinor);
       const weeklyRows = daily.map((v, i) => ({
@@ -217,9 +242,9 @@ history.get('/summary', async (req, res, next) => {
             safe(prior.find((v) => v.type === 'EXPENSE')?._sum.amountMinor),
           ),
         },
-        categoryTotals: categoryTotals.map((v) => ({
-          categoryId: v.categoryId,
-          amountMinor: safe(v._sum.amountMinor),
+        categoryTotals: Array.from(byId, ([categoryId, amountMinor]) => ({
+          categoryId,
+          amountMinor,
         })),
         currency,
         month,
@@ -228,10 +253,10 @@ history.get('/summary', async (req, res, next) => {
         expenseMinor,
         differenceMinor: safe(incomeMinor - expenseMinor),
         total,
-        categories: categories.map((v) => ({
-          category: v.category,
-          amountMinor: safe(v._sum.amountMinor),
-        })),
+        categories: Array.from(byName, ([category, amountMinor]) => ({
+          category,
+          amountMinor,
+        })).sort((a, b) => b.amountMinor - a.amountMinor),
         days: dailyCashFlow(weeklyRows, end),
       };
     },

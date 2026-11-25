@@ -56,6 +56,7 @@ export async function deleteCategory(id: string) {
       where: {
         id,
         movements: { none: {} },
+        movementSplits: { none: {} },
         recurringTemplates: { none: {} },
         budgetLimits: { none: {} },
       },

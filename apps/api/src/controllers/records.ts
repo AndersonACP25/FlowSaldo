@@ -7,6 +7,7 @@ import {
   validDate,
   summarize,
   type Movement,
+  maxMovementSplits,
 } from '@flowsaldo/domain';
 import { importMetadata } from './imports';
 import { createMovement, updateMovement, deleteMovement, resolveImport } from '../models/records';
@@ -22,6 +23,17 @@ const movementSchema = z.object({
   categoryId: z.string().min(1).max(200).nullish(),
   category: z.string().trim().min(1).max(60).default('Sin categorizar'),
   occurredAt: z.iso.datetime(),
+});
+const editableMovementSchema = movementSchema.extend({
+  splits: z
+    .array(
+      z.object({
+        categoryId: z.string().min(1).max(200),
+        amountMinor: z.number().int().positive().max(2147483647),
+      }),
+    )
+    .max(maxMovementSplits)
+    .optional(),
 });
 records.get('/movements', async (req, res) => {
   const filter = z
@@ -40,13 +52,17 @@ records.get('/movements', async (req, res) => {
   res.json(
     await db.movement.findMany({
       where: { currency: filter.currency, ...(from ? { occurredAt: { gte: from, lt: to } } : {}) },
+      include: { splits: true },
       orderBy: [{ occurredAt: 'desc' }, { id: 'asc' }],
       take: 200,
     }),
   );
 });
 records.get('/movements/:id', async (req, res) => {
-  const item = await db.movement.findUnique({ where: { id: req.params.id } });
+  const item = await db.movement.findUnique({
+    where: { id: req.params.id },
+    include: { splits: true },
+  });
   if (!item) {
     res.status(404).json({ error: 'Movimiento no encontrado' });
     return;
@@ -54,7 +70,7 @@ records.get('/movements/:id', async (req, res) => {
   res.json(item);
 });
 records.post('/movements', async (req, res) => {
-  const data = movementSchema
+  const data = editableMovementSchema
     .extend({ requestKey: z.string().min(10).max(100).optional() })
     .parse(req.body);
   const result = await createMovement(data);
@@ -62,7 +78,7 @@ records.post('/movements', async (req, res) => {
 });
 
 records.patch('/movements/:id', async (req, res) => {
-  const data = movementSchema.parse(req.body);
+  const data = editableMovementSchema.parse(req.body);
   const result = await updateMovement(req.params.id, data);
   if (!result) {
     res.status(404).json({ error: 'Movimiento no encontrado' });

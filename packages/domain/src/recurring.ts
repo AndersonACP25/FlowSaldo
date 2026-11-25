@@ -55,6 +55,7 @@ export function prepareOccurrence(
   scheduledFor: string,
   now: string,
   receipts: RecurringReceipt[] = [],
+  recordMovement = true,
 ) {
   if (!template.active) throw new Error('La plantilla está pausada.');
   if (
@@ -64,7 +65,7 @@ export function prepareOccurrence(
     receipts.some((r) => r.templateId === template.id && r.scheduledFor === scheduledFor)
   )
     throw new Error('El vencimiento ya se registró o cambió. Actualiza la lista.');
-  if (!recurringIsDue(template, new Date(now)))
+  if (recordMovement && !recurringIsDue(template, new Date(now)))
     throw new Error('El vencimiento todavía no ha llegado.');
   return {
     nextDate: nextMonthlyDate(scheduledFor, template.anchorDay),

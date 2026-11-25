@@ -95,6 +95,21 @@ export async function checkRecurring(request) {
     ).status,
     409,
   );
+  const close = () =>
+    send('/recurring/' + f.id + '/close', 'POST', {
+      scheduledFor: f.nextDate,
+      expectedVersion: f.version,
+    });
+  const closed = await Promise.all([close(), close()]);
+  assert.deepEqual(closed.map((response) => response.status).sort(), [201, 409]);
+  assert.deepEqual(await closed.find((response) => response.status === 201).json(), {
+    movement: null,
+    nextDate: '2099-02-01',
+  });
+  assert.equal(
+    (await get('/movements?page=true&month=2099-01&currency=USD&search=Futuro%20CORE')).total,
+    0,
+  );
   assert.equal(
     (
       await send('/recurring', 'POST', {

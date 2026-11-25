@@ -1,3 +1,10 @@
+import { LoanSimulatorScreen } from './src/LoanSimulatorScreen';
+import { CommerceRulesScreen } from './src/CommerceRulesScreen';
+import { MonthlyClosingScreen } from './src/MonthlyClosingScreen';
+import { DebtPlansScreen } from './src/DebtPlansScreen';
+import { PendingPaymentsScreen } from './src/PendingPaymentsScreen';
+import { SavingsGoalsScreen } from './src/SavingsGoalsScreen';
+import { CashProjectionScreen } from './src/CashProjectionScreen';
 import { SettingsMenu, settingsSections, type SettingsSection } from './src/SettingsMenu';
 import { ThemeProvider, ThemeSettings } from './src/ThemeProvider';
 import { DateTimeField } from './src/DateTimeField';
@@ -39,6 +46,18 @@ import {
 } from '@tanstack/react-query';
 import {
   formatMinorAmount,
+  addSavingsContribution,
+  addPendingSettlement,
+  checkPendingDraft,
+  checkDebtPlan,
+  type DebtPlan,
+  pendingOccurrence,
+  pendingRemaining,
+  type PendingDraft,
+  type PendingItem,
+  checkSavingsGoal,
+  type SavingsGoal,
+  type SavingsContribution,
   currencies,
   prepareOccurrence,
   changeSince,
@@ -51,6 +70,12 @@ import {
   countLabel,
   pendingMailMessage,
   categoryExpenses,
+  movementCategories,
+  makeMonthlyClosing,
+  setCommerceRule,
+  type CommerceRule,
+  pendingForClosing,
+  type MonthlyClosing,
   demoMovements,
   dominicanDateTime,
   parseDominicanDateTime,
@@ -83,7 +108,13 @@ import { RecoverySettings } from './src/RecoverySettings';
 import { FinancePanel, type FinancialAccount, type ServerBudget } from './src/FinancePanel';
 import { DataRetention } from './src/DataRetention';
 import { PersonalAccount } from './src/PersonalAccount';
-import { apiBase, accessRequest, type Owner, type PersonalSession } from './src/access';
+import {
+  AccessError,
+  apiBase,
+  accessRequest,
+  type Owner,
+  type PersonalSession,
+} from './src/access';
 import { readAccess, writeAccess, clearAccess } from './src/accessVault';
 import { AccountSettings } from './src/AccountSettings';
 import {
@@ -107,6 +138,12 @@ function initialData(): LocalData {
     bankIds: [],
     receipts: [],
     categoryBudgets: {},
+    cashProjections: {},
+    savingsGoals: { demo: [], api: [] },
+    pendingItems: {},
+    debtPlans: {},
+    monthlyClosings: {},
+    commerceRules: {},
     budgets: {},
     reviews: demoReviews(),
   };
@@ -153,18 +190,33 @@ function Home({
     | 'Configuración'
     | 'Presupuestos'
     | 'Análisis'
+    | 'Disponible hasta el próximo cobro'
+    | 'Metas de ahorro'
+    | 'Pagos y cobros pendientes'
+    | 'Plan de pago de tarjetas y préstamos'
+    | 'Simulador de préstamos'
+    | 'Cierre mensual'
     | 'Tasas'
     | 'Editar movimiento'
     | 'Nueva plantilla mensual'
     | SettingsSection
   >('Inicio');
+  const [transferForSavings, setTransferForSavings] = useState<Movement | null>(null);
+  const [movementForPending, setMovementForPending] = useState<Movement | null>(null);
+  const [pendingFocus, setPendingFocus] = useState<string | null>(null);
+  const [pendingOrigin, setPendingOrigin] = useState<'Inicio' | 'Movimientos' | 'Cierre mensual'>(
+    'Inicio',
+  );
+  const [projectionCurrency, setProjectionCurrency] = useState<Currency>('DOP');
   const [previousTab, setPreviousTab] = useState<Tab>('Inicio');
   const secondary =
     screen !== 'Inicio' &&
     screen !== 'Movimientos' &&
     screen !== 'Por revisar' &&
     screen !== 'Conexiones';
+  const closing = screen === 'Cierre mensual';
   const showMonth =
+    closing ||
     screen === 'Inicio' ||
     screen === 'Movimientos' ||
     screen === 'Presupuestos' ||
@@ -172,7 +224,11 @@ function Home({
   const showSummary = screen === 'Inicio' || screen === 'Presupuestos' || screen === 'Análisis';
   const settingsSection = settingsSections.some((section) => section === screen);
   const inSettings = settingsSection || screen === 'Configuración';
-  const fromMovements = screen === 'Editar movimiento' || screen === 'Nueva plantilla mensual';
+  const fromMovements =
+    screen === 'Editar movimiento' ||
+    screen === 'Nueva plantilla mensual' ||
+    (screen === 'Metas de ahorro' && !!transferForSavings) ||
+    (screen === 'Pagos y cobros pendientes' && pendingOrigin === 'Movimientos');
   const activeTab = inSettings
     ? previousTab
     : fromMovements
@@ -184,9 +240,11 @@ function Home({
     ? 'Configuración'
     : screen === 'Configuración'
       ? previousTab
-      : fromMovements
-        ? 'Movimientos'
-        : 'Inicio';
+      : screen === 'Pagos y cobros pendientes'
+        ? pendingOrigin
+        : fromMovements
+          ? 'Movimientos'
+          : 'Inicio';
   const [accountFilter, setAccountFilter] = useState('');
   const [search, setSearch] = useState('');
   const [type, setType] = useState<MovementType | 'ALL'>('ALL');
@@ -208,6 +266,7 @@ function Home({
     if (fromMovements) {
       setEditor(null);
       setDuplicate(null);
+      setTransferForSavings(null);
     }
     setScreen(backTo);
   }, [backTo, busy, fromMovements]);
@@ -230,6 +289,33 @@ function Home({
     /* Auth screen explains invalid API configuration. Demo stays available. */
   }
   const connected = !!session;
+  const savingsMode = connected ? 'api' : 'demo';
+  const savingsGoals = local.savingsGoals[savingsMode];
+  const pendingScope = personal ? `owner:${personal.owner.id}` : savingsMode;
+  const pendingItems = local.pendingItems[pendingScope] ?? [];
+  const planningScope = connected
+    ? JSON.stringify([url, personal?.owner.id ?? 'development'])
+    : 'demo';
+  const debtPlans = local.debtPlans[planningScope] ?? [];
+  const monthlyClosings = local.monthlyClosings[planningScope] ?? [];
+  const commerceRules = local.commerceRules[planningScope] ?? [];
+  const pendingMovementIds = [
+    ...new Set(
+      pendingItems.flatMap((item) =>
+        item.settlements.flatMap((settlement) =>
+          settlement.kind === 'movement' ? [settlement.movementId] : [],
+        ),
+      ),
+    ),
+  ].sort();
+  const savingsTransferIds = [
+    ...new Set(
+      savingsGoals.flatMap((goal) =>
+        goal.contributions.flatMap((item) => (item.kind === 'transfer' ? [item.movementId] : [])),
+      ),
+    ),
+  ].sort();
+  const projectionKey = `${connected ? 'api' : 'demo'}:${projectionCurrency}` as const;
   useEffect(() => {
     let active = true;
     void loadLocal()
@@ -268,10 +354,66 @@ function Home({
     }
     if (!response.ok) {
       const data = await response.json().catch(() => null);
-      throw new Error(data?.error ?? 'No se pudo conectar con la API.');
+      throw new AccessError(data?.error ?? 'No se pudo conectar con la API.', response.status);
     }
     return response.status === 204 ? null : response.json();
   }
+  async function movementForLink(id: string): Promise<Movement | null> {
+    if (!connected)
+      return localRef.current.movements.find((movement) => movement.id === id) ?? null;
+    try {
+      return await request(`/movements/${encodeURIComponent(id)}`);
+    } catch (error) {
+      if (error instanceof AccessError && error.status === 404) return null;
+      throw error;
+    }
+  }
+  const savingsTransfersQuery = useQuery({
+    queryKey: ['savings-transfers', url, savingsTransferIds],
+    enabled: connected && screen === 'Metas de ahorro' && savingsTransferIds.length > 0,
+    retry: false,
+    queryFn: async () => {
+      const results = await Promise.all(savingsTransferIds.map(movementForLink));
+      return results.filter((movement): movement is Movement => movement !== null);
+    },
+  });
+
+  async function pendingLinks(ids: string[]) {
+    const results = await Promise.all(ids.map(movementForLink));
+    return new Map(
+      results.flatMap((movement) => (movement ? [[movement.id, movement] as const] : [])),
+    );
+  }
+  const monthPending = closing
+    ? pendingItems.filter(
+        (item) => item.currency === currency && item.dueAt.startsWith(month + '-'),
+      )
+    : [];
+  const relevantPendingIds = closing
+    ? [
+        ...new Set(
+          monthPending.flatMap((item) =>
+            item.settlements.flatMap((part) => (part.kind === 'movement' ? [part.movementId] : [])),
+          ),
+        ),
+      ].sort()
+    : pendingMovementIds;
+  const pendingLinksQuery = useQuery({
+    queryKey: ['pending-links', url, pendingScope, relevantPendingIds],
+    enabled:
+      connected &&
+      relevantPendingIds.length > 0 &&
+      (closing ||
+        screen === 'Pagos y cobros pendientes' ||
+        screen === 'Disponible hasta el próximo cobro'),
+    retry: false,
+    queryFn: () => pendingLinks(relevantPendingIds),
+  });
+  const pendingLinksReady = !connected || !relevantPendingIds.length || pendingLinksQuery.isSuccess;
+  const linkedPendingMovements = connected
+    ? (pendingLinksQuery.data ?? new Map<string, Movement>())
+    : new Map(local.movements.map((movement) => [movement.id, movement]));
+
   const bankDirectory = useQuery({
     queryKey: ['banks', personal?.owner.id],
     enabled: !!personal && (screen === 'Mis bancos' || screen === 'Conexiones'),
@@ -335,6 +477,25 @@ function Home({
         `/movements?page=true&${params}${pageParam ? `&cursor=${encodeURIComponent(pageParam)}` : ''}`,
       ),
     getNextPageParam: (last) => last.nextCursor ?? undefined,
+  });
+  const uncategorizedId = categoryCatalog.find((category) => category.system)?.id;
+  const closingUncategorized = useQuery({
+    queryKey: [
+      'movements',
+      'closing-uncategorized',
+      url,
+      planningScope,
+      month,
+      currency,
+      uncategorizedId,
+    ],
+    enabled: connected && closing && !!uncategorizedId,
+    retry: false,
+    queryFn: async () => {
+      const query = movementParams(month, currency, 'ALL', '', uncategorizedId ?? '');
+      const page: Page<Movement> = await request(`/movements?page=true&limit=1&${query}`);
+      return page.total;
+    },
   });
   const totals = useQuery({
     queryKey: ['summary', connected, month, currency, periodDate],
@@ -404,6 +565,8 @@ function Home({
   async function refreshMovements() {
     await Promise.all([
       client.invalidateQueries({ queryKey: ['movements'] }),
+      client.invalidateQueries({ queryKey: ['savings-transfers'] }),
+      client.invalidateQueries({ queryKey: ['pending-links'] }),
       client.invalidateQueries({ queryKey: ['summary'] }),
       client.invalidateQueries({ queryKey: ['accounts'] }),
     ]);
@@ -435,9 +598,55 @@ function Home({
     : categoryCatalog.map((c) => ({
         categoryId: c.id,
         amountMinor: period
-          .filter((m) => m.type === 'EXPENSE' && m.categoryId === c.id)
-          .reduce((n, m) => n + m.amountMinor, 0),
+          .filter((m) => m.type === 'EXPENSE')
+          .flatMap(movementCategories)
+          .filter((part) => part.categoryId === c.id)
+          .reduce((n, part) => n + part.amountMinor, 0),
       }));
+  const closingPending = closing
+    ? pendingForClosing(monthPending, linkedPendingMovements, month, currency)
+    : [];
+  const closingSources = [totals, serverBudget, catalog, closingUncategorized];
+  const closingReadError =
+    connected &&
+    (closingSources.some((source) => source.isError) ||
+      (!!relevantPendingIds.length && pendingLinksQuery.isError));
+  const closingReady =
+    !connected ||
+    (closingSources.every((source) => source.isSuccess && !source.isFetching) &&
+      pendingLinksReady &&
+      !pendingLinksQuery.isFetching);
+  let currentClosing: MonthlyClosing | undefined;
+  let closingCalculationError = false;
+  if (closing && closingReady) {
+    try {
+      currentClosing = makeMonthlyClosing(
+        {
+          month,
+          currency,
+          capturedAt: new Date().toISOString(),
+          incomeMinor: summary.incomeMinor,
+          expenseMinor: summary.expenseMinor,
+          uncategorizedCount: connected
+            ? (closingUncategorized.data ?? 0)
+            : period.filter((item) =>
+                movementCategories(item).some((part) => part.categoryId === uncategorizedId),
+              ).length,
+          budgetMinor: budget || null,
+          categories: categoryCatalog.flatMap((category) => {
+            const limitMinor = categoryBudgets[category.id];
+            if (!limitMinor) return [];
+            const spentMinor =
+              categoryTotals.find((item) => item.categoryId === category.id)?.amountMinor ?? 0;
+            return [{ categoryId: category.id, name: category.name, limitMinor, spentMinor }];
+          }),
+        },
+        closingPending,
+      );
+    } catch {
+      closingCalculationError = true;
+    }
+  }
   const recent = [
     ...new Set(
       (connected
@@ -499,7 +708,9 @@ function Home({
       if (!category) throw new Error('Categoría no encontrada.');
       if (category.system) throw new Error('Sin categorizar es una categoría del sistema.');
       const used =
-        data.movements.some((m) => m.categoryId === id) ||
+        data.movements.some(
+          (m) => m.categoryId === id || m.splits?.some((p) => p.categoryId === id),
+        ) ||
         data.recurring.some((item) => item.categoryId === id) ||
         Object.keys(data.categoryBudgets).some((key) => key.split(':').slice(3).join(':') === id);
       if (used)
@@ -583,12 +794,7 @@ function Home({
         localRef.current.categories,
         draft.categoryId ?? undefined,
         draft.category,
-        existing
-          ? {
-              ...existing,
-              occurredAt: recurringOccurrenceAt(existing.nextDate, existing.timeOfDay),
-            }
-          : undefined,
+        existing,
       );
       const item: RecurringTemplate = {
         ...data,
@@ -622,21 +828,33 @@ function Home({
         ),
       });
   }
-  async function confirmRecurring(template: RecurringTemplate) {
+  async function confirmRecurring(template: RecurringTemplate, recordMovement = true) {
+    if (
+      recordMovement &&
+      pendingOccurrence(
+        localRef.current.pendingItems[pendingScope] ?? [],
+        template.id,
+        template.nextDate,
+      )
+    )
+      throw new Error('Este vencimiento se gestiona en Pagos y cobros pendientes.');
     const key = JSON.stringify([template.id, template.nextDate]);
     if (confirming.current.has(key)) throw new Error('Este vencimiento ya se está procesando.');
     confirming.current.add(key);
     try {
       if (connected) {
-        const result: { movement: Movement } = await request(`/recurring/${template.id}/confirm`, {
-          method: 'POST',
-          body: JSON.stringify({
-            scheduledFor: template.nextDate,
-            expectedVersion: template.version,
-          }),
-        });
+        const result: { movement: Movement | null } = await request(
+          `/recurring/${template.id}/${recordMovement ? 'confirm' : 'close'}`,
+          {
+            method: 'POST',
+            body: JSON.stringify({
+              scheduledFor: template.nextDate,
+              expectedVersion: template.version,
+            }),
+          },
+        );
         await Promise.all([recurringQuery.refetch(), refreshMovements()]);
-        if (personal)
+        if (personal && result.movement)
           void notifyTransaction(result.movement.id, 'Movimiento recurrente confirmado');
       } else {
         const existing = localRef.current.recurring.find((t) => t.id === template.id);
@@ -648,15 +866,24 @@ function Home({
           template.nextDate,
           new Date().toISOString(),
           localRef.current.receipts,
+          recordMovement,
         );
-        const movement: Movement = {
-          ...occurrence.movement,
-          ...selectedCategory(localRef.current.categories, existing.categoryId, existing.category),
-          id: `occurrence-${Date.now()}-${Math.random().toString(36).slice(2)}`,
-        };
+        const movement: Movement | null = recordMovement
+          ? {
+              ...occurrence.movement,
+              ...selectedCategory(
+                localRef.current.categories,
+                existing.categoryId,
+                existing.category,
+              ),
+              id: `occurrence-${Date.now()}-${Math.random().toString(36).slice(2)}`,
+            }
+          : null;
         await persist({
           ...localRef.current,
-          movements: [movement, ...localRef.current.movements],
+          movements: movement
+            ? [movement, ...localRef.current.movements]
+            : localRef.current.movements,
           recurring: localRef.current.recurring.map((t) =>
             t.id === existing.id
               ? { ...t, nextDate: occurrence.nextDate, version: t.version + 1 }
@@ -664,7 +891,11 @@ function Home({
           ),
           receipts: [
             ...localRef.current.receipts,
-            { templateId: existing.id, scheduledFor: template.nextDate, movementId: movement.id },
+            {
+              templateId: existing.id,
+              scheduledFor: template.nextDate,
+              movementId: movement?.id ?? null,
+            },
           ],
         });
       }
@@ -821,6 +1052,18 @@ function Home({
   }
   async function reset() {
     const next = initialData();
+    next.cashProjections = Object.fromEntries(
+      Object.entries(localRef.current.cashProjections).filter(([key]) => key.startsWith('api:')),
+    );
+    next.savingsGoals.api = localRef.current.savingsGoals.api;
+    next.pendingItems = { ...localRef.current.pendingItems };
+    delete next.pendingItems.demo;
+    next.debtPlans = { ...localRef.current.debtPlans };
+    delete next.debtPlans.demo;
+    next.monthlyClosings = { ...localRef.current.monthlyClosings };
+    delete next.monthlyClosings.demo;
+    next.commerceRules = { ...localRef.current.commerceRules };
+    delete next.commerceRules.demo;
     await persist(next);
     setLoadError('');
     setReady(true);
@@ -845,6 +1088,169 @@ function Home({
     } finally {
       setBusy(false);
     }
+  }
+
+  function updateSavingsGoals(update: (goals: SavingsGoal[]) => SavingsGoal[]) {
+    const current = localRef.current;
+    return persist({
+      ...current,
+      savingsGoals: {
+        ...current.savingsGoals,
+        [savingsMode]: update(current.savingsGoals[savingsMode]),
+      },
+    });
+  }
+
+  function newLocalId() {
+    return `${Date.now()}-${Math.random().toString(36).slice(2)}`;
+  }
+
+  function saveSavingsGoal(
+    input: Pick<SavingsGoal, 'name' | 'currency' | 'targetMinor'>,
+    id?: string,
+  ) {
+    return saveForm(() =>
+      updateSavingsGoals((goals) => {
+        const goal = checkSavingsGoal(input);
+        if (!id) return [...goals, { ...goal, id: newLocalId(), contributions: [] }];
+        if (!goals.some((item) => item.id === id))
+          throw new Error('La meta ya no está disponible.');
+        return goals.map((item) =>
+          item.id === id ? { ...item, name: goal.name, targetMinor: goal.targetMinor } : item,
+        );
+      }),
+    );
+  }
+
+  function addSavings(goalId: string, item: SavingsContribution) {
+    return saveForm(async () => {
+      const transfer = item.kind === 'transfer' ? await movementForLink(item.movementId) : null;
+      const transfers = new Map(transfer ? [[transfer.id, transfer]] : []);
+      await updateSavingsGoals((goals) => addSavingsContribution(goals, goalId, item, transfers));
+    });
+  }
+
+  function removeSavings(goalId: string, contributionId: string) {
+    return saveForm(() =>
+      updateSavingsGoals((goals) =>
+        goals.map((goal) =>
+          goal.id === goalId
+            ? {
+                ...goal,
+                contributions: goal.contributions.filter((item) => item.id !== contributionId),
+              }
+            : goal,
+        ),
+      ),
+    );
+  }
+
+  function openPending(
+    movement: Movement | null,
+    focus: string | null,
+    origin: 'Inicio' | 'Movimientos' | 'Cierre mensual',
+  ) {
+    setMovementForPending(movement);
+    setPendingFocus(focus);
+    setPendingOrigin(origin);
+    setDeleteId(null);
+    setNotice('');
+    setError('');
+    setScreen('Pagos y cobros pendientes');
+  }
+
+  function updatePending(update: (items: PendingItem[]) => PendingItem[]) {
+    const current = localRef.current;
+    return persist({
+      ...current,
+      pendingItems: {
+        ...current.pendingItems,
+        [pendingScope]: update(current.pendingItems[pendingScope] ?? []),
+      },
+    });
+  }
+
+  function savePending(input: PendingDraft) {
+    return saveForm(() =>
+      updatePending((items) => [
+        ...items,
+        { ...checkPendingDraft(input), id: newLocalId(), settlements: [] },
+      ]),
+    );
+  }
+
+  async function openRecurringPending(template: RecurringTemplate) {
+    const existing = pendingOccurrence(
+      localRef.current.pendingItems[pendingScope] ?? [],
+      template.id,
+      template.nextDate,
+    );
+    const id = existing?.id ?? newLocalId();
+    if (!existing) {
+      if (!template.active || template.type === 'TRANSFER')
+        throw new Error('Esta plantilla no admite pagos ni cobros pendientes.');
+      const occurrence = { templateId: template.id, scheduledFor: template.nextDate };
+      await updatePending((items) => [
+        ...items,
+        {
+          ...checkPendingDraft({
+            name: template.description,
+            kind: template.type === 'EXPENSE' ? 'pay' : 'collect',
+            currency: template.currency,
+            dueAt: dominicanDateTime(
+              new Date(recurringOccurrenceAt(template.nextDate, template.timeOfDay)),
+            ),
+            amountMinor: template.amountMinor,
+          }),
+          id,
+          occurrence,
+          settlements: [],
+        },
+      ]);
+    }
+    openPending(null, id, 'Movimientos');
+  }
+
+  function currentPendingTemplate(item: PendingItem) {
+    return recurring.find(
+      (template) =>
+        template.id === item.occurrence?.templateId &&
+        template.nextDate === item.occurrence.scheduledFor &&
+        template.active,
+    );
+  }
+
+  async function verifiedPendingMovements(item: PendingItem, extraId?: string) {
+    const ids = item.settlements.flatMap((entry) =>
+      entry.kind === 'movement' ? [entry.movementId] : [],
+    );
+    if (extraId) ids.push(extraId);
+    return pendingLinks([...new Set(ids)]);
+  }
+
+  function updateCommerceRules(update: (rules: CommerceRule[]) => CommerceRule[]) {
+    return saveForm(() => {
+      const current = localRef.current;
+      return persist({
+        ...current,
+        commerceRules: {
+          ...current.commerceRules,
+          [planningScope]: update(current.commerceRules[planningScope] ?? []),
+        },
+      });
+    });
+  }
+  function updateDebtPlans(update: (plans: DebtPlan[]) => DebtPlan[]) {
+    return saveForm(() => {
+      const current = localRef.current;
+      return persist({
+        ...current,
+        debtPlans: {
+          ...current.debtPlans,
+          [planningScope]: update(current.debtPlans[planningScope] ?? []),
+        },
+      });
+    });
   }
 
   const addMovement = (
@@ -942,6 +1348,249 @@ function Home({
                 <Button label="Reintentar categorías" onPress={() => void catalog.refetch()} />
               </View>
             )}
+            {screen === 'Inicio' && (
+              <View style={s.row}>
+                <Choice
+                  label="Disponible hasta el próximo cobro"
+                  selected={false}
+                  disabled={busy}
+                  onPress={() => {
+                    setProjectionCurrency(currency);
+                    setNotice('');
+                    setError('');
+                    setScreen('Disponible hasta el próximo cobro');
+                  }}
+                />
+                <Choice
+                  label="Pagos y cobros pendientes"
+                  selected={false}
+                  disabled={busy}
+                  onPress={() => openPending(null, null, 'Inicio')}
+                />
+                <Choice
+                  label="Cierre mensual"
+                  selected={false}
+                  disabled={busy}
+                  onPress={() => {
+                    setNotice('');
+                    setError('');
+                    setScreen('Cierre mensual');
+                  }}
+                />
+                <Choice
+                  label="Plan de pago de tarjetas y préstamos"
+                  text="Plan de pago"
+                  selected={false}
+                  disabled={busy}
+                  onPress={() => {
+                    setNotice('');
+                    setError('');
+                    setScreen('Plan de pago de tarjetas y préstamos');
+                  }}
+                />
+                <Choice
+                  label="Metas de ahorro"
+                  selected={false}
+                  disabled={busy}
+                  onPress={() => {
+                    setTransferForSavings(null);
+                    setNotice('');
+                    setError('');
+                    setScreen('Metas de ahorro');
+                  }}
+                />
+              </View>
+            )}
+            {screen === 'Disponible hasta el próximo cobro' &&
+              ((!connected || recurringQuery.isSuccess) && pendingLinksReady ? (
+                <CashProjectionScreen
+                  key={projectionKey}
+                  currency={projectionCurrency}
+                  onCurrency={setProjectionCurrency}
+                  templates={recurring}
+                  pending={pendingItems.map((item) => ({
+                    ...item,
+                    remainingMinor: pendingRemaining(item, linkedPendingMovements),
+                  }))}
+                  saved={local.cashProjections[projectionKey]}
+                  saving={busy}
+                  onSave={(plan) =>
+                    saveForm(() =>
+                      persist({
+                        ...localRef.current,
+                        cashProjections: {
+                          ...localRef.current.cashProjections,
+                          [projectionKey]: plan,
+                        },
+                      }),
+                    )
+                  }
+                  money={money}
+                />
+              ) : (
+                <View style={s.card}>
+                  <Text style={s.muted}>
+                    {recurringQuery.isError || pendingLinksQuery.isError
+                      ? 'No se pudieron cargar los compromisos.'
+                      : 'Cargando compromisos…'}
+                  </Text>
+                  {(recurringQuery.isError || pendingLinksQuery.isError) && (
+                    <Button
+                      label="Reintentar compromisos"
+                      onPress={() => {
+                        if (recurringQuery.isError) void recurringQuery.refetch();
+                        if (pendingLinksQuery.isError) void pendingLinksQuery.refetch();
+                      }}
+                    />
+                  )}
+                </View>
+              ))}
+            {screen === 'Pagos y cobros pendientes' && (
+              <PendingPaymentsScreen
+                items={pendingItems}
+                defaultCurrency={currency}
+                movements={linkedPendingMovements}
+                link={movementForPending}
+                focusId={pendingFocus}
+                ready={pendingLinksReady}
+                linksError={pendingLinksQuery.isError}
+                saving={busy}
+                money={money}
+                canClose={(item) => !!currentPendingTemplate(item)}
+                onSave={savePending}
+                onSettle={(id, settlement) =>
+                  saveForm(async () => {
+                    const item = (localRef.current.pendingItems[pendingScope] ?? []).find(
+                      (entry) => entry.id === id,
+                    );
+                    if (!item) throw new Error('El pendiente ya no está disponible.');
+                    const movements = await verifiedPendingMovements(
+                      item,
+                      settlement.kind === 'movement' ? settlement.movementId : undefined,
+                    );
+                    await updatePending((items) =>
+                      addPendingSettlement(
+                        items,
+                        id,
+                        { ...settlement, id: newLocalId() },
+                        movements,
+                      ),
+                    );
+                  })
+                }
+                onRemove={(id, settlementId) =>
+                  saveForm(() =>
+                    updatePending((items) =>
+                      items.map((item) =>
+                        item.id === id
+                          ? {
+                              ...item,
+                              settlements: item.settlements.filter(
+                                (entry) => entry.id !== settlementId,
+                              ),
+                            }
+                          : item,
+                      ),
+                    ),
+                  )
+                }
+                onDelete={(id) =>
+                  saveForm(() =>
+                    updatePending((items) => {
+                      const item = items.find((entry) => entry.id === id);
+                      if (item?.settlements.length)
+                        throw new Error('Quita los abonos antes de eliminar el pendiente.');
+                      if (
+                        item?.occurrence &&
+                        !recurring.some(
+                          (template) =>
+                            template.id === item.occurrence?.templateId &&
+                            template.nextDate === item.occurrence.scheduledFor,
+                        )
+                      )
+                        throw new Error('El vencimiento ya se cerró.');
+                      return items.filter((entry) => entry.id !== id);
+                    }),
+                  )
+                }
+                onClose={(item) =>
+                  saveForm(async () => {
+                    const template = currentPendingTemplate(item);
+                    const current = (localRef.current.pendingItems[pendingScope] ?? []).find(
+                      (entry) => entry.id === item.id,
+                    );
+                    if (
+                      !template ||
+                      !current ||
+                      pendingRemaining(current, await verifiedPendingMovements(current)) !== 0
+                    )
+                      throw new Error('El vencimiento debe estar saldado y la plantilla activa.');
+                    await confirmRecurring(template, false);
+                  })
+                }
+                onRetry={() => void pendingLinksQuery.refetch()}
+                onClearLink={() => setMovementForPending(null)}
+              />
+            )}
+            {screen === 'Simulador de préstamos' && (
+              <LoanSimulatorScreen defaultCurrency={currency} money={money} />
+            )}
+            {screen === 'Plan de pago de tarjetas y préstamos' && (
+              <DebtPlansScreen
+                key={planningScope}
+                plans={debtPlans}
+                defaultCurrency={currency}
+                saving={busy}
+                money={money}
+                onSave={async (input, id) => {
+                  const plan = { ...checkDebtPlan(input), id: id ?? newLocalId() };
+                  await updateDebtPlans((items) => {
+                    if (!id) return [...items, plan];
+                    if (!items.some((item) => item.id === id))
+                      throw new Error('El plan de pago ya no está disponible.');
+                    return items.map((item) => (item.id === id ? plan : item));
+                  });
+                  return plan.id;
+                }}
+                onRemove={(id) =>
+                  updateDebtPlans((items) => items.filter((item) => item.id !== id))
+                }
+              />
+            )}
+            {screen === 'Metas de ahorro' && (
+              <SavingsGoalsScreen
+                goals={savingsGoals}
+                defaultCurrency={currency}
+                linkedTransfer={transferForSavings}
+                transfers={
+                  new Map(
+                    (connected ? (savingsTransfersQuery.data ?? []) : local.movements).map(
+                      (movement) => [movement.id, movement],
+                    ),
+                  )
+                }
+                linksPending={
+                  connected &&
+                  savingsTransferIds.length > 0 &&
+                  !savingsTransfersQuery.isError &&
+                  (!savingsTransfersQuery.isSuccess || savingsTransfersQuery.isFetching)
+                }
+                linksError={
+                  connected && savingsTransferIds.length > 0 && savingsTransfersQuery.isError
+                }
+                onRetry={() => void savingsTransfersQuery.refetch()}
+                saving={busy}
+                onSaveGoal={saveSavingsGoal}
+                onAddManual={(goalId, amountMinor) =>
+                  addSavings(goalId, { id: newLocalId(), kind: 'manual', amountMinor })
+                }
+                onLink={(goalId, movementId) =>
+                  addSavings(goalId, { id: newLocalId(), kind: 'transfer', movementId })
+                }
+                onRemove={removeSavings}
+                money={money}
+              />
+            )}
             {showMonth && (
               <>
                 <PeriodPicker date={periodDate} onChange={setPeriodDate} />
@@ -959,6 +1608,62 @@ function Home({
                   ))}
                 </FilterRow>
               </>
+            )}
+            {closing && (
+              <MonthlyClosingScreen
+                key={planningScope + month + currency}
+                current={currentClosing}
+                saved={monthlyClosings.find(
+                  (item) => item.month === month && item.currency === currency,
+                )}
+                previous={monthlyClosings.find(
+                  (item) => item.month === priorMonth && item.currency === currency,
+                )}
+                pending={closingPending}
+                loadingError={closingReadError || closingCalculationError}
+                saving={busy}
+                money={money}
+                onRetry={
+                  closingReadError
+                    ? () => {
+                        void totals.refetch();
+                        void serverBudget.refetch();
+                        void catalog.refetch();
+                        if (uncategorizedId) void closingUncategorized.refetch();
+                        if (relevantPendingIds.length) void pendingLinksQuery.refetch();
+                      }
+                    : undefined
+                }
+                onMovements={() => {
+                  if (!uncategorizedId) return;
+                  setEditor(null);
+                  setDuplicate(null);
+                  setSearch('');
+                  setType('ALL');
+                  setAccountFilter('');
+                  setCategoryFilter(uncategorizedId);
+                  setScreen('Movimientos');
+                }}
+                onPending={(id) => openPending(null, id, 'Cierre mensual')}
+                onSave={(snapshot) =>
+                  saveForm(() => {
+                    const current = localRef.current;
+                    const previous = current.monthlyClosings[planningScope] ?? [];
+                    return persist({
+                      ...current,
+                      monthlyClosings: {
+                        ...current.monthlyClosings,
+                        [planningScope]: [
+                          ...previous.filter(
+                            (item) => item.month !== month || item.currency !== currency,
+                          ),
+                          snapshot,
+                        ],
+                      },
+                    });
+                  })
+                }
+              />
             )}
             {connected && query.isFetching && <ActivityIndicator color={palette.primary} />}
             {connected && query.error && (
@@ -1201,6 +1906,8 @@ function Home({
                 )}
                 {catalogReady && (!connected || accountsQuery.isSuccess) && (
                   <MovementForm
+                    allowSplits
+                    commerceRules={commerceRules}
                     accounts={connected ? accountsQuery.data : undefined}
                     categories={categoryCatalog}
                     recent={recent}
@@ -1339,7 +2046,10 @@ function Home({
                       <View>
                         <Text style={s.text}>{m.description}</Text>
                         <Text style={s.muted}>
-                          {m.category} · {m.occurredAt.slice(0, 10)} · {typeLabels[m.type]}
+                          {m.splits?.length
+                            ? countLabel(m.splits.length, 'categoría', 'categorías')
+                            : m.category}{' '}
+                          · {m.occurredAt.slice(0, 10)} · {typeLabels[m.type]}
                         </Text>
                       </View>
                       <Text
@@ -1400,6 +2110,38 @@ function Home({
                         danger
                         onPress={() => setDeleteId(m.id)}
                       />
+                      {m.type !== 'TRANSFER' && (
+                        <Choice
+                          label={`Vincular a pendiente: ${m.description}`}
+                          text={
+                            pendingMovementIds.includes(m.id)
+                              ? 'Ver vínculo'
+                              : 'Vincular a pendiente'
+                          }
+                          selected={false}
+                          disabled={busy}
+                          onPress={() => openPending(m, null, 'Movimientos')}
+                        />
+                      )}
+                      {m.type === 'TRANSFER' && (
+                        <Choice
+                          label={`Vincular a meta: ${m.description}`}
+                          text={
+                            savingsTransferIds.includes(m.id) ? 'Ver aporte' : 'Vincular a meta'
+                          }
+                          selected={false}
+                          disabled={busy}
+                          onPress={() => {
+                            setEditor(null);
+                            setDuplicate(null);
+                            setDeleteId(null);
+                            setNotice('');
+                            setError('');
+                            setTransferForSavings(m);
+                            setScreen('Metas de ahorro');
+                          }}
+                        />
+                      )}
                     </View>
                     {deleteId === m.id && (
                       <>
@@ -1444,6 +2186,10 @@ function Home({
                   }}
                   onToggle={(id, active) => saveForm(() => toggleRecurring(id, active))}
                   onConfirm={(template) => saveForm(() => confirmRecurring(template))}
+                  hasPending={(template) =>
+                    !!pendingOccurrence(pendingItems, template.id, template.nextDate)
+                  }
+                  onPending={(template) => saveForm(() => openRecurringPending(template))}
                   money={money}
                 />
               )}
@@ -1561,6 +2307,30 @@ function Home({
                   setPreferences(value);
                   setCurrency(value.currency);
                 }}
+              />
+            )}
+            {screen === 'Reglas por comercio' && catalogReady && (
+              <CommerceRulesScreen
+                rules={commerceRules}
+                categories={categoryCatalog}
+                saving={busy}
+                onSave={(draft, id) =>
+                  updateCommerceRules((rules) => {
+                    if (
+                      !categoryCatalog.some(
+                        (category) =>
+                          category.id === draft.categoryId &&
+                          !category.archived &&
+                          !category.system,
+                      )
+                    )
+                      throw new Error('Selecciona una categoría activa.');
+                    return setCommerceRule(rules, { ...draft, id: id ?? newLocalId() });
+                  })
+                }
+                onRemove={(id) =>
+                  updateCommerceRules((rules) => rules.filter((rule) => rule.id !== id))
+                }
               />
             )}
             {screen === 'Administrar categorías' && catalogReady && (
@@ -1855,6 +2625,7 @@ function Home({
               onPress={() => {
                 setScreen(item);
                 setEditor(null);
+                setTransferForSavings(null);
                 setDuplicate(null);
                 setDeleteId(null);
               }}

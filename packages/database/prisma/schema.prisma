@@ -61,11 +61,24 @@ model Movement {
  requestKey String? @unique
  requestReceipt MovementRequest?
  recurrenceOccurrence RecurringOccurrence?
+ splits MovementSplit[]
  source MailImport? @relation(fields: [importId], references: [id])
  @@index([currency, occurredAt])
  @@index([categoryId])
  @@index([accountId, occurredAt])
  @@index([targetAccountId, occurredAt])
+}
+
+model MovementSplit {
+ movementId String
+ movement Movement @relation(fields: [movementId], references: [id], onDelete: Cascade)
+ categoryId String
+ categoryRef Category @relation(fields: [categoryId], references: [id], onDelete: Restrict)
+ category String
+ amountMinor Int
+
+ @@id([movementId, categoryId])
+ @@index([categoryId])
 }
 
 model Category {
@@ -75,6 +88,7 @@ model Category {
  archived Boolean @default(false)
  system Boolean @default(false)
  movements Movement[]
+ movementSplits MovementSplit[]
  recurringTemplates RecurringTemplate[]
  budgetLimits BudgetCategory[]
 }

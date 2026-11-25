@@ -30,3 +30,8 @@ export function formatMinorAmount(minor: number): string {
     (magnitude % 100n).toString().padStart(2, '0')
   );
 }
+
+// Nominal annual basis points divided by 12, rounded to the nearest cent.
+export function monthlyInterestMinor(principalMinor: number, annualRateBasisPoints: number) {
+  return Number((BigInt(principalMinor) * BigInt(annualRateBasisPoints) + 60_000n) / 120_000n);
+}
