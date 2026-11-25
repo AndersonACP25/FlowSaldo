@@ -127,7 +127,7 @@ export async function checkHistory(request, connectionString) {
       assert.equal((await request(path)).status, 400, path);
     const categories = await get('/categories');
     const primary = categories.find((category) => category.system);
-    const [food, transport] = categories.filter((category) => !category.system && !category.archived);
+    const [food, transport] = categories.filter((item) => !item.system && !item.archived);
     const data = {
       requestKey: prefix + 'split',
       currency: 'EUR',
@@ -154,11 +154,12 @@ export async function checkHistory(request, connectionString) {
       const summary = await get('/summary?' + base);
       assert.equal(summary.total, 1);
       assert.equal(summary.expenseMinor, 100_029);
-      const totals = new Map(summary.categoryTotals.map((item) => [item.categoryId, item.amountMinor]));
+      const totals = new Map(summary.categoryTotals.map((v) => [v.categoryId, v.amountMinor]));
       assert.equal(totals.get(food.id), 70_020);
       assert.equal(totals.get(transport.id), 30_009);
-      assert.equal((await get('/movements?page=true&' + base + '&categoryId=' + food.id)).total, 1);
-      assert.equal((await get('/movements?page=true&' + base + '&categoryId=' + primary.id)).total, 0);
+      const filtered = '/movements?page=true&' + base + '&categoryId=';
+      assert.equal((await get(filtered + food.id)).total, 1);
+      assert.equal((await get(filtered + primary.id)).total, 0);
       assert.equal((await get('/movements/' + movement.id)).splits.length, 2);
       const csv = await request('/movements/export?' + base + '&categoryId=' + transport.id);
       assert.equal(parseCsv(await csv.text()).length, 2);
