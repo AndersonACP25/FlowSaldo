@@ -124,7 +124,7 @@ export async function checkFinanceFlow(browser) {
       .getByLabel('Token de desarrollo', { exact: true })
       .fill('synthetic-finance-token-123456789');
     await button('Conectar API').click();
-    await page.getByRole('button', { name: 'Menú de Inicio', exact: true }).waitFor();
+    await page.getByRole('button', { name: 'Abrir menú', exact: true }).waitFor();
   }
   try {
     await page.goto('http://127.0.0.1:8082', { waitUntil: 'networkidle' });
@@ -167,7 +167,7 @@ export async function checkFinanceFlow(browser) {
     await button('Volver').click();
     await button('Volver').click();
     await button('Inicio').click();
-    await button('Menú de Inicio').click();
+    await button('Abrir menú').click();
     await button('Ver presupuestos').click();
     await page.getByLabel('Nuevo límite mensual', { exact: true }).fill('900');
     await button('Guardar presupuesto').click();
@@ -175,7 +175,7 @@ export async function checkFinanceFlow(browser) {
     assert.equal(budget.limitMinor, 90000);
     await page.reload({ waitUntil: 'networkidle' });
     await connect();
-    await button('Menú de Inicio').click();
+    await button('Abrir menú').click();
     await button('Ver presupuestos').click();
     await page.getByText('0% utilizado · DOP 900.00', { exact: true }).waitFor();
     assert.equal(budget.version, 1);

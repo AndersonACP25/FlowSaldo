@@ -173,7 +173,7 @@ export async function checkAccessFlow(browser) {
     assert.equal(await page.getByLabel('Contraseña', { exact: true }).inputValue(), '');
     await page.getByLabel('Contraseña', { exact: true }).fill(password);
     await button('Entrar').click();
-    await page.getByRole('button', { name: 'Menú de Inicio', exact: true }).waitFor();
+    await page.getByRole('button', { name: 'Abrir menú', exact: true }).waitFor();
     const persisted = await page.evaluate(() =>
       JSON.stringify({ local: { ...localStorage }, session: { ...sessionStorage } }),
     );
@@ -221,7 +221,8 @@ export async function checkAccessFlow(browser) {
       .waitFor();
     await button('Volver').click();
     await button('Mi cuenta').click();
-    await button('Cerrar sesión').click();
+    await button('Abrir menú').click();
+    await button('Salir').click();
     await page.getByText('Sesión cerrada.', { exact: true }).waitFor();
     await button('Recuperar cuenta con código').click();
     await page.getByLabel('Correo electrónico', { exact: true }).fill(owner.email);
@@ -251,7 +252,8 @@ export async function checkAccessFlow(browser) {
     await button('Entrar').click();
     await button('Configuración').click();
     await button('Mi cuenta').click();
-    await button('Cerrar sesión').click();
+    await button('Abrir menú').click();
+    await button('Salir').click();
     await page.getByText('Sesión cerrada.', { exact: true }).waitFor();
     assert.equal(loggedOut, true);
     assert.equal(await page.getByLabel('Contraseña', { exact: true }).inputValue(), '');

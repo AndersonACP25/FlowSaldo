@@ -1,3 +1,4 @@
+import { HelpScreen } from './src/HelpScreen';
 import { LoanSimulatorScreen } from './src/LoanSimulatorScreen';
 import { CommerceRulesScreen } from './src/CommerceRulesScreen';
 import { MonthlyClosingScreen } from './src/MonthlyClosingScreen';
@@ -17,14 +18,13 @@ import { notifyTransaction } from './src/transactionNotifications';
 import { RatesScreen } from './src/RatesScreen';
 import { localToday, PeriodPicker } from './src/PeriodPicker';
 import { IconButton } from './src/IconButton';
-import { BrandMark } from './src/BrandMark';
 import {
-  AccountActions,
+  AppHeader,
+  type DrawerDestination,
   AppFrame,
   FilterChip,
   FilterRow,
   filterStyles,
-  HomeOptions,
   OpeningCover,
 } from './src/ScreenChrome';
 import { testAccount } from './src/testAccount';
@@ -1267,51 +1267,50 @@ function Home({
       }}
     />
   );
+  function navigate(destination: Tab | DrawerDestination | 'Configuración') {
+    if (busy) return;
+    setEditor(null);
+    setTransferForSavings(null);
+    setDuplicate(null);
+    setDeleteId(null);
+    if (destination === 'Configuración') setPreviousTab(activeTab);
+    if (destination === 'Disponible hasta el próximo cobro') setProjectionCurrency(currency);
+    if (destination === 'Pagos y cobros pendientes') {
+      openPending(null, null, 'Inicio');
+      return;
+    }
+    if (destination !== 'Configuración' && !tabs.some((tab) => tab === destination)) {
+      setNotice('');
+      setError('');
+    }
+    setScreen(destination);
+  }
+
   const content = (
     <View style={s.root}>
+      <AppHeader
+        name={personal?.owner.name ?? testAccount.name}
+        disabled={busy}
+        onSelect={navigate}
+        onSettings={() => {
+          if (!inSettings) navigate('Configuración');
+        }}
+        onLogout={() => {
+          if (!busy) void onLogout();
+        }}
+      />
       <ScrollView
         key={screen}
         keyboardShouldPersistTaps="handled"
         contentContainerStyle={s.content}
       >
         <View style={s.between}>
-          <BrandMark />
-          {!secondary && (
-            <AccountActions
-              name={personal?.owner.name ?? testAccount.name}
-              onSettings={() => {
-                if (busy) return;
-                setPreviousTab(screen);
-                setEditor(null);
-                setScreen('Configuración');
-              }}
-              onLogout={() => void onLogout()}
-            />
-          )}
+          <Text accessibilityRole="header" style={s.title}>
+            {screen}
+          </Text>
+          {secondary && <Choice label="Volver" selected={false} disabled={busy} onPress={goBack} />}
+          {(screen === 'Inicio' || screen === 'Movimientos') && addMovement}
         </View>
-        {secondary ? (
-          <View style={s.between}>
-            <Text accessibilityRole="header" style={s.title}>
-              {screen}
-            </Text>
-            <Choice
-              label="Volver"
-              text={inSettings ? 'Volver' : '‹ Volver'}
-              selected={false}
-              disabled={busy}
-              onPress={goBack}
-            />
-          </View>
-        ) : screen === 'Inicio' ? (
-          <HomeOptions onSelect={setScreen}>{addMovement}</HomeOptions>
-        ) : (
-          <View style={s.between}>
-            <Text accessibilityRole="header" style={s.title}>
-              {screen}
-            </Text>
-            {screen === 'Movimientos' && addMovement}
-          </View>
-        )}
         {!!accessNotice && <Text style={s.muted}>{accessNotice}</Text>}
         {screen === 'Conexiones' && (
           <View style={s.banner}>
@@ -1346,59 +1345,6 @@ function Home({
               <View style={s.card}>
                 <Text style={s.error}>No se pudieron cargar las categorías.</Text>
                 <Button label="Reintentar categorías" onPress={() => void catalog.refetch()} />
-              </View>
-            )}
-            {screen === 'Inicio' && (
-              <View style={s.row}>
-                <Choice
-                  label="Disponible hasta el próximo cobro"
-                  selected={false}
-                  disabled={busy}
-                  onPress={() => {
-                    setProjectionCurrency(currency);
-                    setNotice('');
-                    setError('');
-                    setScreen('Disponible hasta el próximo cobro');
-                  }}
-                />
-                <Choice
-                  label="Pagos y cobros pendientes"
-                  selected={false}
-                  disabled={busy}
-                  onPress={() => openPending(null, null, 'Inicio')}
-                />
-                <Choice
-                  label="Cierre mensual"
-                  selected={false}
-                  disabled={busy}
-                  onPress={() => {
-                    setNotice('');
-                    setError('');
-                    setScreen('Cierre mensual');
-                  }}
-                />
-                <Choice
-                  label="Plan de pago de tarjetas y préstamos"
-                  text="Plan de pago"
-                  selected={false}
-                  disabled={busy}
-                  onPress={() => {
-                    setNotice('');
-                    setError('');
-                    setScreen('Plan de pago de tarjetas y préstamos');
-                  }}
-                />
-                <Choice
-                  label="Metas de ahorro"
-                  selected={false}
-                  disabled={busy}
-                  onPress={() => {
-                    setTransferForSavings(null);
-                    setNotice('');
-                    setError('');
-                    setScreen('Metas de ahorro');
-                  }}
-                />
               </View>
             )}
             {screen === 'Disponible hasta el próximo cobro' &&
@@ -2214,6 +2160,7 @@ function Home({
             {screen === 'Configuración' && (
               <SettingsMenu personal={!!personal} connected={connected} onOpen={setScreen} />
             )}
+            {screen === 'Preguntas frecuentes' && <HelpScreen />}
             {screen === 'Acerca de la aplicación' && <AboutApp />}
             {screen === 'Apariencia' && <ThemeSettings />}
             {screen === 'Mis bancos' &&
@@ -2622,13 +2569,7 @@ function Home({
               accessibilityLabel={item}
               accessibilityState={{ selected: activeTab === item, disabled: busy }}
               disabled={busy}
-              onPress={() => {
-                setScreen(item);
-                setEditor(null);
-                setTransferForSavings(null);
-                setDuplicate(null);
-                setDeleteId(null);
-              }}
+              onPress={() => navigate(item)}
               style={[s.navItem, activeTab === item && s.navActive]}
             >
               <View style={s.row}>

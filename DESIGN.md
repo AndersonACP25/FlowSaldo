@@ -82,9 +82,9 @@
 - Estado activo con fondo sólido (`bg-emerald-500` o `bg-slate-700`) y texto contrastante.
 
 ### 4. Navegación Global (Shell)
-- **Header**: Logo tipográfico FlowSaldo con glifo distintivo cian/esmeralda, indicador de estado de conexión activo y avatar de usuario.
+- **Header**: Menú lateral, marca FlowSaldo y avatar. El encabezado permanece visible al desplazarse por las pantallas de la cuenta.
 - **Bottom Navigation Bar**: 4 accesos fijos (`Inicio`, `Movimientos`, `Por revisar` con badge de conteo pendiente en rojo/rosa, y `Conexiones`).
-- **Inicio** muestra el resumen mensual. Presupuestos y Análisis se abren desde Inicio y conservan el mes y la moneda seleccionados.
+- **Inicio** muestra el resumen mensual. Las herramientas se abren desde Explorar FlowSaldo. El menú presenta opciones sin borde y deja Salir al final.
 - **Configuración** abre una pantalla independiente desde el avatar. Volver restaura la pestaña anterior.
 - **Marca** usa el símbolo de barras y flecha de `apps/mobile/assets/flowsaldo.svg` en la portada, el acceso, el encabezado, el favicon y el icono de Android.
 

@@ -2,6 +2,8 @@ import React, { useState } from 'react';
 import { Text, View } from 'react-native';
 import {
   currencies,
+  compareLoanTerms,
+  countLabel,
   maxLoanRateBasisPoints,
   parseAmount,
   parseSignedAmount,
@@ -42,12 +44,14 @@ export function LoanSimulatorScreen({
   });
   const [firstDueAt, setFirstDueAt] = useState('');
   const [result, setResult] = useState<ReturnType<typeof simulateLoan>>();
+  const [scenarios, setScenarios] = useState<ReturnType<typeof compareLoanTerms>>([]);
   const [error, setError] = useState('');
   const [showSchedule, setShowSchedule] = useState(false);
   const [page, setPage] = useState(0);
 
   function clearResult() {
     setResult(undefined);
+    setScenarios([]);
     setError('');
     setShowSchedule(false);
     setPage(0);
@@ -56,18 +60,20 @@ export function LoanSimulatorScreen({
   function calculate() {
     clearResult();
     try {
-      if (!/^\d+$/.test(fields.count.trim())) throw new Error('Indica un número entero de cuotas.');
-      setResult(
-        simulateLoan({
-          principalMinor: parseAmount(fields.principal),
-          currency,
-          annualRateBasisPoints: parseSignedAmount(fields.rate, maxLoanRateBasisPoints),
-          installmentCount: Number(fields.count),
-          firstDueAt,
-          upfrontFeeMinor: optionalAmount(fields.fee),
-          monthlyInsuranceMinor: optionalAmount(fields.insurance),
-        }),
-      );
+      const input = {
+        principalMinor: parseAmount(fields.principal),
+        currency,
+        annualRateBasisPoints: parseSignedAmount(fields.rate, maxLoanRateBasisPoints),
+        upfrontFeeMinor: optionalAmount(fields.fee),
+        monthlyInsuranceMinor: optionalAmount(fields.insurance),
+      };
+      const count = fields.count.trim();
+      if (!count) {
+        setScenarios(compareLoanTerms(input));
+        return;
+      }
+      if (!/^\d+$/.test(count)) throw new Error('Indica un número entero de cuotas.');
+      setResult(simulateLoan({ ...input, installmentCount: Number(count), firstDueAt }));
     } catch (e) {
       setError(e instanceof Error ? e.message : 'No se pudo calcular el préstamo.');
     }
@@ -95,24 +101,23 @@ export function LoanSimulatorScreen({
             />
           ))}
         </FilterRow>
-        <View style={[s.row, { alignItems: 'flex-start' }]}>
-          {amountFields.map(([key, label, keyboardType]) => (
-            <View key={key} style={{ flexGrow: 1, flexBasis: 180, maxWidth: '100%' }}>
-              <Field
-                label={label}
-                value={fields[key]}
-                keyboardType={keyboardType}
-                maxLength={16}
-                onChangeText={(value) => {
-                  setFields((current) => ({ ...current, [key]: value }));
-                  clearResult();
-                }}
-              />
-            </View>
-          ))}
-        </View>
+        {amountFields.map(([key, label, keyboardType]) => (
+          <Field
+            key={key}
+            label={label}
+            value={fields[key]}
+            keyboardType={keyboardType}
+            placeholder={key === 'count' ? 'Deja vacío para comparar plazos' : undefined}
+            maxLength={16}
+            onChangeText={(value) => {
+              setFields((current) => ({ ...current, [key]: value }));
+              clearResult();
+            }}
+          />
+        ))}
         <DateTimeField
-          label="Fecha y hora del primer pago"
+          label="Fecha y hora del primer pago (opcional)"
+          clearable
           value={firstDueAt}
           onChange={(date) => {
             setFirstDueAt(date);
@@ -126,12 +131,46 @@ export function LoanSimulatorScreen({
         )}
         <Button label="Calcular préstamo" onPress={calculate} />
       </View>
+      {scenarios.length > 0 && (
+        <View style={s.card}>
+          <Text accessibilityRole="header" style={s.title}>
+            Comparación de plazos
+          </Text>
+          {scenarios.map((scenario) => (
+            <View key={scenario.installmentCount} style={s.banner}>
+              <Text style={s.label}>
+                {countLabel(scenario.installmentCount, 'cuota', 'cuotas')}
+              </Text>
+              <Text style={s.amount}>
+                Primera cuota estimada · {amount(scenario.firstPaymentMinor)}
+              </Text>
+              <Text style={s.muted}>
+                Costo · {amount(scenario.totalCostMinor)} · Total ·{' '}
+                {amount(scenario.totalPaidMinor)}
+              </Text>
+              <Choice
+                label={`Elegir ${countLabel(scenario.installmentCount, 'cuota', 'cuotas')}`}
+                selected={false}
+                onPress={() => {
+                  setFields((current) => ({
+                    ...current,
+                    count: String(scenario.installmentCount),
+                  }));
+                  clearResult();
+                }}
+              />
+            </View>
+          ))}
+        </View>
+      )}
       {result && first && last && (
         <>
           <View style={s.hero} accessibilityLiveRegion="polite">
             <Text style={s.label}>Primera cuota estimada</Text>
             <Text style={s.heroValue}>{amount(first.paymentMinor)}</Text>
-            <Text style={s.muted}>Último pago · {last.dueAt.replace('T', ' · ')}</Text>
+            {last.dueAt && (
+              <Text style={s.muted}>Último pago · {last.dueAt.replace('T', ' · ')}</Text>
+            )}
           </View>
           <View style={s.metrics}>
             {(
@@ -169,7 +208,8 @@ export function LoanSimulatorScreen({
                 <View key={item.number} style={{ gap: 4, paddingVertical: 6 }}>
                   <View style={s.between}>
                     <Text style={s.text}>
-                      Cuota {item.number} · {item.dueAt.replace('T', ' · ')}
+                      Cuota {item.number}
+                      {item.dueAt ? ' · ' + item.dueAt.replace('T', ' · ') : ''}
                     </Text>
                     <Text style={s.amount}>{amount(item.paymentMinor)}</Text>
                   </View>

@@ -28,6 +28,7 @@ import {
   projectAvailableCash,
   compareDebtPlan,
   simulateLoan,
+  compareLoanTerms,
   type LoanSimulationInput,
   validDebtPlans,
   type DebtPlanDraft,
@@ -503,6 +504,16 @@ test('CORE: loan installments reconcile interest, principal and separate fees in
   assert.equal(loan.totalInterestMinor, 1_001_599);
   assert.equal(loan.totalCostMinor, 1_401_599);
   assert.equal(loan.totalPaidMinor, 11_401_599);
+  const scenarios = compareLoanTerms(input);
+  assert.deepEqual(
+    scenarios.map((row) => row.installmentCount),
+    [12, 24, 36, 48, 60],
+  );
+  assert.equal(scenarios[0].totalPaidMinor, loan.totalPaidMinor);
+  assert.equal(scenarios[0].firstPaymentMinor, loan.schedule[0].paymentMinor);
+  assert.ok(scenarios[4].firstPaymentMinor < scenarios[0].firstPaymentMinor);
+  assert.ok(scenarios[4].totalCostMinor > scenarios[0].totalCostMinor);
+  assert.equal(simulateLoan({ ...input, firstDueAt: '' }).schedule[0].dueAt, null);
   assert.equal(
     loan.schedule.reduce((total, item) => total + item.paymentMinor, loan.upfrontFeeMinor),
     loan.totalPaidMinor,

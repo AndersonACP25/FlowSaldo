@@ -20,13 +20,12 @@ function validMinor(amount: number) {
   return Number.isInteger(amount) && amount >= 0 && amount <= 2_147_483_647;
 }
 
-export function simulateLoan(input: LoanSimulationInput) {
+function calculateLoan(input: Omit<LoanSimulationInput, 'firstDueAt'>) {
   const {
     principalMinor,
     currency,
     annualRateBasisPoints,
     installmentCount,
-    firstDueAt,
     upfrontFeeMinor,
     monthlyInsuranceMinor,
   } = input;
@@ -49,8 +48,6 @@ export function simulateLoan(input: LoanSimulationInput) {
     throw new Error('Indica una tasa anual entre 0 % y 1,000 %, con hasta dos decimales.');
   if (!validMinor(upfrontFeeMinor) || !validMinor(monthlyInsuranceMinor))
     throw new Error('Indica una comisión y un seguro de cero o más.');
-  if (typeof firstDueAt !== 'string' || !parseDominicanDateTime(firstDueAt))
-    throw new Error('Selecciona la fecha y hora del primer pago.');
 
   const monthlyRate = annualRateBasisPoints / 120_000;
   const basePayment = Math.round(
@@ -61,14 +58,10 @@ export function simulateLoan(input: LoanSimulationInput) {
 
   let balance = principalMinor;
   let totalInterestMinor = 0;
-  let date = firstDueAt.slice(0, 10);
-  const time = firstDueAt.slice(10);
-  const anchor = Number(date.slice(8));
 
   const schedule = Array.from({ length: installmentCount }, (_, index) => {
     const number = index + 1;
     const remainingInstallments = installmentCount - number;
-    if (index > 0) date = nextMonthlyDate(date, anchor);
     const interestMinor = monthlyInterestMinor(balance, annualRateBasisPoints);
     // Round each period in cents and reserve enough principal for all remaining installments.
     const paidPrincipalMinor = remainingInstallments
@@ -78,7 +71,6 @@ export function simulateLoan(input: LoanSimulationInput) {
     totalInterestMinor += interestMinor;
     return {
       number,
-      dueAt: date + time,
       principalMinor: paidPrincipalMinor,
       interestMinor,
       insuranceMinor: monthlyInsuranceMinor,
@@ -98,4 +90,36 @@ export function simulateLoan(input: LoanSimulationInput) {
     totalPaidMinor: principalMinor + totalInterestMinor + totalInsuranceMinor + upfrontFeeMinor,
     schedule,
   };
+}
+
+export function simulateLoan({ firstDueAt, ...input }: LoanSimulationInput) {
+  if (typeof firstDueAt !== 'string' || (firstDueAt && !parseDominicanDateTime(firstDueAt)))
+    throw new Error('Selecciona la fecha y hora del primer pago.');
+  const result = calculateLoan(input);
+  let date = firstDueAt.slice(0, 10);
+  const time = firstDueAt.slice(10);
+  const anchor = Number(date.slice(8));
+  return {
+    ...result,
+    schedule: result.schedule.map((row, index) => {
+      if (date && index > 0) date = nextMonthlyDate(date, anchor);
+      return { ...row, dueAt: date ? date + time : null };
+    }),
+  };
+}
+
+export function compareLoanTerms(
+  input: Omit<LoanSimulationInput, 'firstDueAt' | 'installmentCount'>,
+) {
+  const available = [12, 24, 36, 48, 60].filter((count) => count <= input.principalMinor);
+  const terms = available.length ? available : [1];
+  return terms.map((installmentCount) => {
+    const estimate = calculateLoan({ ...input, installmentCount });
+    return {
+      installmentCount,
+      firstPaymentMinor: estimate.schedule[0].paymentMinor,
+      totalCostMinor: estimate.totalCostMinor,
+      totalPaidMinor: estimate.totalPaidMinor,
+    };
+  });
 }

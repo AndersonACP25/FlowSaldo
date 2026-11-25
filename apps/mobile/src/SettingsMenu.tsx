@@ -15,6 +15,7 @@ export const settingsSections = [
   'Notificaciones',
   'Correo y Gmail',
   'Seguridad y privacidad',
+  'Preguntas frecuentes',
   'Acerca de la aplicación',
 ] as const;
 
