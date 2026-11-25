@@ -523,7 +523,8 @@ test('CORE: monthly closings preserve the budget and unpaid amounts by due month
   assert.equal(snapshot.budgetMinor, 60_000);
   assert.ok(validMonthlyClosings([snapshot, { ...snapshot, currency: 'EUR' }]));
   assert.ok(!validMonthlyClosings([snapshot, snapshot]));
-  assert.ok(!validMonthlyClosings([{ ...snapshot, expenseMinor: -1 }]));
+  assert.ok(validMonthlyClosings([{ ...snapshot, expenseMinor: -1 }]));
+  assert.ok(!validMonthlyClosings([{ ...snapshot, incomeMinor: -1 }]));
 });
 test('CORE: loan installments reconcile interest, principal and separate fees in cents', () => {
   const input: LoanSimulationInput = {
