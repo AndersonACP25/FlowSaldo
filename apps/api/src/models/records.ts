@@ -1,5 +1,6 @@
 import { db } from '@flowsaldo/database';
-import type { Currency } from '@flowsaldo/domain';
+import type { Prisma } from '@prisma/client';
+import { checkMovementSplits, type Currency, type SplitAmount } from '@flowsaldo/domain';
 import { assignCategory, CategoryError } from './categories';
 import { lockFinance, checkAccountMovement, touchAccounts, checkAccountDelete } from './finance';
 
@@ -15,13 +16,44 @@ interface MovementInput {
   occurredAt: string;
 }
 
-export async function createMovement(data: MovementInput & { requestKey?: string }) {
+type EditableMovement = MovementInput & { splits?: SplitAmount[] };
+
+function validateSplits(data: MovementInput, parts: SplitAmount[]) {
+  try {
+    checkMovementSplits(data.type, data.amountMinor, parts);
+  } catch (error) {
+    throw new CategoryError((error as Error).message);
+  }
+}
+
+async function assignSplits(
+  tx: Prisma.TransactionClient,
+  parts: SplitAmount[],
+  previous: { categoryId: string; category: string }[] = [],
+) {
+  return Promise.all(
+    parts.map(async (part) => {
+      const category = await assignCategory(
+        tx,
+        { ...part, category: 'Sin categorizar' },
+        previous.find((item) => item.categoryId === part.categoryId),
+      );
+      return { ...category, amountMinor: part.amountMinor };
+    }),
+  );
+}
+
+export async function createMovement({
+  splits = [],
+  ...data
+}: EditableMovement & { requestKey?: string }) {
+  validateSplits(data, splits);
   return db.$transaction(async (tx) => {
     await lockFinance(tx);
     if (data.requestKey) {
       const receipt = await tx.movementRequest.findUnique({
         where: { key: data.requestKey },
-        include: { movement: true },
+        include: { movement: { include: { splits: true } } },
       });
       if (receipt && !receipt.movement)
         throw new CategoryError('Este envío ya se registró y su movimiento fue eliminado.', 409);
@@ -37,7 +69,14 @@ export async function createMovement(data: MovementInput & { requestKey?: string
           (previous.targetAccountId ?? null) === (data.targetAccountId ?? null) &&
           (data.categoryId
             ? previous.categoryId === data.categoryId
-            : previous.category === data.category);
+            : previous.category === data.category) &&
+          previous.splits.length === splits.length &&
+          splits.every((part) =>
+            previous.splits.some(
+              (saved) =>
+                saved.categoryId === part.categoryId && saved.amountMinor === part.amountMinor,
+            ),
+          );
         if (!same) throw new CategoryError('La clave de envío ya fue usada con otros datos.', 409);
         return previous;
       }
@@ -46,7 +85,12 @@ export async function createMovement(data: MovementInput & { requestKey?: string
       throw new CategoryError('Una transferencia entre cuentas requiere clave de envío.', 400);
     await checkAccountMovement(tx, data);
     const movement = await tx.movement.create({
-      data: { ...data, ...(await assignCategory(tx, data)) },
+      data: {
+        ...data,
+        ...(await assignCategory(tx, data)),
+        splits: { create: await assignSplits(tx, splits) },
+      },
+      include: { splits: true },
     });
     if (data.requestKey)
       await tx.movementRequest.create({ data: { key: data.requestKey, movementId: movement.id } });
@@ -55,10 +99,13 @@ export async function createMovement(data: MovementInput & { requestKey?: string
   });
 }
 
-export async function updateMovement(id: string, data: MovementInput) {
+export async function updateMovement(id: string, { splits, ...data }: EditableMovement) {
   return db.$transaction(async (tx) => {
     await lockFinance(tx);
-    const existing = await tx.movement.findUnique({ where: { id: id } });
+    const existing = await tx.movement.findUnique({
+      where: { id },
+      include: { splits: true },
+    });
     if (!existing) return null;
     const linked = {
       ...data,
@@ -67,9 +114,17 @@ export async function updateMovement(id: string, data: MovementInput) {
         data.targetAccountId === undefined ? existing.targetAccountId : data.targetAccountId,
     };
     await checkAccountMovement(tx, linked, existing);
+    validateSplits(data, splits ?? existing.splits);
+    const replacement = splits ? await assignSplits(tx, splits, existing.splits) : undefined;
+    if (replacement) await tx.movementSplit.deleteMany({ where: { movementId: id } });
     const movement = await tx.movement.update({
       where: { id: existing.id },
-      data: { ...linked, ...(await assignCategory(tx, data, existing)) },
+      data: {
+        ...linked,
+        ...(await assignCategory(tx, data, existing)),
+        ...(replacement ? { splits: { create: replacement } } : {}),
+      },
+      include: { splits: true },
     });
     await touchAccounts(tx, linked, existing);
     return movement;

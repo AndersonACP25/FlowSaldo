@@ -12,7 +12,7 @@ Base local: http://127.0.0.1:3000. Salvo health/preflight y las rutas públicas 
 | GET | /summary?currency=DOP | Totales de todos los movimientos de esa moneda |
 | POST | /imports | Encolar mensaje o devolver existente, 202 |
 | GET | /imports/:id | Detalle y cuerpo sintético de una importación. Un retiro reconocido en REVIEW incluye suggestion. 404 si no existe |
-| POST | /imports/:id/resolve | Cuerpo igual a POST /movements, confirmación manual, 201; 409 si ya se procesó |
+| POST | /imports/:id/resolve | Cuerpo de movimiento sin repartos, confirmación manual, 201; 409 si ya se procesó |
 | POST | /imports/:id/dismiss | Descarta REVIEW sin contabilizar, 204; 409 si no está en revisión |
 | GET | /imports | Últimas 100 importaciones, sin cuerpos |
 
@@ -64,6 +64,10 @@ Sin categorizar es la categoría protegida del worker: no admite renombrado, arc
 POST/PATCH /movements y POST /imports/:id/resolve aceptan `categoryId`. Se recomienda enviarlo; sin él se busca `category` por nombre normalizado, por defecto Sin categorizar. Categoría desconocida devuelve 400; archivada, 409. Un movimiento ya asociado puede conservar su categoría archivada al editar otros campos. Duplicarlo es una asignación nueva y exige una categoría activa. Las asignaciones bloquean la fila de categoría dentro de la transacción, coordinándose con archivo/renombrado. Confirmación de revisiones conserva el bloqueo de importación y la idempotencia.
 
 GET /movements?page=true y /movements/export admiten `categoryId`, incluyendo categorías archivadas. El resumen mensual agrega `categoryTotals:[{categoryId,amountMinor}]` para gastos por ID, independiente de páginas y nombres históricos. `categories` conserva el desglose por etiqueta histórica de la entrega anterior. Transferencias e ingresos no consumen presupuestos de gastos.
+
+La migración aditiva `20261125090000_movement_splits` agrega `MovementSplit` con referencias a movimiento y categoría. `POST /movements` y `PATCH /movements/:id` aceptan `splits: [{categoryId,amountMinor}]`. Solo se admiten gastos, de 2 a 12 categorías distintas y montos positivos cuya suma coincida exactamente con el gasto. Las partes usan la moneda del movimiento. Omitir `splits` al editar conserva el reparto si el nuevo tipo e importe son compatibles. Enviar `[]` quita el reparto. Las respuestas de historial y detalle incluyen `splits` con la etiqueta histórica de cada categoría.
+
+Los filtros consultan las categorías del reparto y el resumen mensual atribuye cada parte a su presupuesto. Los totales generales y el CSV conservan el importe completo en una fila. El CSV usa «Gasto dividido» como categoría de esa fila. Eliminar el movimiento elimina sus partes en la misma operación. Una categoría que participa en un reparto puede archivarse.
 
 Los presupuestos general y por categoría siguen locales al dispositivo. Cada límite por categoría se identifica por modo demo/API, mes, moneda e ID de categoría. No se sincronizan ni crean usuarios. Avisos de 80 % y 100 % utilizan el gasto real; el porcentaje mostrado se redondea sin adelantar el aviso. Archivar conserva un presupuesto y permite retirarlo, pero no asignar uno nuevo a esa categoría.
 

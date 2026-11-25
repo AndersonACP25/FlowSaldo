@@ -33,7 +33,7 @@ Las siete fases se trabajan en `feat/finanzas-personales-por-fases`. La proyecci
 | 2 | Metas de ahorro y apartados | Implementada. Crea una meta por moneda, registra aportes y consulta el avance. Cada transferencia propia puede vincularse a una sola meta y conserva su clasificación. Las metas y vínculos se guardan en el dispositivo por modo. |
 | 3 | Pagos y cobros pendientes | Implementada. Registra pagos y cobros con vencimiento, abonos parciales y vínculos a movimientos. La proyección usa el saldo por pagar antes del próximo cobro y contabiliza una vez cada vencimiento de plantilla. |
 | 4 | Plan de pago de tarjetas y préstamos | Implementada. Guarda planes locales de tarjetas y préstamos con corte, vencimiento, capital, intereses y cargos. Compara cuotas, fecha estimada e intereses con un abono mensual adicional, con supuestos visibles. |
-| 5 | Dividir gastos por categoría | Pendiente. Las partes deben sumar el importe total en la misma moneda. Conservar una fila en el historial y asignar a cada presupuesto el importe de su parte. |
+| 5 | Dividir gastos por categoría | Implementada. Permite repartir gastos entre categorías en la misma moneda. Las partes deben sumar el gasto y se distribuyen entre análisis y presupuestos. El historial conserva una sola fila. |
 | 6 | Cierre mensual personal | Pendiente. Revisar movimientos sin categorizar, pendientes y diferencias contra el presupuesto. Guardar un resumen comparable por mes y moneda. |
 | 7 | Reglas de categorización por comercio | Pendiente. Sugerir categorías para descripciones coincidentes. Permitir confirmar o corregir la sugerencia y aplicar las reglas al registro manual. |
 

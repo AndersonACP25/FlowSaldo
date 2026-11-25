@@ -1,3 +1,5 @@
+import { movementCategories, type MovementSplit } from './movementSplits.ts';
+
 export * from './bank-mail.ts';
 export * from './recurring.ts';
 export * from './dateTime.ts';
@@ -5,6 +7,7 @@ export * from './cashProjection.ts';
 export * from './savings.ts';
 export * from './planning.ts';
 export * from './finance.ts';
+export * from './movementSplits.ts';
 export const currencies = ['DOP', 'USD', 'EUR'] as const;
 export type Currency = (typeof currencies)[number];
 export const isCurrency = (value: unknown): value is Currency =>
@@ -19,6 +22,7 @@ export interface Movement {
   occurredAt: string;
   category: string;
   categoryId?: string | null;
+  splits?: MovementSplit[];
   accountId?: string | null;
   targetAccountId?: string | null;
   requestKey?: string | null;
@@ -28,7 +32,8 @@ export interface MailInput {
   body: string;
 }
 export type ParseResult =
-  { status: 'PARSED'; movement: Omit<Movement, 'id'> } | { status: 'REVIEW'; reason: string };
+  | { status: 'PARSED'; movement: Omit<Movement, 'id' | 'splits'> }
+  | { status: 'REVIEW'; reason: string };
 // Only a synthetic, strict fixture format. Real banks need separate versioned parsers.
 export function parseDemoMail(body: string): ParseResult {
   const match =
@@ -143,9 +148,13 @@ export function filterMovements(
       (m) =>
         m.currency === filter.currency &&
         m.occurredAt.startsWith(filter.month) &&
-        (!filter.categoryId || m.categoryId === filter.categoryId) &&
+        (!filter.categoryId ||
+          movementCategories(m).some((part) => part.categoryId === filter.categoryId)) &&
         (!filter.type || filter.type === 'ALL' || m.type === filter.type) &&
-        (!search || `${m.description} ${m.category}`.toLocaleLowerCase('es').includes(search)),
+        (!search ||
+          movementCategories(m).some((part) =>
+            `${m.description} ${part.category}`.toLocaleLowerCase('es').includes(search),
+          )),
     )
     .sort((a, b) => b.occurredAt.localeCompare(a.occurredAt));
 }
@@ -154,7 +163,8 @@ export function categoryExpenses(
 ): Array<{ category: string; amountMinor: number }> {
   const totals = new Map<string, number>();
   for (const m of rows.filter((m) => m.type === 'EXPENSE'))
-    totals.set(m.category, (totals.get(m.category) ?? 0) + m.amountMinor);
+    for (const part of movementCategories(m))
+      totals.set(part.category, (totals.get(part.category) ?? 0) + part.amountMinor);
   return Array.from(totals, ([category, amountMinor]) => ({ category, amountMinor })).sort(
     (a, b) => b.amountMinor - a.amountMinor,
   );
@@ -171,7 +181,7 @@ export function movementsCsv(rows: Movement[]): string {
         m.currency,
         (m.amountMinor / 100).toFixed(2),
         m.description,
-        m.category,
+        m.splits?.length ? 'Gasto dividido' : m.category,
       ]
         .map(cell)
         .join(','),

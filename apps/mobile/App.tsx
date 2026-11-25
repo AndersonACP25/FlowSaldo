@@ -67,6 +67,7 @@ import {
   countLabel,
   pendingMailMessage,
   categoryExpenses,
+  movementCategories,
   demoMovements,
   dominicanDateTime,
   parseDominicanDateTime,
@@ -540,8 +541,10 @@ function Home({
     : categoryCatalog.map((c) => ({
         categoryId: c.id,
         amountMinor: period
-          .filter((m) => m.type === 'EXPENSE' && m.categoryId === c.id)
-          .reduce((n, m) => n + m.amountMinor, 0),
+          .filter((m) => m.type === 'EXPENSE')
+          .flatMap(movementCategories)
+          .filter((part) => part.categoryId === c.id)
+          .reduce((n, part) => n + part.amountMinor, 0),
       }));
   const recent = [
     ...new Set(
@@ -604,7 +607,9 @@ function Home({
       if (!category) throw new Error('Categoría no encontrada.');
       if (category.system) throw new Error('Sin categorizar es una categoría del sistema.');
       const used =
-        data.movements.some((m) => m.categoryId === id) ||
+        data.movements.some(
+          (m) => m.categoryId === id || m.splits?.some((p) => p.categoryId === id),
+        ) ||
         data.recurring.some((item) => item.categoryId === id) ||
         Object.keys(data.categoryBudgets).some((key) => key.split(':').slice(3).join(':') === id);
       if (used)
@@ -1716,6 +1721,7 @@ function Home({
                 )}
                 {catalogReady && (!connected || accountsQuery.isSuccess) && (
                   <MovementForm
+                    allowSplits
                     accounts={connected ? accountsQuery.data : undefined}
                     categories={categoryCatalog}
                     recent={recent}
@@ -1854,7 +1860,10 @@ function Home({
                       <View>
                         <Text style={s.text}>{m.description}</Text>
                         <Text style={s.muted}>
-                          {m.category} · {m.occurredAt.slice(0, 10)} · {typeLabels[m.type]}
+                          {m.splits?.length
+                            ? countLabel(m.splits.length, 'categoría', 'categorías')
+                            : m.category}{' '}
+                          · {m.occurredAt.slice(0, 10)} · {typeLabels[m.type]}
                         </Text>
                       </View>
                       <Text

@@ -125,6 +125,57 @@ export async function checkHistory(request, connectionString) {
       '/imports?page=true&from=2040-02-01&to=2040-01-01',
     ])
       assert.equal((await request(path)).status, 400, path);
+    const categories = await get('/categories');
+    const primary = categories.find((category) => category.system);
+    const [food, transport] = categories.filter((category) => !category.system && !category.archived);
+    const data = {
+      requestKey: prefix + 'split',
+      currency: 'EUR',
+      type: 'EXPENSE',
+      description: prefix + 'split expense',
+      categoryId: primary.id,
+      occurredAt: '2044-02-12T12:00:00.000Z',
+      amountMinor: 100_029,
+      splits: [
+        { categoryId: food.id, amountMinor: 70_020 },
+        { categoryId: transport.id, amountMinor: 30_009 },
+      ],
+    };
+    const post = (body) => request('/movements', { method: 'POST', body: JSON.stringify(body) });
+    assert.equal((await post({ ...data, amountMinor: 100_028 })).status, 400);
+    const created = await post(data);
+    assert.equal(created.status, 201);
+    const movement = await created.json();
+    try {
+      const repeated = await post({ ...data, splits: [...data.splits].reverse() });
+      assert.equal(repeated.status, 201);
+      assert.equal((await repeated.json()).id, movement.id);
+      const base = 'month=2044-02&currency=EUR';
+      const summary = await get('/summary?' + base);
+      assert.equal(summary.total, 1);
+      assert.equal(summary.expenseMinor, 100_029);
+      const totals = new Map(summary.categoryTotals.map((item) => [item.categoryId, item.amountMinor]));
+      assert.equal(totals.get(food.id), 70_020);
+      assert.equal(totals.get(transport.id), 30_009);
+      assert.equal((await get('/movements?page=true&' + base + '&categoryId=' + food.id)).total, 1);
+      assert.equal((await get('/movements?page=true&' + base + '&categoryId=' + primary.id)).total, 0);
+      assert.equal((await get('/movements/' + movement.id)).splits.length, 2);
+      const csv = await request('/movements/export?' + base + '&categoryId=' + transport.id);
+      assert.equal(parseCsv(await csv.text()).length, 2);
+      const { splits, ...fields } = data;
+      const patch = (body) =>
+        request('/movements/' + movement.id, {
+          method: 'PATCH',
+          body: JSON.stringify(body),
+        });
+      assert.equal((await patch({ ...fields, amountMinor: 90_000 })).status, 400);
+      assert.equal((await patch(fields)).status, 200);
+      assert.equal((await get('/movements/' + movement.id)).splits.length, splits.length);
+      assert.equal((await patch({ ...fields, splits: [] })).status, 200);
+      assert.equal((await get('/movements/' + movement.id)).splits.length, 0);
+    } finally {
+      await request('/movements/' + movement.id, { method: 'DELETE' });
+    }
     console.info(
       'PASS: 205 movements, complete monthly totals/categories/week/CSV, literal filters, deleted cursor, 105 reviews and validation',
     );

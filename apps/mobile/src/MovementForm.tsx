@@ -7,6 +7,7 @@ import {
   dominicanDateTime,
   parseDominicanDateTime,
   selectedCategory,
+  checkMovementSplits,
   parseAmount,
   validDate,
   type Category,
@@ -18,6 +19,7 @@ import { Button, Choice, Field } from './ui';
 import { DatePicker } from './DatePicker';
 import { DateTimeField } from './DateTimeField';
 import { useTheme } from './theme';
+import { MovementSplitsEditor, type SplitDraft } from './MovementSplitsEditor';
 import type { FinancialAccount } from './FinancePanel';
 export const typeLabels = { INCOME: 'Ingreso', EXPENSE: 'Gasto', TRANSFER: 'Transferencia' };
 export type Draft = Omit<Movement, 'id'>;
@@ -35,7 +37,9 @@ export function MovementForm({
   recurringDateTime = false,
   saveLabel = 'Guardar movimiento',
   accounts,
+  allowSplits = false,
 }: {
+  allowSplits?: boolean;
   accounts?: FinancialAccount[];
   saveLabel?: string;
   fixedDate?: boolean;
@@ -76,7 +80,20 @@ export function MovementForm({
       )?.id ??
       '',
   );
+  const [splitEnabled, setSplitEnabled] = useState(!!movement?.splits?.length);
+  const [parts, setParts] = useState<SplitDraft[]>(() =>
+    movement?.splits?.length
+      ? movement.splits.map((part) => ({
+          categoryId: part.categoryId,
+          amount: String(part.amountMinor / 100),
+        }))
+      : [
+          { categoryId: '', amount: '' },
+          { categoryId: '', amount: '' },
+        ],
+  );
   const [type, setType] = useState<MovementType>(movement?.type ?? 'EXPENSE');
+  const splitting = allowSplits && type === 'EXPENSE' && splitEnabled;
   const [unit, setUnit] = useState<Currency>(movement?.currency ?? currency);
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
@@ -99,11 +116,26 @@ export function MovementForm({
         (!targetAccountId || targetAccountId === accountId)
       )
         throw new Error('Selecciona otra cuenta de destino.');
+      const previous = editing ? movement : undefined;
+      if (splitting && parts.some((part) => !part.categoryId))
+        throw new Error('Elige una categoría para cada parte.');
+      const splits = splitting
+        ? parts.map((part) => ({
+            ...selectedCategory(
+              categories,
+              part.categoryId,
+              'Sin categorizar',
+              previous?.splits?.find((item) => item.categoryId === part.categoryId),
+            ),
+            amountMinor: parseAmount(part.amount),
+          }))
+        : [];
+      checkMovementSplits(type, amountMinor, splits);
       const category = selectedCategory(
         categories,
-        categoryId,
+        splitting ? (previous?.categoryId ?? categories.find((c) => c.system)?.id) : categoryId,
         'Sin categorizar',
-        editing ? movement : undefined,
+        previous,
       );
       setBusy(true);
       await onSave({
@@ -111,6 +143,7 @@ export function MovementForm({
         amountMinor,
         occurredAt: selectedTime?.toISOString() ?? date + 'T12:00:00.000Z',
         ...category,
+        ...(allowSplits ? { splits } : {}),
         type,
         currency: unit,
         ...(accounts
@@ -240,18 +273,46 @@ export function MovementForm({
       ) : (
         <DatePicker value={date} onChange={setDate} />
       )}
-      <Text style={s.label}>Categoría</Text>
-      {recent.length > 0 && (
+      {allowSplits && type === 'EXPENSE' && (
+        <MovementSplitsEditor
+          active={splitting}
+          amount={amount}
+          categories={categories}
+          previousIds={editing ? (movement?.splits ?? []).map((part) => part.categoryId) : []}
+          parts={parts}
+          onToggle={() => setSplitEnabled(!splitEnabled)}
+          onChange={setParts}
+        />
+      )}
+      {!splitting && (
         <>
-          <Text style={s.label}>Categorías recientes</Text>
-          <FilterRow label="Elegir categoría reciente">
+          <Text style={s.label}>Categoría</Text>
+          {recent.length > 0 && (
+            <>
+              <Text style={s.label}>Categorías recientes</Text>
+              <FilterRow label="Elegir categoría reciente">
+                {categories
+                  .filter((c) => !c.archived && recent.includes(c.id))
+                  .map((c) => (
+                    <Choice
+                      key={c.id}
+                      label={`Reciente: ${c.name}`}
+                      text={c.name}
+                      selected={categoryId === c.id}
+                      onPress={() => setCategoryId(c.id)}
+                    />
+                  ))}
+              </FilterRow>
+            </>
+          )}
+          <FilterRow label="Seleccionar categoría">
             {categories
-              .filter((c) => !c.archived && recent.includes(c.id))
+              .filter((c) => !c.archived || (editing && c.id === movement?.categoryId))
               .map((c) => (
                 <Choice
                   key={c.id}
-                  label={`Reciente: ${c.name}`}
-                  text={c.name}
+                  label={`Categoría: ${c.name}`}
+                  text={c.name + (c.archived ? ' · Archivada' : '')}
                   selected={categoryId === c.id}
                   onPress={() => setCategoryId(c.id)}
                 />
@@ -259,19 +320,6 @@ export function MovementForm({
           </FilterRow>
         </>
       )}
-      <FilterRow label="Seleccionar categoría">
-        {categories
-          .filter((c) => !c.archived || (editing && c.id === movement?.categoryId))
-          .map((c) => (
-            <Choice
-              key={c.id}
-              label={`Categoría: ${c.name}`}
-              text={c.name + (c.archived ? ' · Archivada' : '')}
-              selected={categoryId === c.id}
-              onPress={() => setCategoryId(c.id)}
-            />
-          ))}
-      </FilterRow>
       {type === 'TRANSFER' && (
         <Text style={s.muted}>
           Transferencia entre cuentas propias: no cuenta como ingreso ni gasto.

@@ -107,6 +107,17 @@ export async function checkCoreFlows(browser) {
     const amount = page.getByLabel('Monto (sin separadores de miles)', { exact: true });
     assert.equal(await amount.inputValue(), '100.29');
     await amount.fill('101.29');
+    await button('Dividir gasto').click();
+    await button('Parte 1: Alimentación').click();
+    await button('Parte 2: Transporte').click();
+    await page.getByLabel('Importe de la parte 1', { exact: true }).fill('70.20');
+    await page.getByLabel('Importe de la parte 2', { exact: true }).fill('31.00');
+    await button('Guardar movimiento').click();
+    await page
+      .getByRole('alert')
+      .filter({ hasText: 'Las partes deben sumar el importe total del gasto.' })
+      .waitFor();
+    await page.getByLabel('Importe de la parte 2', { exact: true }).fill('31.09');
     await button('Guardar movimiento').click();
     await page.getByText('Movimiento guardado.', { exact: true }).waitFor();
     await page.getByLabel('Buscar descripción o categoría', { exact: true }).fill('Compra CORE');
@@ -115,6 +126,9 @@ export async function checkCoreFlows(browser) {
     await button('Exportar CSV').click();
     const file = await waiting;
     assert.equal(file.suggestedFilename(), `FlowSaldo-${month}.csv`);
+    const rows = parseCsv(await readFile(await file.path(), 'utf8'));
+    assert.equal(rows.length, 2);
+    assert.equal(rows[1].at(-1), 'Gasto dividido');
     await button('Inicio').click();
     await button('Metas de ahorro').click();
     await button('Nueva meta de ahorro').click();
@@ -170,6 +184,8 @@ export async function checkCoreFlows(browser) {
     await loginAsTestAccount(page);
     await button('Plan de pago de tarjetas y préstamos').click();
     await savings.waitFor();
+    const edited = (await stored()).movements.find((item) => item.description === 'Compra CORE');
+    assert.equal(edited.splits.length, 2);
     await button('Volver').click();
     await button('Metas de ahorro').click();
     await page.getByText('EUR 500.00 de EUR 1,000.00', { exact: true }).waitFor();

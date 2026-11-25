@@ -6,6 +6,8 @@ import {
   parseSignedAmount,
   parseAmount,
   summarize,
+  categoryExpenses,
+  checkMovementSplits,
   filterMovements,
   demoMovements,
   parseDemoMail,
@@ -269,6 +271,39 @@ test('CORE: cash projection counts pending installments by currency and exact cu
   assert.throws(
     () => projectAvailableCash({ ...input, nextIncomeAt: '2026-02-28T10:00' }),
     /futuro/,
+  );
+});
+test('CORE: categorized parts sum to one expense and filter by the actual categories', () => {
+  const date = '2026-11-25T12:00:00.000Z';
+  const parts = [
+    { categoryId: 'food', category: 'Alimentación', amountMinor: 70_020 },
+    { categoryId: 'health', category: 'Salud', amountMinor: 30_009 },
+  ];
+  const movement = {
+    ...demoMovements[0],
+    categoryId: 'old',
+    type: 'EXPENSE' as const,
+    currency: 'DOP' as const,
+    occurredAt: date,
+    amountMinor: 100_029,
+    splits: parts,
+  };
+  checkMovementSplits(movement.type, movement.amountMinor, parts);
+  assert.equal(summarize([movement], 'DOP').expenseMinor, 100_029);
+  assert.deepEqual(categoryExpenses([movement]), [
+    { category: 'Alimentación', amountMinor: 70_020 },
+    { category: 'Salud', amountMinor: 30_009 },
+  ]);
+  const filter = { currency: 'DOP' as const, month: '2026-11' };
+  assert.deepEqual(filterMovements([movement], { ...filter, categoryId: 'health' }), [movement]);
+  assert.deepEqual(filterMovements([movement], { ...filter, categoryId: 'old' }), []);
+  assert.match(movementsCsv([movement]), /"1000.29".*"Gasto dividido"/);
+  assert.equal(movementsCsv([movement]).split('\r\n').length, 2);
+  assert.throws(() => checkMovementSplits('TRANSFER', 100_029, parts), /Solo puedes dividir/);
+  assert.throws(() => checkMovementSplits('EXPENSE', 100_028, parts), /deben sumar/);
+  assert.throws(
+    () => checkMovementSplits('EXPENSE', 140_040, [parts[0], parts[0]]),
+    /categoría distinta/,
   );
 });
 test('CORE: partial settlements use the live movement exactly once and preserve currency', () => {

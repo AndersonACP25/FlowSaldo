@@ -208,3 +208,7 @@ Fase 3 en el mismo PR. Registra vencimientos por moneda con hora dominicana y ap
 ## Plan de pago de tarjetas y préstamos (2026-11-24)
 
 Fase 4 en el mismo PR. Planes por dispositivo, separados entre demo y cuenta/URL conectada, con capital, cargos e interés al corte, tasa nominal anual fija, cuota y abono adicional mensual en DOP, USD o EUR. Las fechas usan hora dominicana. La primera cuota aplica los importes del corte antes del capital. Los períodos siguientes calculan interés nominal mensual sobre saldo en centavos, con redondeo a centavo y el día de vencimiento anclado. La comparación limita la proyección a 600 cuotas y señala cuota insuficiente. La simulación queda fuera del historial y usa almacenamiento local sin migración.
+
+## Dividir gastos por categoría (2026-11-25)
+
+Fase 5 en el mismo PR. El formulario manual de gastos distribuye el importe entre 2 y 12 categorías distintas de la moneda del movimiento y valida la suma en centavos. Historial y CSV conservan una fila, mientras que análisis y presupuestos consumen las partes. Los filtros consultan las categorías reales del reparto. En demo se conservan movimientos anteriores y partes locales. En modo conectado se agrega la migración aditiva MovementSplit. Las partes se escriben en la misma transacción del movimiento y conservan su categoría histórica.
