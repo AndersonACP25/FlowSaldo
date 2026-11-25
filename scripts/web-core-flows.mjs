@@ -45,6 +45,16 @@ export async function checkCoreFlows(browser) {
       return route.abort();
     });
     await page.goto('http://127.0.0.1:8082', { waitUntil: 'networkidle' });
+    for (const label of ['Usar cuenta de prueba', 'Registrarse', 'Recuperar cuenta con código']) {
+      const option = await button(label).evaluate((el) => {
+        const style = el.ownerDocument.defaultView.getComputedStyle(el);
+        return {
+          border: style.borderTopWidth,
+          align: el.ownerDocument.defaultView.getComputedStyle(el.firstElementChild).textAlign,
+        };
+      });
+      assert.deepEqual(option, { border: '0px', align: 'center' });
+    }
     await button('Usar cuenta de prueba').click();
     await page.getByLabel('Contraseña', { exact: true }).fill('Contraseña incorrecta');
     await button('Entrar').click();
@@ -54,7 +64,14 @@ export async function checkCoreFlows(browser) {
     await button('Configuración').click();
     await button('Preguntas frecuentes').click();
     await button('¿Cómo registro mis ingresos y gastos?').click();
-    await page.getByText(/Puedes dividir un gasto entre varias categorías/).waitFor();
+    const faqAnswer = page.getByText(/Puedes dividir un gasto entre varias categorías/);
+    await faqAnswer.waitFor();
+    assert.equal(
+      await faqAnswer.evaluate(
+        (node) => node.ownerDocument.defaultView.getComputedStyle(node).textAlign,
+      ),
+      'left',
+    );
     await button('Volver').click();
     await button('Preferencias').click();
     await button('EUR').click();
@@ -87,6 +104,8 @@ export async function checkCoreFlows(browser) {
     await button('Quitar Banco BHD').waitFor();
     await button('Volver').click();
     await button('Apariencia').click();
+    await button('Medianoche').click();
+    await page.waitForFunction(() => localStorage.getItem('flowsaldo.theme.v1') === 'midnight');
     await button('Arena').click();
     await page.waitForFunction(() => localStorage.getItem('flowsaldo.theme.v1') === 'sand');
     await page.reload({ waitUntil: 'networkidle' });
@@ -166,6 +185,14 @@ export async function checkCoreFlows(browser) {
     await button('Guardar meta').click();
     await page.getByRole('heading', { name: 'Laptop CORE', exact: true }).waitFor();
     await button('Aportar a Laptop CORE').click();
+    const cancelContribution = await button('Cancelar aporte').evaluate((el) => {
+      const browser = el.ownerDocument.defaultView;
+      return {
+        border: browser.getComputedStyle(el).borderTopWidth,
+        alignment: browser.getComputedStyle(el.parentElement).alignItems,
+      };
+    });
+    assert.deepEqual(cancelContribution, { border: '0px', alignment: 'center' });
     await page.getByLabel('Monto del aporte', { exact: true }).fill('150');
     await button('Guardar aporte').click();
     await page.getByText('EUR 150.00 de EUR 1,000.00', { exact: true }).waitFor();
@@ -228,6 +255,14 @@ export async function checkCoreFlows(browser) {
       '0px',
     );
     await planLink.click();
+    const planTitle = page.getByRole('heading', {
+      name: 'Plan de pago de tarjetas y préstamos',
+      exact: true,
+    });
+    await planTitle.waitFor();
+    const backBounds = await button('Volver').boundingBox();
+    const titleBounds = await planTitle.boundingBox();
+    assert.ok(backBounds.y + backBounds.height <= titleBounds.y);
     await button('Nuevo plan de pago').click();
     await button('DOP').click();
     const debtFields = {
@@ -243,6 +278,11 @@ export async function checkCoreFlows(browser) {
     };
     for (const [label, value] of Object.entries(debtFields))
       await page.getByLabel(label, { exact: true }).fill(value);
+    const principal = await page.getByLabel('Capital pendiente', { exact: true }).boundingBox();
+    const interest = await page.getByLabel('Interés al corte', { exact: true }).boundingBox();
+    assert.equal(principal.x, interest.x);
+    assert.equal(principal.width, interest.width);
+    assert.ok(principal.y + principal.height <= interest.y);
     await button('Guardar y comparar').click();
     const savings = page.getByText('DOP 92.14 menos en intereses · 1 cuota menos', { exact: true });
     await savings.waitFor();
@@ -296,6 +336,8 @@ export async function checkCoreFlows(browser) {
     await page.getByLabel('Año', { exact: true }).fill('2040');
     await button('febrero de 2040').click();
     await page.getByText('2040-02-29', { exact: true }).waitFor();
+    assert.equal(await button('Semana anterior').innerText(), '−7 días');
+    assert.equal(await button('Semana siguiente').innerText(), '+7 días');
     await button('Semana siguiente').click();
     await page.getByText('2040-03-07', { exact: true }).waitFor();
     await button('Abrir menú').click();

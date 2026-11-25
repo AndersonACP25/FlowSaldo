@@ -62,17 +62,17 @@ export function PeriodPicker({
           }}
         />
       </View>
-      <View style={s.row}>
+      <View style={s.between}>
         <Choice
           label="Semana anterior"
-          text="‹ 7 días"
+          text="−7 días"
           selected={false}
           onPress={() => stepWeek(-1)}
         />
         <Text style={s.muted}>{date}</Text>
         <Choice
           label="Semana siguiente"
-          text="7 días ›"
+          text="+7 días"
           selected={false}
           onPress={() => stepWeek(1)}
         />

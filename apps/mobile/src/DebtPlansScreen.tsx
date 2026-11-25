@@ -262,21 +262,18 @@ function DebtPlanForm({
         value={dueAt}
         onChange={setDueAt}
       />
-      <View style={[s.row, { alignItems: 'flex-start' }]}>
-        {amountFields.map(([field, label, required]) => (
-          <View key={field} style={{ flexGrow: 1, flexBasis: 180, maxWidth: '100%' }}>
-            <Field
-              label={label}
-              value={amounts[field]}
-              onChangeText={(value) => setAmounts((current) => ({ ...current, [field]: value }))}
-              keyboardType="decimal-pad"
-              editable={!saving}
-              placeholder={required || field === 'annualRateBasisPoints' ? undefined : '0.00'}
-              maxLength={16}
-            />
-          </View>
-        ))}
-      </View>
+      {amountFields.map(([field, label, required]) => (
+        <Field
+          key={field}
+          label={label}
+          value={amounts[field]}
+          onChangeText={(value) => setAmounts((current) => ({ ...current, [field]: value }))}
+          keyboardType="decimal-pad"
+          editable={!saving}
+          placeholder={required || field === 'annualRateBasisPoints' ? undefined : '0.00'}
+          maxLength={16}
+        />
+      ))}
       {!!error && (
         <Text accessibilityRole="alert" style={s.error}>
           {error}

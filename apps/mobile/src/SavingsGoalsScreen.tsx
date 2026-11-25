@@ -146,13 +146,15 @@ export function SavingsGoalsScreen({
               }, 'Meta guardada.')
             }
           />
-          <Choice
-            label="Cancelar meta"
-            text="Cancelar"
-            selected={false}
-            disabled={saving}
-            onPress={() => setEditing(null)}
-          />
+          <View style={{ alignItems: 'center' }}>
+            <Choice
+              label="Cancelar meta"
+              text="Cancelar"
+              selected={false}
+              disabled={saving}
+              onPress={() => setEditing(null)}
+            />
+          </View>
         </View>
       ) : (
         <Button label="Nueva meta de ahorro" disabled={saving} onPress={() => openGoal()} />
@@ -241,13 +243,16 @@ export function SavingsGoalsScreen({
                     }, 'Aporte guardado.')
                   }
                 />
-                <Choice
-                  label="Cancelar aporte"
-                  text="Cancelar"
-                  selected={false}
-                  disabled={saving}
-                  onPress={() => setContributing(undefined)}
-                />
+                <View style={{ alignItems: 'center' }}>
+                  <Choice
+                    label="Cancelar aporte"
+                    variant="text"
+                    text="Cancelar"
+                    selected={false}
+                    disabled={saving}
+                    onPress={() => setContributing(undefined)}
+                  />
+                </View>
               </>
             )}
             {goal.contributions.map((item, index) => {
@@ -279,7 +284,7 @@ export function SavingsGoalsScreen({
                     />
                   </View>
                   {confirm && (
-                    <View style={s.row}>
+                    <View style={{ gap: 8 }}>
                       <Button
                         label="Confirmar retiro de aporte"
                         text="Quitar aporte"
@@ -291,13 +296,15 @@ export function SavingsGoalsScreen({
                           }, 'Aporte quitado.')
                         }
                       />
-                      <Choice
-                        label="Cancelar retiro de aporte"
-                        text="Cancelar"
-                        selected={false}
-                        disabled={saving}
-                        onPress={() => setRemoving(undefined)}
-                      />
+                      <View style={{ alignItems: 'center' }}>
+                        <Choice
+                          label="Cancelar retiro de aporte"
+                          text="Cancelar"
+                          selected={false}
+                          disabled={saving}
+                          onPress={() => setRemoving(undefined)}
+                        />
+                      </View>
                     </View>
                   )}
                 </View>

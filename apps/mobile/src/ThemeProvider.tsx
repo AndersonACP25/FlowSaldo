@@ -1,7 +1,6 @@
 import React, { createContext, useContext, useEffect, useState } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { Text, View } from 'react-native';
-import { Choice } from './ui';
+import { Pressable, Text, View } from 'react-native';
 import {
   colorThemes,
   defaultTheme,
@@ -44,7 +43,7 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
 }
 
 export function ThemeSettings() {
-  const { styles: s } = useTheme();
+  const { styles: s, palette } = useTheme();
   const { theme, selectTheme } = useContext(themeSelection);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState(false);
@@ -61,15 +60,54 @@ export function ThemeSettings() {
   }
   return (
     <View style={s.card}>
-      {options.map((id) => (
-        <Choice
-          key={id}
-          label={themeLabels[id]}
-          selected={theme === id}
-          disabled={saving}
-          onPress={() => void save(id)}
-        />
-      ))}
+      <View style={[s.row, { alignItems: 'stretch' }]}>
+        {options.map((id) => {
+          const colors = colorThemes[id];
+          return (
+            <Pressable
+              key={id}
+              accessibilityRole="button"
+              accessibilityLabel={themeLabels[id]}
+              accessibilityState={{ selected: theme === id, disabled: saving }}
+              disabled={saving}
+              onPress={() => void save(id)}
+              style={({ pressed }) => [
+                s.card,
+                {
+                  flexBasis: 132,
+                  flexGrow: 1,
+                  padding: 12,
+                  gap: 8,
+                  minHeight: 64,
+                  borderWidth: 0,
+                  backgroundColor: palette.raised,
+                },
+                (theme === id || pressed) && s.selected,
+                saving && s.disabled,
+              ]}
+            >
+              <View style={s.row} importantForAccessibility="no-hide-descendants">
+                {[colors.background, colors.surface, colors.primary, colors.cyan].map(
+                  (color, index) => (
+                    <View
+                      key={index}
+                      style={{
+                        height: 14,
+                        width: 14,
+                        borderRadius: 7,
+                        backgroundColor: color,
+                        borderColor: colors.border,
+                        borderWidth: 1,
+                      }}
+                    />
+                  ),
+                )}
+              </View>
+              <Text style={s.text}>{themeLabels[id]}</Text>
+            </Pressable>
+          );
+        })}
+      </View>
       {error && (
         <Text accessibilityRole="alert" style={s.error}>
           No se pudo guardar el tema.

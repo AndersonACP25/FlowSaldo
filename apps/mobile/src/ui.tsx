@@ -33,8 +33,10 @@ export function Choice({
   disabled = false,
   text,
   compact = false,
+  variant = 'default',
 }: {
   compact?: boolean;
+  variant?: 'default' | 'text';
   label: string;
   selected: boolean;
   onPress: () => void;
@@ -42,7 +44,8 @@ export function Choice({
   text?: string;
 }) {
   const { styles: s, palette } = useTheme();
-  const plain = useContext(SettingsOptionsContext);
+  const inSettings = useContext(SettingsOptionsContext);
+  const plain = inSettings || variant === 'text';
   return (
     <Pressable
       accessibilityRole="button"
@@ -59,7 +62,9 @@ export function Choice({
         disabled && s.disabled,
       ]}
     >
-      <Text style={s.pillText}>{text ?? label}</Text>
+      <Text style={[s.pillText, variant === 'text' && { textAlign: 'center' }]}>
+        {text ?? label}
+      </Text>
     </Pressable>
   );
 }
