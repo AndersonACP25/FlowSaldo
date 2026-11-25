@@ -1,3 +1,4 @@
+import { csvTextCell } from './csv.ts';
 import { movementCategories, type MovementSplit } from './movementSplits.ts';
 
 export * from './bank-mail.ts';
@@ -180,8 +181,6 @@ export function categoryExpenses(
   );
 }
 export function movementsCsv(rows: Movement[]): string {
-  const cell = (value: string) =>
-    '"' + (/^[=+@\-\t\r]/.test(value) ? "'" + value : value).replaceAll('"', '""') + '"';
   return [
     'Fecha,Tipo,Moneda,Monto,Descripción,Categoría',
     ...rows.map((m) =>
@@ -193,7 +192,7 @@ export function movementsCsv(rows: Movement[]): string {
         m.description,
         m.splits?.length ? 'Gasto dividido' : m.category,
       ]
-        .map(cell)
+        .map(csvTextCell)
         .join(','),
     ),
   ].join('\r\n');
@@ -289,3 +288,5 @@ export {
   simulateLoan,
   type LoanSimulationInput,
 } from './loanSimulation.ts';
+
+export { monthlyReportCsv, type MonthlyReport } from './monthlyReport.ts';

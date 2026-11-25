@@ -1,3 +1,4 @@
+import { ReportsScreen } from './src/ReportsScreen';
 import { RefundScreen } from './src/RefundScreen';
 import { HelpScreen } from './src/HelpScreen';
 import { LoanSimulatorScreen } from './src/LoanSimulatorScreen';
@@ -71,6 +72,7 @@ import {
   countLabel,
   pendingMailMessage,
   categoryExpenses,
+  monthlyReportCsv,
   prepareRefund,
   refundBalance,
   refusesRefundSourceChange,
@@ -194,6 +196,7 @@ function Home({
     | 'Configuración'
     | 'Presupuestos'
     | 'Análisis'
+    | 'Analíticas y reportes'
     | 'Disponible hasta el próximo cobro'
     | 'Metas de ahorro'
     | 'Pagos y cobros pendientes'
@@ -220,13 +223,16 @@ function Home({
     screen !== 'Por revisar' &&
     screen !== 'Conexiones';
   const closing = screen === 'Cierre mensual';
+  const reports = screen === 'Analíticas y reportes';
   const showMonth =
     closing ||
+    reports ||
     screen === 'Inicio' ||
     screen === 'Movimientos' ||
     screen === 'Presupuestos' ||
     screen === 'Análisis';
-  const showSummary = screen === 'Inicio' || screen === 'Presupuestos' || screen === 'Análisis';
+  const showSummary =
+    reports || screen === 'Inicio' || screen === 'Presupuestos' || screen === 'Análisis';
   const settingsSection = settingsSections.some((section) => section === screen);
   const inSettings = settingsSection || screen === 'Configuración';
   const fromMovements =
@@ -614,6 +620,13 @@ function Home({
   }
   const budgetKey = `${connected ? 'api' : 'demo'}:${month}:${currency}`;
   const budget = connected ? (serverBudget.data?.limitMinor ?? 0) : (local.budgets[budgetKey] ?? 0);
+  const monthlyReport = {
+    ...summary,
+    month,
+    currency,
+    budgetMinor: budget || null,
+    categories,
+  };
   const categoryBudgets = connected
     ? Object.fromEntries(
         (serverBudget.data?.categoryLimits ?? []).map((c) => [c.categoryId, c.limitMinor]),
@@ -1742,6 +1755,41 @@ function Home({
               </>
             )}
             {(screen === 'Tasas' || screen === 'Tasa del día') && <RatesScreen />}
+            {reports &&
+              (!connected || (totals.isSuccess && serverBudget.isSuccess) ? (
+                <ReportsScreen
+                  report={monthlyReport}
+                  count={connected ? (totals.data?.total ?? 0) : period.length}
+                  comparison={comparison}
+                  money={money}
+                  hideAmounts={preferences.hideAmounts}
+                  busy={busy || (connected && (totals.isFetching || serverBudget.isFetching))}
+                  onExport={() =>
+                    void action(() =>
+                      exportCsvText(
+                        monthlyReportCsv(monthlyReport),
+                        `FlowSaldo-Reporte-${month}-${currency}.csv`,
+                      ),
+                    )
+                  }
+                />
+              ) : (
+                totals.isSuccess && (
+                  <View style={s.card}>
+                    <Text style={s.muted}>
+                      {serverBudget.isError
+                        ? 'No se pudo cargar el presupuesto del reporte.'
+                        : 'Cargando presupuesto del reporte…'}
+                    </Text>
+                    {serverBudget.isError && (
+                      <Button
+                        label="Reintentar presupuesto"
+                        onPress={() => void serverBudget.refetch()}
+                      />
+                    )}
+                  </View>
+                )
+              ))}
             {screen === 'Análisis' && (!connected || totals.isSuccess) && (
               <>
                 {comparison && (

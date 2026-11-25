@@ -35,6 +35,7 @@ export function AppFrame({ children }: { children: React.ReactNode }) {
 const destinations = [
   ['Presupuestos', 'Ver presupuestos', 'Presupuestos'],
   ['Análisis', 'Ver análisis', 'Análisis'],
+  ['Analíticas y reportes'],
   ['Tasas', 'Ver tasas de cambio', 'Tasas de cambio'],
   ['Disponible hasta el próximo cobro'],
   ['Pagos y cobros pendientes'],

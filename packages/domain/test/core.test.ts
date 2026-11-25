@@ -45,6 +45,7 @@ import {
   changeSince,
   previousMonth,
   movementsCsv,
+  monthlyReportCsv,
   validateExportTable,
   movementExportHeaders,
   type RecurringTemplate,
@@ -701,6 +702,24 @@ test('CORE: monthly comparison handles zero baselines and year rollover', () => 
   assert.equal(changeSince(0, 0).percentage, 0);
   assert.equal(changeSince(8000, 10000).percentage, -20);
   assert.equal(previousMonth('2027-01'), '2026-12');
+});
+test('CORE: report CSV isolates currency and preserves signed amounts and safe category labels', () => {
+  const report = monthlyReportCsv({
+    month: '2026-11',
+    currency: 'DOP',
+    incomeMinor: 0,
+    expenseMinor: -500_001,
+    differenceMinor: 500_001,
+    budgetMinor: 100_000,
+    categories: [{ category: '=Riesgo,"categoría"', amountMinor: -500_001 }],
+  });
+  const rows = report.split('\r\n');
+  assert.equal(rows[0], 'Período,Moneda,Indicador,Categoría,Importe');
+  assert.equal(rows[2], '"2026-11","DOP","Gastos netos","",-5000.01');
+  assert.equal(rows[5], '"2026-11","DOP","Disponible frente al presupuesto","",6000.01');
+  assert.ok(rows[6].includes("'=Riesgo"));
+  assert.ok(rows[6].includes('""categoría""'));
+  assert.ok(rows[6].endsWith(',-5000.01'));
 });
 test('CORE: CSV preserves values/columns and neutralizes spreadsheet formulas', () => {
   const csv = movementsCsv([
