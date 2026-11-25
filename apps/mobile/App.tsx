@@ -1286,6 +1286,9 @@ function Home({
     setScreen(destination);
   }
 
+  const debtPlanScreen = screen === 'Plan de pago de tarjetas y préstamos';
+  const backButton = <Choice label="Volver" selected={false} disabled={busy} onPress={goBack} />;
+
   const content = (
     <View style={s.root}>
       <AppHeader
@@ -1304,11 +1307,12 @@ function Home({
         keyboardShouldPersistTaps="handled"
         contentContainerStyle={s.content}
       >
+        {debtPlanScreen && <View style={s.row}>{backButton}</View>}
         <View style={s.between}>
           <Text accessibilityRole="header" style={s.title}>
             {screen}
           </Text>
-          {secondary && <Choice label="Volver" selected={false} disabled={busy} onPress={goBack} />}
+          {secondary && !debtPlanScreen && backButton}
           {(screen === 'Inicio' || screen === 'Movimientos') && addMovement}
         </View>
         {!!accessNotice && <Text style={s.muted}>{accessNotice}</Text>}

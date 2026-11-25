@@ -228,3 +228,7 @@ Disponible en el menú lateral de Inicio como opción independiente en el PR #21
 ## Menú global, FAQ y plazos de préstamos (2026-11-25)
 
 El encabezado permanece visible en las pantallas de la cuenta. Explorar FlowSaldo concentra las herramientas que estaban sobre Resumen mensual y presenta opciones sin borde. Salir aparece al final del menú. Configuración agrega Preguntas frecuentes. Volver usa solo texto. El simulador asigna una fila completa a cada campo, admite amortización con un plazo indicado y compara 12, 24, 36, 48 y 60 cuotas cuando se deja vacío. La fecha opcional añade el calendario de pagos si se proporciona.
+
+## Temas y ajustes de formularios en móvil (2026-11-25)
+
+Apariencia conserva los seis temas y suma nueve, con muestras de color en el selector. El plan de pago coloca Volver encima del título y utiliza una fila por campo. Metas centra las acciones Cancelar. Preguntas frecuentes conserva sus respuestas y agrupa los acordeones por tema, alineados a la izquierda.
