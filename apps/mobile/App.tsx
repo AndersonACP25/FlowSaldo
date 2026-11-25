@@ -1,3 +1,4 @@
+import { MonthlyClosingScreen } from './src/MonthlyClosingScreen';
 import { DebtPlansScreen } from './src/DebtPlansScreen';
 import { PendingPaymentsScreen } from './src/PendingPaymentsScreen';
 import { SavingsGoalsScreen } from './src/SavingsGoalsScreen';
@@ -68,6 +69,9 @@ import {
   pendingMailMessage,
   categoryExpenses,
   movementCategories,
+  makeMonthlyClosing,
+  pendingForClosing,
+  type MonthlyClosing,
   demoMovements,
   dominicanDateTime,
   parseDominicanDateTime,
@@ -134,6 +138,7 @@ function initialData(): LocalData {
     savingsGoals: { demo: [], api: [] },
     pendingItems: {},
     debtPlans: {},
+    monthlyClosings: {},
     budgets: {},
     reviews: demoReviews(),
   };
@@ -184,6 +189,7 @@ function Home({
     | 'Metas de ahorro'
     | 'Pagos y cobros pendientes'
     | 'Plan de pago de tarjetas y préstamos'
+    | 'Cierre mensual'
     | 'Tasas'
     | 'Editar movimiento'
     | 'Nueva plantilla mensual'
@@ -192,7 +198,9 @@ function Home({
   const [transferForSavings, setTransferForSavings] = useState<Movement | null>(null);
   const [movementForPending, setMovementForPending] = useState<Movement | null>(null);
   const [pendingFocus, setPendingFocus] = useState<string | null>(null);
-  const [pendingFromMovements, setPendingFromMovements] = useState(false);
+  const [pendingOrigin, setPendingOrigin] = useState<'Inicio' | 'Movimientos' | 'Cierre mensual'>(
+    'Inicio',
+  );
   const [projectionCurrency, setProjectionCurrency] = useState<Currency>('DOP');
   const [previousTab, setPreviousTab] = useState<Tab>('Inicio');
   const secondary =
@@ -200,7 +208,9 @@ function Home({
     screen !== 'Movimientos' &&
     screen !== 'Por revisar' &&
     screen !== 'Conexiones';
+  const closing = screen === 'Cierre mensual';
   const showMonth =
+    closing ||
     screen === 'Inicio' ||
     screen === 'Movimientos' ||
     screen === 'Presupuestos' ||
@@ -212,7 +222,7 @@ function Home({
     screen === 'Editar movimiento' ||
     screen === 'Nueva plantilla mensual' ||
     (screen === 'Metas de ahorro' && !!transferForSavings) ||
-    (screen === 'Pagos y cobros pendientes' && pendingFromMovements);
+    (screen === 'Pagos y cobros pendientes' && pendingOrigin === 'Movimientos');
   const activeTab = inSettings
     ? previousTab
     : fromMovements
@@ -224,9 +234,11 @@ function Home({
     ? 'Configuración'
     : screen === 'Configuración'
       ? previousTab
-      : fromMovements
-        ? 'Movimientos'
-        : 'Inicio';
+      : screen === 'Pagos y cobros pendientes'
+        ? pendingOrigin
+        : fromMovements
+          ? 'Movimientos'
+          : 'Inicio';
   const [accountFilter, setAccountFilter] = useState('');
   const [search, setSearch] = useState('');
   const [type, setType] = useState<MovementType | 'ALL'>('ALL');
@@ -275,8 +287,11 @@ function Home({
   const savingsGoals = local.savingsGoals[savingsMode];
   const pendingScope = personal ? `owner:${personal.owner.id}` : savingsMode;
   const pendingItems = local.pendingItems[pendingScope] ?? [];
-  const debtScope = connected ? JSON.stringify([url, personal?.owner.id ?? 'development']) : 'demo';
-  const debtPlans = local.debtPlans[debtScope] ?? [];
+  const planningScope = connected
+    ? JSON.stringify([url, personal?.owner.id ?? 'development'])
+    : 'demo';
+  const debtPlans = local.debtPlans[planningScope] ?? [];
+  const monthlyClosings = local.monthlyClosings[planningScope] ?? [];
   const pendingMovementIds = [
     ...new Set(
       pendingItems.flatMap((item) =>
@@ -362,16 +377,32 @@ function Home({
       results.flatMap((movement) => (movement ? [[movement.id, movement] as const] : [])),
     );
   }
+  const monthPending = closing
+    ? pendingItems.filter(
+        (item) => item.currency === currency && item.dueAt.startsWith(month + '-'),
+      )
+    : [];
+  const relevantPendingIds = closing
+    ? [
+        ...new Set(
+          monthPending.flatMap((item) =>
+            item.settlements.flatMap((part) => (part.kind === 'movement' ? [part.movementId] : [])),
+          ),
+        ),
+      ].sort()
+    : pendingMovementIds;
   const pendingLinksQuery = useQuery({
-    queryKey: ['pending-links', url, pendingScope, pendingMovementIds],
+    queryKey: ['pending-links', url, pendingScope, relevantPendingIds],
     enabled:
       connected &&
-      pendingMovementIds.length > 0 &&
-      (screen === 'Pagos y cobros pendientes' || screen === 'Disponible hasta el próximo cobro'),
+      relevantPendingIds.length > 0 &&
+      (closing ||
+        screen === 'Pagos y cobros pendientes' ||
+        screen === 'Disponible hasta el próximo cobro'),
     retry: false,
-    queryFn: () => pendingLinks(pendingMovementIds),
+    queryFn: () => pendingLinks(relevantPendingIds),
   });
-  const pendingLinksReady = !connected || !pendingMovementIds.length || pendingLinksQuery.isSuccess;
+  const pendingLinksReady = !connected || !relevantPendingIds.length || pendingLinksQuery.isSuccess;
   const linkedPendingMovements = connected
     ? (pendingLinksQuery.data ?? new Map<string, Movement>())
     : new Map(local.movements.map((movement) => [movement.id, movement]));
@@ -439,6 +470,25 @@ function Home({
         `/movements?page=true&${params}${pageParam ? `&cursor=${encodeURIComponent(pageParam)}` : ''}`,
       ),
     getNextPageParam: (last) => last.nextCursor ?? undefined,
+  });
+  const uncategorizedId = categoryCatalog.find((category) => category.system)?.id;
+  const closingUncategorized = useQuery({
+    queryKey: [
+      'movements',
+      'closing-uncategorized',
+      url,
+      planningScope,
+      month,
+      currency,
+      uncategorizedId,
+    ],
+    enabled: connected && closing && !!uncategorizedId,
+    retry: false,
+    queryFn: async () => {
+      const query = movementParams(month, currency, 'ALL', '', uncategorizedId ?? '');
+      const page: Page<Movement> = await request(`/movements?page=true&limit=1&${query}`);
+      return page.total;
+    },
   });
   const totals = useQuery({
     queryKey: ['summary', connected, month, currency, periodDate],
@@ -546,6 +596,50 @@ function Home({
           .filter((part) => part.categoryId === c.id)
           .reduce((n, part) => n + part.amountMinor, 0),
       }));
+  const closingPending = closing
+    ? pendingForClosing(monthPending, linkedPendingMovements, month, currency)
+    : [];
+  const closingSources = [totals, serverBudget, catalog, closingUncategorized];
+  const closingReadError =
+    connected &&
+    (closingSources.some((source) => source.isError) ||
+      (!!relevantPendingIds.length && pendingLinksQuery.isError));
+  const closingReady =
+    !connected ||
+    (closingSources.every((source) => source.isSuccess && !source.isFetching) &&
+      pendingLinksReady &&
+      !pendingLinksQuery.isFetching);
+  let currentClosing: MonthlyClosing | undefined;
+  let closingCalculationError = false;
+  if (closing && closingReady) {
+    try {
+      currentClosing = makeMonthlyClosing(
+        {
+          month,
+          currency,
+          capturedAt: new Date().toISOString(),
+          incomeMinor: summary.incomeMinor,
+          expenseMinor: summary.expenseMinor,
+          uncategorizedCount: connected
+            ? (closingUncategorized.data ?? 0)
+            : period.filter((item) =>
+                movementCategories(item).some((part) => part.categoryId === uncategorizedId),
+              ).length,
+          budgetMinor: budget || null,
+          categories: categoryCatalog.flatMap((category) => {
+            const limitMinor = categoryBudgets[category.id];
+            if (!limitMinor) return [];
+            const spentMinor =
+              categoryTotals.find((item) => item.categoryId === category.id)?.amountMinor ?? 0;
+            return [{ categoryId: category.id, name: category.name, limitMinor, spentMinor }];
+          }),
+        },
+        closingPending,
+      );
+    } catch {
+      closingCalculationError = true;
+    }
+  }
   const recent = [
     ...new Set(
       (connected
@@ -959,6 +1053,8 @@ function Home({
     delete next.pendingItems.demo;
     next.debtPlans = { ...localRef.current.debtPlans };
     delete next.debtPlans.demo;
+    next.monthlyClosings = { ...localRef.current.monthlyClosings };
+    delete next.monthlyClosings.demo;
     await persist(next);
     setLoadError('');
     setReady(true);
@@ -1040,10 +1136,14 @@ function Home({
     );
   }
 
-  function openPending(movement: Movement | null, focus: string | null, fromList: boolean) {
+  function openPending(
+    movement: Movement | null,
+    focus: string | null,
+    origin: 'Inicio' | 'Movimientos' | 'Cierre mensual',
+  ) {
     setMovementForPending(movement);
     setPendingFocus(focus);
-    setPendingFromMovements(fromList);
+    setPendingOrigin(origin);
     setDeleteId(null);
     setNotice('');
     setError('');
@@ -1099,7 +1199,7 @@ function Home({
         },
       ]);
     }
-    openPending(null, id, true);
+    openPending(null, id, 'Movimientos');
   }
 
   function currentPendingTemplate(item: PendingItem) {
@@ -1126,7 +1226,7 @@ function Home({
         ...current,
         debtPlans: {
           ...current.debtPlans,
-          [debtScope]: update(current.debtPlans[debtScope] ?? []),
+          [planningScope]: update(current.debtPlans[planningScope] ?? []),
         },
       });
     });
@@ -1244,7 +1344,17 @@ function Home({
                   label="Pagos y cobros pendientes"
                   selected={false}
                   disabled={busy}
-                  onPress={() => openPending(null, null, false)}
+                  onPress={() => openPending(null, null, 'Inicio')}
+                />
+                <Choice
+                  label="Cierre mensual"
+                  selected={false}
+                  disabled={busy}
+                  onPress={() => {
+                    setNotice('');
+                    setError('');
+                    setScreen('Cierre mensual');
+                  }}
                 />
                 <Choice
                   label="Plan de pago de tarjetas y préstamos"
@@ -1403,7 +1513,7 @@ function Home({
             )}
             {screen === 'Plan de pago de tarjetas y préstamos' && (
               <DebtPlansScreen
-                key={debtScope}
+                key={planningScope}
                 plans={debtPlans}
                 defaultCurrency={currency}
                 saving={busy}
@@ -1474,6 +1584,62 @@ function Home({
                   ))}
                 </FilterRow>
               </>
+            )}
+            {closing && (
+              <MonthlyClosingScreen
+                key={planningScope + month + currency}
+                current={currentClosing}
+                saved={monthlyClosings.find(
+                  (item) => item.month === month && item.currency === currency,
+                )}
+                previous={monthlyClosings.find(
+                  (item) => item.month === priorMonth && item.currency === currency,
+                )}
+                pending={closingPending}
+                loadingError={closingReadError || closingCalculationError}
+                saving={busy}
+                money={money}
+                onRetry={
+                  closingReadError
+                    ? () => {
+                        void totals.refetch();
+                        void serverBudget.refetch();
+                        void catalog.refetch();
+                        if (uncategorizedId) void closingUncategorized.refetch();
+                        if (relevantPendingIds.length) void pendingLinksQuery.refetch();
+                      }
+                    : undefined
+                }
+                onMovements={() => {
+                  if (!uncategorizedId) return;
+                  setEditor(null);
+                  setDuplicate(null);
+                  setSearch('');
+                  setType('ALL');
+                  setAccountFilter('');
+                  setCategoryFilter(uncategorizedId);
+                  setScreen('Movimientos');
+                }}
+                onPending={(id) => openPending(null, id, 'Cierre mensual')}
+                onSave={(snapshot) =>
+                  saveForm(() => {
+                    const current = localRef.current;
+                    const previous = current.monthlyClosings[planningScope] ?? [];
+                    return persist({
+                      ...current,
+                      monthlyClosings: {
+                        ...current.monthlyClosings,
+                        [planningScope]: [
+                          ...previous.filter(
+                            (item) => item.month !== month || item.currency !== currency,
+                          ),
+                          snapshot,
+                        ],
+                      },
+                    });
+                  })
+                }
+              />
             )}
             {connected && query.isFetching && <ActivityIndicator color={palette.primary} />}
             {connected && query.error && (
@@ -1929,7 +2095,7 @@ function Home({
                           }
                           selected={false}
                           disabled={busy}
-                          onPress={() => openPending(m, null, true)}
+                          onPress={() => openPending(m, null, 'Movimientos')}
                         />
                       )}
                       {m.type === 'TRANSFER' && (

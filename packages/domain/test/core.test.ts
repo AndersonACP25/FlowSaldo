@@ -8,6 +8,9 @@ import {
   summarize,
   categoryExpenses,
   checkMovementSplits,
+  makeMonthlyClosing,
+  pendingForClosing,
+  validMonthlyClosings,
   filterMovements,
   demoMovements,
   parseDemoMail,
@@ -359,6 +362,60 @@ test('CORE: partial settlements use the live movement exactly once and preserve 
   );
   assert.ok(validPendingItems(settled));
   assert.equal(validPendingItems([settled[0], { ...other, settlements: [link] }]), false);
+});
+test('CORE: monthly closings preserve the budget and unpaid amounts by due month and currency', () => {
+  const bill: PendingItem = {
+    id: 'bill',
+    name: 'Electricidad',
+    amountMinor: 100_029,
+    currency: 'DOP',
+    kind: 'pay',
+    dueAt: '2026-11-30T23:59',
+    settlements: [{ id: 'linked', kind: 'movement', movementId: 'payment' }],
+  };
+  const items: PendingItem[] = [
+    bill,
+    { ...bill, id: 'euro', currency: 'EUR', settlements: [] },
+    { ...bill, id: 'december', dueAt: '2026-12-01T00:00', settlements: [] },
+    { ...bill, id: 'invoice', kind: 'collect', settlements: [] },
+    {
+      ...bill,
+      id: 'settled',
+      settlements: [{ id: 'manual', kind: 'manual', amountMinor: 100_029 }],
+    },
+  ];
+  const payment = {
+    ...demoMovements[0],
+    id: 'payment',
+    type: 'EXPENSE' as const,
+    currency: 'DOP' as const,
+    amountMinor: 70_020,
+  };
+  const pending = pendingForClosing(items, new Map([[payment.id, payment]]), '2026-11', 'DOP');
+  assert.deepEqual(
+    pending.map((item) => item.id),
+    ['bill', 'invoice'],
+  );
+  const snapshot = makeMonthlyClosing(
+    {
+      month: '2026-11',
+      currency: 'DOP',
+      capturedAt: '2026-12-01T04:30:00Z',
+      incomeMinor: 150_012,
+      expenseMinor: 70_020,
+      uncategorizedCount: 1,
+      budgetMinor: 60_000,
+      categories: [{ categoryId: 'c1', name: 'Servicios', limitMinor: 80_000, spentMinor: 70_020 }],
+    },
+    pending,
+  );
+  assert.equal(snapshot.toPayMinor, 30_009);
+  assert.equal(snapshot.toCollectMinor, 100_029);
+  assert.equal(snapshot.pendingCount, 2);
+  assert.equal(snapshot.budgetMinor, 60_000);
+  assert.ok(validMonthlyClosings([snapshot, { ...snapshot, currency: 'EUR' }]));
+  assert.ok(!validMonthlyClosings([snapshot, snapshot]));
+  assert.ok(!validMonthlyClosings([{ ...snapshot, expenseMinor: -1 }]));
 });
 test('CORE: debt scenarios preserve cents, first-cycle costs and the monthly due day', () => {
   const plan: DebtPlanDraft = {

@@ -5,6 +5,8 @@ import {
   validSavingsGoals,
   validPendingItems,
   validDebtPlans,
+  validMonthlyClosings,
+  type MonthlyClosing,
   type DebtPlan,
   type PendingItem,
   type SavingsGoal,
@@ -34,6 +36,7 @@ export interface LocalData {
   savingsGoals: Record<'demo' | 'api', SavingsGoal[]>;
   pendingItems: Record<string, PendingItem[]>;
   debtPlans: Record<string, DebtPlan[]>;
+  monthlyClosings: Record<string, MonthlyClosing[]>;
 }
 const key = 'flowsaldo.demo.v2';
 export async function loadLocal(): Promise<LocalData | null> {
@@ -168,6 +171,14 @@ export async function loadLocal(): Promise<LocalData | null> {
     !Object.values(value.debtPlans).every(validDebtPlans)
   )
     throw new Error('Planes de pago locales inválidos.');
+  if (value.monthlyClosings === undefined) value.monthlyClosings = {};
+  if (
+    !value.monthlyClosings ||
+    typeof value.monthlyClosings !== 'object' ||
+    Array.isArray(value.monthlyClosings) ||
+    !Object.values(value.monthlyClosings).every(validMonthlyClosings)
+  )
+    throw new Error('Cierres mensuales locales inválidos.');
   if (value.savingsGoals === undefined) value.savingsGoals = { demo: [], api: [] };
   if (
     !value.savingsGoals ||

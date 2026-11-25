@@ -212,3 +212,7 @@ Fase 4 en el mismo PR. Planes por dispositivo, separados entre demo y cuenta/URL
 ## Dividir gastos por categoría (2026-11-25)
 
 Fase 5 en el mismo PR. El formulario manual de gastos distribuye el importe entre 2 y 12 categorías distintas de la moneda del movimiento y valida la suma en centavos. Historial y CSV conservan una fila, mientras que análisis y presupuestos consumen las partes. Los filtros consultan las categorías reales del reparto. En demo se conservan movimientos anteriores y partes locales. En modo conectado se agrega la migración aditiva MovementSplit. Las partes se escriben en la misma transacción del movimiento y conservan su categoría histórica.
+
+## Cierre mensual personal (2026-11-25)
+
+Fase 6 en el mismo PR. Desde Inicio se consulta por mes y moneda, con acceso al historial filtrado por Sin categorizar y a los pagos y cobros con saldo vigente y vencimiento dentro del mes. Utiliza los totales generales y por categoría, que ya incluyen repartos. El cierre guarda una copia con fecha, importes pendientes y límites de presupuesto, separada entre demo y cuenta/URL. Se puede actualizar explícitamente o consultar frente al cierre del mes anterior de la misma moneda. La captura usa los datos vigentes y no modifica el historial. Reutiliza los endpoints de presupuesto, movimientos y resumen sin una migración adicional.

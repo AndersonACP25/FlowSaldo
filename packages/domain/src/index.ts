@@ -8,6 +8,7 @@ export * from './savings.ts';
 export * from './planning.ts';
 export * from './finance.ts';
 export * from './movementSplits.ts';
+export * from './monthlyClosing.ts';
 export const currencies = ['DOP', 'USD', 'EUR'] as const;
 export type Currency = (typeof currencies)[number];
 export const isCurrency = (value: unknown): value is Currency =>
