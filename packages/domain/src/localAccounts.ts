@@ -46,15 +46,38 @@ export function validateLocalAccounts(accounts: LocalAccount[]) {
   }
 }
 
-type AccountMovement = Pick<Movement, 'accountId' | 'targetAccountId' | 'type' | 'currency'>;
+type AccountMovement = Pick<
+  Movement,
+  | 'accountId'
+  | 'targetAccountId'
+  | 'type'
+  | 'currency'
+  | 'amountMinor'
+  | 'balanceAdjustment'
+  | 'refundOfId'
+>;
 
 export function localMovementAccounts(
   accounts: ReadonlyMap<string, LocalAccount>,
   movement: AccountMovement,
 ) {
   const { accountId, targetAccountId, type, currency } = movement;
+  const adjustment = movement.balanceAdjustment;
+  if (adjustment !== undefined) {
+    if (
+      !adjustment ||
+      type !== 'TRANSFER' ||
+      accountId == null ||
+      targetAccountId != null ||
+      movement.refundOfId != null ||
+      Math.abs(reconciliationDifference(adjustment)) !== movement.amountMinor ||
+      movement.amountMinor <= 0
+    )
+      throw new Error('Ajuste de saldo inválido.');
+  }
   if (accountId == null && targetAccountId == null) return {};
   if (
+    !adjustment &&
     type === 'TRANSFER' &&
     (accountId == null || targetAccountId == null || accountId === targetAccountId)
   )
@@ -74,16 +97,26 @@ export function localMovementAccounts(
   return { source: findAccount(accountId), target: findAccount(targetAccountId) };
 }
 
-export function localAccountBalances(accounts: LocalAccount[], movements: Movement[]) {
+export function localAccountBalances(
+  accounts: LocalAccount[],
+  movements: Movement[],
+  cutoff?: number,
+) {
   const byId = new Map(accounts.map((account) => [account.id, account]));
   const totals = new Map(
     accounts.map(({ id }) => [id, { income: 0, outgoing: 0, incomingTransfers: 0 }]),
   );
   for (const movement of movements) {
+    if (cutoff !== undefined && Date.parse(movement.occurredAt) > cutoff) continue;
     const { source, target } = localMovementAccounts(byId, movement);
     if (!source) continue;
     const total = totals.get(source.id)!;
-    if (movement.type === 'INCOME') total.income += movement.amountMinor;
+    const adjustment = movement.balanceAdjustment;
+    if (
+      movement.type === 'INCOME' ||
+      (adjustment && adjustment.statementMinor > adjustment.expectedMinor)
+    )
+      total.income += movement.amountMinor;
     else total.outgoing += movement.amountMinor;
     if (target) totals.get(target.id)!.incomingTransfers += movement.amountMinor;
   }
@@ -93,4 +126,41 @@ export function localAccountBalances(accounts: LocalAccount[], movements: Moveme
       return [id, ledgerBalance(openingMinor, income, outgoing, incomingTransfers)];
     }),
   );
+}
+
+function reconciliationDifference({
+  expectedMinor,
+  statementMinor,
+}: NonNullable<Movement['balanceAdjustment']>) {
+  if (!Number.isSafeInteger(expectedMinor) || !Number.isSafeInteger(statementMinor))
+    throw new Error('Saldo de conciliación inválido.');
+  const difference = statementMinor - expectedMinor;
+  if (Math.abs(difference) > 2147483647)
+    throw new Error('La diferencia supera el monto máximo de un ajuste.');
+  return difference;
+}
+
+export interface LocalReconciliation {
+  accountId: string;
+  occurredAt: string;
+  expectedMinor: number;
+  statementMinor: number;
+  differenceMinor: number;
+}
+
+export function previewLocalReconciliation(
+  accounts: LocalAccount[],
+  movements: Movement[],
+  input: Pick<LocalReconciliation, 'accountId' | 'occurredAt' | 'statementMinor'>,
+): LocalReconciliation {
+  const cutoff = Date.parse(input.occurredAt);
+  if (!Number.isFinite(cutoff)) throw new Error('Selecciona una fecha y hora válidas.');
+  const account = accounts.find((item) => item.id === input.accountId);
+  if (!account || account.archived) throw new Error('Selecciona una cuenta activa.');
+  const expectedMinor = localAccountBalances(accounts, movements, cutoff).get(account.id)!;
+  const differenceMinor = reconciliationDifference({
+    expectedMinor,
+    statementMinor: input.statementMinor,
+  });
+  return { ...input, expectedMinor, differenceMinor };
 }

@@ -484,10 +484,45 @@ export async function checkCoreFlows(browser) {
     await page.getByText('Saldo · EUR 848.71', { exact: true }).waitFor();
     await page.getByText('Saldo · EUR 80.00', { exact: true }).waitFor();
     await page.getByText('Deuda · EUR 25.51', { exact: true }).waitFor();
+    await button('Conciliar cuenta Banco CORE').click();
+    await page
+      .getByLabel('Fecha y hora de corte', { exact: true })
+      .fill(original.occurredAt.slice(0, 10) + 'T19:00');
+    const statement = page.getByLabel('Saldo del estado de cuenta', { exact: true });
+    await statement.fill('80');
+    await button('Comparar saldos').click();
+    await page.getByText('Los saldos coinciden.', { exact: true }).waitFor();
+    assert.equal(await button('Confirmar ajuste').count(), 0);
+    await statement.fill('84.25');
+    await button('Comparar saldos').click();
+    await page.getByText('Diferencia · EUR 4.25', { exact: true }).waitFor();
+    assert.ok(!(await stored()).movements.some((movement) => movement.balanceAdjustment));
+    await button('Confirmar ajuste').click();
+    await page.getByText('Ajuste registrado.', { exact: true }).waitFor();
+    await page.getByText('Saldo · EUR 84.25', { exact: true }).waitFor();
+    const adjustments = (await stored()).movements.filter((movement) => movement.balanceAdjustment);
+    assert.equal(adjustments.length, 1);
+    assert.deepEqual(adjustments[0].balanceAdjustment, {
+      expectedMinor: 8000,
+      statementMinor: 8425,
+    });
+    await button('Cerrar conciliación').click();
     await button('Archivar cuenta Efectivo CORE').click();
     await button('Reactivar cuenta Efectivo CORE').waitFor();
     await page.getByText('Saldo · EUR 848.71', { exact: true }).waitFor();
-    await button('Volver').click();
+    await button('Movimientos').click();
+    await button('Filtrar cuenta: Banco CORE').click();
+    await page.getByText('Ajuste de conciliación · Banco CORE', { exact: true }).waitFor();
+    const adjustmentDownload = page.waitForEvent('download');
+    await button('Exportar CSV').click();
+    const adjustmentsCsv = parseCsv(
+      await readFile(await (await adjustmentDownload).path(), 'utf8'),
+    );
+    assert.deepEqual(adjustmentsCsv.find((row) => row[1] === 'ADJUSTMENT_IN')?.slice(2, 4), [
+      'EUR',
+      '4.25',
+    ]);
+    await button('Configuración').click();
     await button('Respaldo y restauración').click();
     const backupDownload = page.waitForEvent('download');
     await button('Exportar respaldo').click();
@@ -530,6 +565,9 @@ export async function checkCoreFlows(browser) {
       const legacyBackup = JSON.parse(backupText);
       legacyBackup.version = 1;
       delete legacyBackup.data.accounts;
+      legacyBackup.data.movements = legacyBackup.data.movements.filter(
+        (movement) => !movement.balanceAdjustment,
+      );
       for (const movement of legacyBackup.data.movements) {
         delete movement.accountId;
         delete movement.targetAccountId;
@@ -551,7 +589,7 @@ export async function checkCoreFlows(browser) {
       await restoredButton('Configuración').click();
       await restoredButton('Cuentas y saldos').click();
       await restoredPage.getByText('Saldo · EUR 848.71', { exact: true }).waitFor();
-      await restoredPage.getByText('Saldo · EUR 80.00', { exact: true }).waitFor();
+      await restoredPage.getByText('Saldo · EUR 84.25', { exact: true }).waitFor();
       await restoredPage.getByText('Deuda · EUR 25.51', { exact: true }).waitFor();
       await restoredButton('Reactivar cuenta Efectivo CORE').waitFor();
       await restoredButton('Abrir menú').click();

@@ -4,6 +4,7 @@ import {
   formatMinorAmount,
   ledgerBalance,
   localAccountBalances,
+  previewLocalReconciliation,
   validateLocalAccounts,
   type LocalAccount,
   parseSignedAmount,
@@ -180,6 +181,42 @@ test('CORE: local transfers preserve balances, card debt and reported expenses',
   assert.throws(
     () => validateLocalAccounts([...accounts, { ...accounts[0], id: 'duplicate' }]),
     /nombre y moneda/,
+  );
+});
+test('CORE: reconciliation applies the signed difference once without altering cash-flow totals', () => {
+  const accounts: LocalAccount[] = [
+    {
+      id: 'bank',
+      name: 'Banco',
+      kind: 'BANK',
+      currency: 'DOP',
+      openingMinor: 10000,
+      archived: false,
+    },
+  ];
+  const income = { ...demoMovements[0], accountId: 'bank', amountMinor: 1200 };
+  const cutoff = { accountId: 'bank', occurredAt: '2026-10-20T11:59:00.000Z' };
+  const preview = previewLocalReconciliation(accounts, [income], {
+    ...cutoff,
+    statementMinor: 9750,
+  });
+  assert.equal(preview.expectedMinor, 10000);
+  assert.equal(preview.differenceMinor, -250);
+  const adjustment = {
+    ...income,
+    ...cutoff,
+    id: 'adjustment',
+    type: 'TRANSFER',
+    amountMinor: 250,
+    balanceAdjustment: { expectedMinor: 10000, statementMinor: 9750 },
+  } as const;
+  const movements = [income, adjustment];
+  assert.equal(localAccountBalances(accounts, movements).get('bank'), 10950);
+  assert.equal(previewLocalReconciliation(accounts, movements, preview).differenceMinor, 0);
+  assert.deepEqual(summarize(movements, 'DOP'), summarize([income], 'DOP'));
+  assert.throws(
+    () => localAccountBalances(accounts, [{ ...adjustment, amountMinor: 251 }]),
+    /Ajuste de saldo inválido/,
   );
 });
 test('CORE: only explicit valid synthetic messages become movements', () => {

@@ -52,6 +52,8 @@ import {
 import {
   formatMinorAmount,
   localMovementAccounts,
+  previewLocalReconciliation,
+  type LocalReconciliation,
   validateLocalAccounts,
   type LocalAccount,
   addSavingsContribution,
@@ -1019,6 +1021,32 @@ function Home({
     validateLocalAccounts(accounts);
     await persist({ ...localRef.current, accounts });
   }
+  async function saveLocalReconciliation(preview: LocalReconciliation) {
+    const current = localRef.current;
+    const { accountId, occurredAt, statementMinor } = preview;
+    const verified = previewLocalReconciliation(current.accounts, current.movements, {
+      accountId,
+      occurredAt,
+      statementMinor,
+    });
+    if (verified.expectedMinor !== preview.expectedMinor || verified.differenceMinor === 0)
+      throw new Error('El saldo cambió. Compara los saldos de nuevo.');
+    const account = current.accounts.find((item) => item.id === accountId)!;
+    const category = current.categories.find((item) => item.system)!;
+    const movement: Movement = {
+      id: 'adjustment-' + newLocalId(),
+      description: `Ajuste de conciliación · ${account.name}`,
+      type: 'TRANSFER',
+      currency: account.currency,
+      category: category.name,
+      categoryId: category.id,
+      occurredAt,
+      amountMinor: Math.abs(verified.differenceMinor),
+      accountId,
+      balanceAdjustment: { expectedMinor: verified.expectedMinor, statementMinor },
+    };
+    await persist({ ...current, movements: [movement, ...current.movements] });
+  }
   async function saveMovement(draft: Draft) {
     const edit = editor && editor !== 'new' ? editor : null;
     let movementId: string;
@@ -1263,6 +1291,8 @@ function Home({
   function addSavings(goalId: string, item: SavingsContribution) {
     return saveForm(async () => {
       const transfer = item.kind === 'transfer' ? await movementForLink(item.movementId) : null;
+      if (transfer?.balanceAdjustment)
+        throw new Error('Los ajustes de conciliación no se vinculan a metas de ahorro.');
       if (transfer && isLocalCardPayment(transfer))
         throw new Error('Los pagos de tarjeta no se vinculan a metas de ahorro.');
       const transfers = new Map(transfer ? [[transfer.id, transfer]] : []);
@@ -1657,7 +1687,10 @@ function Home({
                   new Map(
                     (connected
                       ? (savingsTransfersQuery.data ?? [])
-                      : local.movements.filter((movement) => !isLocalCardPayment(movement))
+                      : local.movements.filter(
+                          (movement) =>
+                            !movement.balanceAdjustment && !isLocalCardPayment(movement),
+                        )
                     ).map((movement) => [movement.id, movement]),
                   )
                 }
@@ -2207,11 +2240,13 @@ function Home({
                             ? countLabel(m.splits.length, 'categoría', 'categorías')
                             : m.category}{' '}
                           · {m.occurredAt.slice(0, 10)} ·{' '}
-                          {m.refundOfId
-                            ? 'Devolución'
-                            : isLocalCardPayment(m)
-                              ? 'Pago de tarjeta'
-                              : typeLabels[m.type]}
+                          {m.balanceAdjustment
+                            ? 'Ajuste de saldo'
+                            : m.refundOfId
+                              ? 'Devolución'
+                              : isLocalCardPayment(m)
+                                ? 'Pago de tarjeta'
+                                : typeLabels[m.type]}
                         </Text>
                       </View>
                       <Text
@@ -2223,7 +2258,15 @@ function Home({
                               : s.amount
                         }
                       >
-                        {m.type === 'EXPENSE' ? '−' : m.type === 'INCOME' ? '+' : '↔'}{' '}
+                        {m.balanceAdjustment
+                          ? m.balanceAdjustment.statementMinor > m.balanceAdjustment.expectedMinor
+                            ? '+'
+                            : '−'
+                          : m.type === 'EXPENSE'
+                            ? '−'
+                            : m.type === 'INCOME'
+                              ? '+'
+                              : '↔'}{' '}
                         {money(m.amountMinor, m.currency)}
                       </Text>
                     </View>
@@ -2236,7 +2279,7 @@ function Home({
                       </Text>
                     )}
                     <View style={s.row}>
-                      {!m.refundOfId && (
+                      {!m.refundOfId && !m.balanceAdjustment && (
                         <>
                           <IconButton
                             icon="edit"
@@ -2304,7 +2347,7 @@ function Home({
                           onPress={() => openPending(m, null, 'Movimientos')}
                         />
                       )}
-                      {m.type === 'TRANSFER' && !isLocalCardPayment(m) && (
+                      {m.type === 'TRANSFER' && !m.balanceAdjustment && !isLocalCardPayment(m) && (
                         <Choice
                           label={`Vincular a meta: ${m.description}`}
                           text={
@@ -2458,6 +2501,7 @@ function Home({
                     ]),
                   )
                 }
+                onReconcile={(preview) => saveForm(() => saveLocalReconciliation(preview))}
                 onUpdate={(id, changes) =>
                   saveForm(() =>
                     saveLocalAccounts(

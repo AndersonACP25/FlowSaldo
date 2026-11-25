@@ -8,9 +8,11 @@ import {
   parseSignedAmount,
   type Currency,
   type LocalAccount,
+  type LocalReconciliation,
   type Movement,
 } from '@flowsaldo/domain';
 import { accountKindLabels } from './FinancePanel';
+import { LocalReconciliationForm } from './LocalReconciliationForm';
 import { FilterRow } from './ScreenChrome';
 import { useTheme } from './theme';
 import { Button, Choice, Field } from './ui';
@@ -25,12 +27,14 @@ export function LocalAccountsScreen({
   busy,
   onCreate,
   onUpdate,
+  onReconcile,
 }: {
   accounts: LocalAccount[];
   movements: Movement[];
   currency: Currency;
   money: (amountMinor: number, currency: Currency) => string;
   busy: boolean;
+  onReconcile: (preview: LocalReconciliation) => Promise<void>;
   onCreate: (account: NewAccount) => Promise<void>;
   onUpdate: (
     id: string,
@@ -38,6 +42,7 @@ export function LocalAccountsScreen({
   ) => Promise<void>;
 }) {
   const { styles: s } = useTheme();
+  const [reconcileId, setReconcileId] = useState<string | null>(null);
   const [editId, setEditId] = useState<string | null>(null);
   const [creating, setCreating] = useState(false);
   const [name, setName] = useState('');
@@ -50,6 +55,7 @@ export function LocalAccountsScreen({
   const balances = localAccountBalances(accounts, movements);
 
   function openForm(account?: LocalAccount) {
+    setReconcileId(null);
     setCreating(!account);
     setEditId(account?.id ?? null);
     setName(account?.name ?? '');
@@ -185,6 +191,19 @@ export function LocalAccountsScreen({
               {balanceLabel} · {money(credit ? Math.abs(balance) : balance, account.currency)}
             </Text>
             <View style={s.row}>
+              {!account.archived && (
+                <Choice
+                  label={`Conciliar cuenta ${account.name}`}
+                  text="Conciliar"
+                  selected={reconcileId === account.id}
+                  disabled={busy}
+                  onPress={() => {
+                    setEditId(null);
+                    setCreating(false);
+                    setReconcileId(account.id);
+                  }}
+                />
+              )}
               <Choice
                 label={`Editar cuenta ${account.name}`}
                 text="Editar nombre"
@@ -205,6 +224,17 @@ export function LocalAccountsScreen({
                 }
               />
             </View>
+            {!account.archived && reconcileId === account.id && (
+              <LocalReconciliationForm
+                account={account}
+                accounts={accounts}
+                movements={movements}
+                money={money}
+                busy={busy}
+                onConfirm={onReconcile}
+                onCancel={() => setReconcileId(null)}
+              />
+            )}
           </View>
         );
       })}

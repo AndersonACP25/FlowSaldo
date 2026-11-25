@@ -256,3 +256,7 @@ Configuración permite crear efectivo, cuentas bancarias y tarjetas en DOP, USD 
 ## Transferencias y pagos de tarjetas locales (2026-11-25)
 
 La segunda fase vincula transferencias a dos cuentas distintas en la misma moneda o las conserva sin cuentas, como en el historial previo. Se guarda un solo movimiento. El importe se resta en el origen y se suma en el destino, incluso con tarjetas archivadas que conservan su historial. Una tarjeta de destino muestra el movimiento como pago de tarjeta. Los abonos quedan fuera de ingresos, gastos y metas de ahorro. Editar o eliminar recalcula ambos saldos. El historial se filtra por cualquiera de las dos cuentas y el respaldo v2 conserva los dos vínculos.
+
+## Conciliación manual local (2026-11-25)
+
+Cuentas y saldos compara una cuenta activa con el importe del estado de cuenta a una fecha y hora dominicanas. Para tarjetas se ingresa deuda positiva y saldo a favor negativo. Si hay diferencia, confirmar revalida el saldo al corte y agrega un solo ajuste identificado en el historial y CSV. Los ajustes afectan exclusivamente el saldo de esa cuenta. No alteran ingresos, gastos, presupuestos ni metas. El respaldo conserva sus importes. Una comparación que coincide no agrega movimientos.
