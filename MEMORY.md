@@ -244,3 +244,7 @@ Movimientos permite registrar devoluciones parciales o totales con fecha y hora 
 ## Analíticas y reportes (2026-11-25)
 
 El menú lateral incluye Analíticas y reportes con balance del mes, ingresos, gastos netos, presupuesto general y categorías, más la comparación con el mes anterior. Usa el selector de período y moneda y los mismos totales que el resumen. El reporte mensual CSV incluye una fila por indicador o categoría con importes firmados y moneda separada. Está disponible en demo y API y reutiliza los endpoints actuales.
+
+## Respaldo y restauración local (2026-11-25)
+
+Configuración ofrece exportar y restaurar un JSON versionado para el modo local. La copia conserva movimientos, repartos, devoluciones, categorías, presupuestos, bancos, plantillas y confirmaciones, revisiones y herramientas de planificación locales. Omite credenciales, preferencias del dispositivo y datos del modo conectado. Se valida y muestra una vista previa antes de reemplazar los datos locales en una sola escritura. Web descarga el archivo y Android usa el selector y el menú de compartir. El archivo tiene un límite de 2 MB y contiene datos sin cifrar.

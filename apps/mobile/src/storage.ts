@@ -46,17 +46,30 @@ const key = 'flowsaldo.demo.v2';
 export async function loadLocal(): Promise<LocalData | null> {
   const raw = await AsyncStorage.getItem(key);
   if (!raw) return null;
-  const value = JSON.parse(raw) as LocalData;
-  if (!Array.isArray(value.movements) || !value.budgets || typeof value.budgets !== 'object')
+  return normalizeLocalData(JSON.parse(raw));
+}
+
+export function normalizeLocalData(input: unknown): LocalData {
+  if (!input || typeof input !== 'object' || Array.isArray(input))
+    throw new Error('Datos locales inválidos');
+  const value = { ...input } as LocalData;
+  if (
+    !Array.isArray(value.movements) ||
+    !value.budgets ||
+    typeof value.budgets !== 'object' ||
+    Array.isArray(value.budgets)
+  )
     throw new Error('Datos locales inválidos');
   for (const m of value.movements)
     if (
       !m ||
       typeof m.id !== 'string' ||
+      !m.id ||
       typeof m.description !== 'string' ||
       typeof m.category !== 'string' ||
       typeof m.occurredAt !== 'string' ||
       !validDate(m.occurredAt.slice(0, 10)) ||
+      !Number.isFinite(Date.parse(m.occurredAt)) ||
       !Number.isInteger(m.amountMinor) ||
       m.amountMinor <= 0 ||
       m.amountMinor > 2147483647 ||
@@ -65,6 +78,8 @@ export async function loadLocal(): Promise<LocalData | null> {
       !['INCOME', 'EXPENSE', 'TRANSFER'].includes(m.type)
     )
       throw new Error('Movimiento local inválido');
+  if (new Set(value.movements.map((movement) => movement.id)).size !== value.movements.length)
+    throw new Error('Identificadores de movimientos duplicados');
   for (const amount of Object.values(value.budgets))
     if (!Number.isInteger(amount) || amount < 0 || amount > 2147483647)
       throw new Error('Presupuesto local inválido');
@@ -85,11 +100,10 @@ export async function loadLocal(): Promise<LocalData | null> {
   value.movements = upgraded.movements;
   const refundGroups = new Map<string, Movement[]>();
   for (const movement of value.movements) {
-    if (movement.refundOfId)
-      refundGroups.set(movement.refundOfId, [
-        ...(refundGroups.get(movement.refundOfId) ?? []),
-        movement,
-      ]);
+    if (!movement.refundOfId) continue;
+    const refunds = refundGroups.get(movement.refundOfId);
+    if (refunds) refunds.push(movement);
+    else refundGroups.set(movement.refundOfId, [movement]);
   }
   for (const [sourceId, refunds] of refundGroups) {
     const source = value.movements.find((movement) => movement.id === sourceId);
@@ -122,6 +136,7 @@ export async function loadLocal(): Promise<LocalData | null> {
         !Number.isInteger(t.version) ||
         t.version < 0 ||
         typeof t.description !== 'string' ||
+        typeof t.category !== 'string' ||
         !t.description.trim() ||
         !Number.isInteger(t.amountMinor) ||
         t.amountMinor <= 0 ||

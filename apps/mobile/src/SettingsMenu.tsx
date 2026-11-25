@@ -15,6 +15,7 @@ export const settingsSections = [
   'Notificaciones',
   'Correo y Gmail',
   'Seguridad y privacidad',
+  'Respaldo y restauración',
   'Preguntas frecuentes',
   'Acerca de la aplicación',
 ] as const;
@@ -33,6 +34,7 @@ export function SettingsMenu({
   const { styles: s } = useTheme();
   const visible = settingsSections.filter((section) => {
     if (section === 'Cuentas y conciliación') return connected;
+    if (section === 'Respaldo y restauración') return !connected;
     if (section === 'Mis bancos') return personal || !connected;
     if (
       section === 'Notificaciones' ||

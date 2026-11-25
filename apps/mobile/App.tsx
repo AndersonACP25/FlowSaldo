@@ -9,6 +9,8 @@ import { PendingPaymentsScreen } from './src/PendingPaymentsScreen';
 import { SavingsGoalsScreen } from './src/SavingsGoalsScreen';
 import { CashProjectionScreen } from './src/CashProjectionScreen';
 import { SettingsMenu, settingsSections, type SettingsSection } from './src/SettingsMenu';
+import { BackupSettings } from './src/BackupSettings';
+import { restoreLocalBackup } from './src/localBackup';
 import { ThemeProvider, ThemeSettings } from './src/ThemeProvider';
 import { DateTimeField } from './src/DateTimeField';
 import { AboutApp } from './src/AboutApp';
@@ -2335,6 +2337,26 @@ function Home({
             )}
             {screen === 'Configuración' && (
               <SettingsMenu personal={!!personal} connected={connected} onOpen={setScreen} />
+            )}
+            {screen === 'Respaldo y restauración' && !connected && (
+              <BackupSettings
+                local={local}
+                busy={busy}
+                onRestore={(backup, expected) =>
+                  saveForm(async () => {
+                    if (localRef.current !== expected)
+                      throw new Error(
+                        'Los datos locales cambiaron. Selecciona el respaldo de nuevo.',
+                      );
+                    await persist(restoreLocalBackup(expected, backup));
+                    setCategoryFilter('');
+                    setSearch('');
+                    setType('ALL');
+                    setNotice('');
+                    setError('');
+                  })
+                }
+              />
             )}
             {screen === 'Preguntas frecuentes' && <HelpScreen />}
             {screen === 'Acerca de la aplicación' && <AboutApp />}
