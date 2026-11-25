@@ -273,6 +273,7 @@ export {
 } from './debtPlan.ts';
 
 export {
+  compareLoanTerms,
   maxLoanInstallments,
   maxLoanRateBasisPoints,
   simulateLoan,

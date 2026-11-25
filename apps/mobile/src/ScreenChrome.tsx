@@ -11,7 +11,7 @@ import {
   View,
 } from 'react-native';
 import { BrandMark } from './BrandMark';
-import { useTheme } from './theme';
+import { SettingsOptionsContext, useTheme } from './theme';
 import { IconButton } from './IconButton';
 import { Choice } from './ui';
 import { StatusBar } from 'expo-status-bar';
@@ -32,34 +32,60 @@ export function AppFrame({ children }: { children: React.ReactNode }) {
   );
 }
 
-type HomeDestination = 'Presupuestos' | 'Análisis' | 'Tasas' | 'Simulador de préstamos';
+const destinations = [
+  ['Presupuestos', 'Ver presupuestos', 'Presupuestos'],
+  ['Análisis', 'Ver análisis', 'Análisis'],
+  ['Tasas', 'Ver tasas de cambio', 'Tasas de cambio'],
+  ['Disponible hasta el próximo cobro'],
+  ['Pagos y cobros pendientes'],
+  ['Cierre mensual'],
+  ['Plan de pago de tarjetas y préstamos'],
+  ['Metas de ahorro'],
+  ['Simulador de préstamos'],
+] as const;
 
-export function HomeOptions({
-  children,
+export type DrawerDestination = (typeof destinations)[number][0];
+
+export function AppHeader({
+  name,
+  disabled,
   onSelect,
+  onSettings,
+  onLogout,
 }: {
-  children: React.ReactNode;
-  onSelect: (option: HomeDestination) => void;
+  name: string;
+  disabled: boolean;
+  onSelect: (option: DrawerDestination) => void;
+  onSettings: () => void;
+  onLogout: () => void;
 }) {
   const { styles: s } = useTheme();
   const [open, setOpen] = useState(false);
   return (
     <>
-      <View style={s.between}>
+      <View style={[s.between, styles.header]}>
         <View style={s.row}>
-          <IconButton icon="menu" label="Menú de Inicio" onPress={() => setOpen(true)} />
-          <Text accessibilityRole="header" style={s.title}>
-            Inicio
-          </Text>
+          <IconButton
+            icon="menu"
+            label="Abrir menú"
+            disabled={disabled}
+            onPress={() => setOpen(true)}
+          />
+          <BrandMark />
         </View>
-        {children}
+        <AccountAvatar name={name} onSettings={onSettings} />
       </View>
       {open && (
         <HomeDrawer
+          disabled={disabled}
           onClose={() => setOpen(false)}
           onSelect={(option) => {
             setOpen(false);
             onSelect(option);
+          }}
+          onLogout={() => {
+            setOpen(false);
+            onLogout();
           }}
         />
       )}
@@ -68,11 +94,15 @@ export function HomeOptions({
 }
 
 function HomeDrawer({
+  disabled,
   onClose,
   onSelect,
+  onLogout,
 }: {
+  disabled: boolean;
   onClose: () => void;
-  onSelect: (option: HomeDestination) => void;
+  onSelect: (option: DrawerDestination) => void;
+  onLogout: () => void;
 }) {
   const { palette, styles: s } = useTheme();
   const insets = useSafeAreaInsets();
@@ -115,31 +145,21 @@ function HomeDrawer({
             </Text>
             <IconButton icon="close" label="Cerrar menú" onPress={onClose} />
           </View>
-          <ScrollView contentContainerStyle={{ gap: 10 }} keyboardShouldPersistTaps="handled">
-            <Choice
-              label="Ver presupuestos"
-              text="Presupuestos"
-              selected={false}
-              onPress={() => onSelect('Presupuestos')}
-            />
-            <Choice
-              label="Ver análisis"
-              text="Análisis"
-              selected={false}
-              onPress={() => onSelect('Análisis')}
-            />
-            <Choice
-              label="Ver tasas de cambio"
-              text="Tasas de cambio"
-              selected={false}
-              onPress={() => onSelect('Tasas')}
-            />
-            <Choice
-              label="Simulador de préstamos"
-              selected={false}
-              onPress={() => onSelect('Simulador de préstamos')}
-            />
-          </ScrollView>
+          <SettingsOptionsContext.Provider value>
+            <ScrollView contentContainerStyle={{ gap: 4 }} keyboardShouldPersistTaps="handled">
+              {destinations.map(([key, label, title]) => (
+                <Choice
+                  key={key}
+                  label={label ?? key}
+                  text={title ?? key}
+                  selected={false}
+                  disabled={disabled}
+                  onPress={() => onSelect(key)}
+                />
+              ))}
+              <Choice label="Salir" selected={false} disabled={disabled} onPress={onLogout} />
+            </ScrollView>
+          </SettingsOptionsContext.Provider>
         </Animated.View>
       </View>
     </Modal>
@@ -155,16 +175,8 @@ export function OpeningCover() {
   );
 }
 
-export function AccountActions({
-  name,
-  onSettings,
-  onLogout,
-}: {
-  name: string;
-  onSettings: () => void;
-  onLogout: () => void;
-}) {
-  const { styles: s, palette } = useTheme();
+function AccountAvatar({ name, onSettings }: { name: string; onSettings: () => void }) {
+  const { palette } = useTheme();
   const initials = name
     .trim()
     .split(/\s+/u)
@@ -173,17 +185,14 @@ export function AccountActions({
     .join('')
     .toLocaleUpperCase();
   return (
-    <View style={s.row}>
-      <Pressable
-        accessibilityRole="button"
-        accessibilityLabel="Configuración"
-        onPress={onSettings}
-        style={[styles.avatar, { backgroundColor: palette.selected, borderColor: palette.primary }]}
-      >
-        <Text style={[styles.avatarText, { color: palette.income }]}>{initials || 'FS'}</Text>
-      </Pressable>
-      <IconButton icon="logout" label="Cerrar sesión" onPress={onLogout} />
-    </View>
+    <Pressable
+      accessibilityRole="button"
+      accessibilityLabel="Configuración"
+      onPress={onSettings}
+      style={[styles.avatar, { backgroundColor: palette.selected, borderColor: palette.primary }]}
+    >
+      <Text style={[styles.avatarText, { color: palette.income }]}>{initials || 'FS'}</Text>
+    </Pressable>
   );
 }
 
@@ -227,6 +236,13 @@ export const filterStyles = StyleSheet.create({
 });
 
 const styles = StyleSheet.create({
+  header: {
+    width: '100%',
+    maxWidth: 1120,
+    alignSelf: 'center',
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+  },
   drawerOverlay: { flex: 1, flexDirection: 'row' },
   drawer: { width: '84%', maxWidth: 320, gap: 18, paddingRight: 18 },
 

@@ -224,3 +224,7 @@ Fase 7 y cierre de las siete fases del PR #21. Configuración permite crear, edi
 ## Simulador de préstamos (2026-11-25)
 
 Disponible en el menú lateral de Inicio como opción independiente en el PR #21. Calcula amortización mensual en DOP, USD y EUR con tasa nominal anual fija, plazo en cuotas y fecha y hora dominicana del primer pago. Suma comisión inicial pagada aparte y seguro fijo mensual opcional. Desglosa capital, interés, seguro, saldo y vencimiento por cuota. Ajusta centavos para cerrar con saldo cero y conserva el día del primer vencimiento entre meses cortos. La simulación vive en la pantalla y funciona en demo y conectado sin registrar movimientos ni guardar un plan.
+
+## Menú global, FAQ y plazos de préstamos (2026-11-25)
+
+El encabezado permanece visible en las pantallas de la cuenta. Explorar FlowSaldo concentra las herramientas que estaban sobre Resumen mensual y presenta opciones sin borde. Salir aparece al final del menú. Configuración agrega Preguntas frecuentes. Volver usa solo texto. El simulador asigna una fila completa a cada campo, admite amortización con un plazo indicado y compara 12, 24, 36, 48 y 60 cuotas cuando se deja vacío. La fecha opcional añade el calendario de pagos si se proporciona.
