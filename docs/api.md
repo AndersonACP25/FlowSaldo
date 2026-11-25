@@ -12,7 +12,7 @@ Base local: http://127.0.0.1:3000. Salvo health/preflight y las rutas públicas 
 | GET | /summary?currency=DOP | Totales de todos los movimientos de esa moneda |
 | POST | /imports | Encolar mensaje o devolver existente, 202 |
 | GET | /imports/:id | Detalle y cuerpo sintético de una importación. Un retiro reconocido en REVIEW incluye suggestion. 404 si no existe |
-| POST | /imports/:id/resolve | Cuerpo igual a POST /movements, confirmación manual, 201; 409 si ya se procesó |
+| POST | /imports/:id/resolve | Cuerpo de movimiento sin repartos, confirmación manual, 201; 409 si ya se procesó |
 | POST | /imports/:id/dismiss | Descarta REVIEW sin contabilizar, 204; 409 si no está en revisión |
 | GET | /imports | Últimas 100 importaciones, sin cuerpos |
 
@@ -65,6 +65,10 @@ POST/PATCH /movements y POST /imports/:id/resolve aceptan `categoryId`. Se recom
 
 GET /movements?page=true y /movements/export admiten `categoryId`, incluyendo categorías archivadas. El resumen mensual agrega `categoryTotals:[{categoryId,amountMinor}]` para gastos por ID, independiente de páginas y nombres históricos. `categories` conserva el desglose por etiqueta histórica de la entrega anterior. Transferencias e ingresos no consumen presupuestos de gastos.
 
+La migración aditiva `20261125090000_movement_splits` agrega `MovementSplit` con referencias a movimiento y categoría. `POST /movements` y `PATCH /movements/:id` aceptan `splits: [{categoryId,amountMinor}]`. Solo se admiten gastos, de 2 a 12 categorías distintas y montos positivos cuya suma coincida exactamente con el gasto. Las partes usan la moneda del movimiento. Omitir `splits` al editar conserva el reparto si el nuevo tipo e importe son compatibles. Enviar `[]` quita el reparto. Las respuestas de historial y detalle incluyen `splits` con la etiqueta histórica de cada categoría.
+
+Los filtros consultan las categorías del reparto y el resumen mensual atribuye cada parte a su presupuesto. Los totales generales y el CSV conservan el importe completo en una fila. El CSV usa «Gasto dividido» como categoría de esa fila. Eliminar el movimiento elimina sus partes en la misma operación. Una categoría que participa en un reparto puede archivarse.
+
 Los presupuestos general y por categoría siguen locales al dispositivo. Cada límite por categoría se identifica por modo demo/API, mes, moneda e ID de categoría. No se sincronizan ni crean usuarios. Avisos de 80 % y 100 % utilizan el gasto real; el porcentaje mostrado se redondea sin adelantar el aviso. Archivar conserva un presupuesto y permite retirarlo, pero no asignar uno nuevo a esa categoría.
 
 
@@ -78,9 +82,10 @@ El resumen mensual agrega `comparison:{previousMonth,income,expense}`, con `{pre
 | POST | /recurring | description, amountMinor, currency, type, categoryId, startDate=AAAA-MM-DD y timeOfDay=HH:mm opcional (hora dominicana); categoría opcional como etiqueta; crea plantilla activa, 201, sin contabilizar |
 | PATCH | /recurring/:id | Campos editables anteriores excepto startDate y timeOfDay, más active; al menos uno, sin propiedades desconocidas; incrementa version. Conserva startDate, nextDate y anchorDay |
 | POST | /recurring/:id/confirm | `{scheduledFor:"AAAA-MM-DD",expectedVersion:0}`; 201 con `{movement,nextDate}` o 409 si está pausada, futura, ya registrada, cambiaron sus datos/fecha o la categoría está archivada |
+| POST | /recurring/:id/close | `{scheduledFor:"AAAA-MM-DD",expectedVersion:0}`. Registra un vencimiento liquidado, permite el cierre anticipado y devuelve 201 con `{movement:null,nextDate}`. Aplica los mismos controles de versión, fecha y plantilla activa. |
 | GET | /movements/:id | Movimiento individual autorizado; 404 si ya no existe |
 
-La plantilla tiene startDate, nextDate, anchorDay y active. Solo se admite periodicidad mensual. El anchorDay se conserva al ajustar meses cortos. No hay scheduler, cargos automáticos, borrado físico de plantillas ni saltos implícitos de vencimientos: pausar/reactivar conserva el próximo pendiente. La migración `20261124010000_recurring_time` agrega `timeOfDay`. Cada vencimiento con hora conserva el día mensual de la plantilla y se habilita al llegar esa hora dominicana. El movimiento registra el instante como UTC, tal como lo usan los informes. Las plantillas sin hora siguen registrando a mediodía UTC y se habilitan por día UTC. Bloqueo de fila de plantilla, expectedVersion y constraint único (templateId,scheduledFor) evitan duplicados y confirmaciones sobre datos obsoletos. categoryId se valida dentro de esa transacción.
+La plantilla tiene startDate, nextDate, anchorDay y active. Solo se admite periodicidad mensual. El anchorDay se conserva al ajustar meses cortos. No hay scheduler, cargos automáticos, borrado físico de plantillas ni saltos implícitos de vencimientos: pausar/reactivar conserva el próximo pendiente. La migración `20261124010000_recurring_time` agrega `timeOfDay`. Cada vencimiento con hora conserva el día mensual de la plantilla y se habilita al llegar esa hora dominicana. El movimiento registra el instante como UTC, tal como lo usan los informes. Las plantillas sin hora siguen registrando a mediodía UTC y se habilitan por día UTC. Bloqueo de fila de plantilla, expectedVersion y constraint único (templateId,scheduledFor) evitan duplicados y confirmaciones sobre datos obsoletos. categoryId se valida dentro de la confirmación que contabiliza el movimiento. El cierre indica que el cliente ya registró la liquidación y avanza el calendario en la misma transacción.
 
 La migración aditiva `20261110010000_recurring` crea RecurringTemplate y RecurringOccurrence, sin modificar movimientos previos. Cada ocurrencia conserva su registro al eliminar el movimiento (movementId pasa a null); la fecha ya confirmada no se vuelve a abrir. En demo se conservan recibos locales y un bloqueo por vencimiento dentro de la instancia de app; no hay sincronización entre pestañas/dispositivos.
 

@@ -191,3 +191,36 @@ Configuración utiliza opciones sin bordes ni flechas. Tasa del día abre la con
 ## Navegación, formularios y apariencia (2026-11-24)
 
 Las cuatro pestañas inferiores se muestran en las pantallas de la app, incluidas las abiertas desde el menú lateral. Editar un movimiento y crear una plantilla mensual abren pantallas separadas y vuelven a Movimientos. Se redujo el texto de la interfaz y se ampliaron los controles de acceso. El histórico de tasas usa fecha y hora dominicana y consulta al proveedor por día. Apariencia agrega Bosque, Violeta y Arena con la preferencia local existente.
+
+## Funcionalidades de negocio por fases (2026-11-24)
+
+La rama feat/finanzas-personales-por-fases reúne proyección de efectivo, metas de ahorro, pendientes, plan de deuda, gastos divididos, cierre mensual y reglas por comercio. La primera fase resta los gastos recurrentes activos pendientes hasta antes de la hora del próximo cobro, incluidos los vencidos. Calcula por moneda en centavos y guarda el saldo y el próximo cobro en el dispositivo, separados por modo. El gasto simulado se descarta al salir.
+
+## Metas de ahorro y apartados (2026-11-24)
+
+Fase 2 en la misma rama y PR que la proyección de efectivo. Metas por moneda con aportes manuales y vínculos a transferencias propias del historial. Cada transferencia se vincula a una meta como máximo. El avance considera el monto vigente del movimiento de origen y descuenta vínculos que ya no cumplen los requisitos. Quitar un aporte conserva el movimiento. Las metas se guardan en el dispositivo con separación demo/API.
+
+
+## Pagos y cobros pendientes (2026-11-24)
+
+Fase 3 en el mismo PR. Registra vencimientos por moneda con hora dominicana y aplica abonos manuales o movimientos vigentes del mismo tipo y moneda. Cada movimiento se puede vincular a un pendiente. Los pendientes se guardan en el dispositivo con separación demo/cuenta. La proyección descuenta el saldo de pagos antes del próximo cobro y sustituye un vencimiento mensual por su pendiente vinculado. Tras saldarlo, el cierre avanza la plantilla y conserva un recibo sin generar movimiento. El endpoint de cierre usa la transacción existente de recurrencias. La fase usa el esquema actual de PostgreSQL.
+
+## Plan de pago de tarjetas y préstamos (2026-11-24)
+
+Fase 4 en el mismo PR. Planes por dispositivo, separados entre demo y cuenta/URL conectada, con capital, cargos e interés al corte, tasa nominal anual fija, cuota y abono adicional mensual en DOP, USD o EUR. Las fechas usan hora dominicana. La primera cuota aplica los importes del corte antes del capital. Los períodos siguientes calculan interés nominal mensual sobre saldo en centavos, con redondeo a centavo y el día de vencimiento anclado. La comparación limita la proyección a 600 cuotas y señala cuota insuficiente. La simulación queda fuera del historial y usa almacenamiento local sin migración.
+
+## Dividir gastos por categoría (2026-11-25)
+
+Fase 5 en el mismo PR. El formulario manual de gastos distribuye el importe entre 2 y 12 categorías distintas de la moneda del movimiento y valida la suma en centavos. Historial y CSV conservan una fila, mientras que análisis y presupuestos consumen las partes. Los filtros consultan las categorías reales del reparto. En demo se conservan movimientos anteriores y partes locales. En modo conectado se agrega la migración aditiva MovementSplit. Las partes se escriben en la misma transacción del movimiento y conservan su categoría histórica.
+
+## Cierre mensual personal (2026-11-25)
+
+Fase 6 en el mismo PR. Desde Inicio se consulta por mes y moneda, con acceso al historial filtrado por Sin categorizar y a los pagos y cobros con saldo vigente y vencimiento dentro del mes. Utiliza los totales generales y por categoría, que ya incluyen repartos. El cierre guarda una copia con fecha, importes pendientes y límites de presupuesto, separada entre demo y cuenta/URL. Se puede actualizar explícitamente o consultar frente al cierre del mes anterior de la misma moneda. La captura usa los datos vigentes y no modifica el historial. Reutiliza los endpoints de presupuesto, movimientos y resumen sin una migración adicional.
+
+## Reglas de categorización por comercio (2026-11-25)
+
+Fase 7 y cierre de las siete fases del PR #21. Configuración permite crear, editar y eliminar reglas por frase o descripción exacta. La coincidencia normaliza mayúsculas, acentos y separadores, conserva la letra ñ, prioriza una descripción exacta y luego la frase más larga. Empates entre categorías distintas, categorías archivadas y categorías eliminadas quedan fuera de la sugerencia. El formulario manual de ingresos y gastos permite aplicar, omitir o corregir la sugerencia. Los repartos, las transferencias y la importación conservan sus propios flujos. Las reglas se guardan en el dispositivo por modo y cuenta/URL.
+
+## Simulador de préstamos (2026-11-25)
+
+Disponible en el menú lateral de Inicio como opción independiente en el PR #21. Calcula amortización mensual en DOP, USD y EUR con tasa nominal anual fija, plazo en cuotas y fecha y hora dominicana del primer pago. Suma comisión inicial pagada aparte y seguro fijo mensual opcional. Desglosa capital, interés, seguro, saldo y vencimiento por cuota. Ajusta centavos para cerrar con saldo cero y conserva el día del primer vencimiento entre meses cortos. La simulación vive en la pantalla y funciona en demo y conectado sin registrar movimientos ni guardar un plan.

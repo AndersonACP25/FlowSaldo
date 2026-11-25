@@ -23,6 +23,22 @@ La prioridad es que FlowSaldo se pueda usar desde el navegador de la PC y una AP
 
 La siguiente implementación después de validar el acceso en una APK física es el respaldo JSON. Puede servir para mover datos entre PC y Android y preparar el traspaso posterior a la cuenta personal.
 
+## Funcionalidades de negocio por fases
+
+Las siete fases están implementadas en `feat/finanzas-personales-por-fases` y se pueden probar con la cuenta de prueba.
+
+| Fase | Funcionalidad | Estado y criterio de aceptación |
+| --- | --- | --- |
+| 1 | Disponible hasta el próximo cobro | Implementada. Con DOP 20,000 y DOP 12,000 en vencimientos pendientes, muestra DOP 8,000. Simular DOP 3,000 muestra DOP 5,000. La simulación se descarta al salir y el saldo base se guarda por moneda y modo. |
+| 2 | Metas de ahorro y apartados | Implementada. Crea una meta por moneda, registra aportes y consulta el avance. Cada transferencia propia puede vincularse a una sola meta y conserva su clasificación. Las metas y vínculos se guardan en el dispositivo por modo. |
+| 3 | Pagos y cobros pendientes | Implementada. Registra pagos y cobros con vencimiento, abonos parciales y vínculos a movimientos. La proyección usa el saldo por pagar antes del próximo cobro y contabiliza una vez cada vencimiento de plantilla. |
+| 4 | Plan de pago de tarjetas y préstamos | Implementada. Guarda planes locales de tarjetas y préstamos con corte, vencimiento, capital, intereses y cargos. Compara cuotas, fecha estimada e intereses con un abono mensual adicional, con supuestos visibles. |
+| 5 | Dividir gastos por categoría | Implementada. Permite repartir gastos entre categorías en la misma moneda. Las partes deben sumar el gasto y se distribuyen entre análisis y presupuestos. El historial conserva una sola fila. |
+| 6 | Cierre mensual personal | Implementada. Revisa movimientos sin categorizar, saldos pendientes con vencimiento en el mes y diferencias frente al presupuesto. Guarda un resumen local por mes y moneda y compáralo con el cierre anterior. |
+| 7 | Reglas de categorización por comercio | Implementada. Crea reglas por frase o descripción exacta en Configuración. El formulario manual sugiere la categoría y permite usarla, omitirla o elegir otra. Las reglas se guardan en el dispositivo. |
+
+El simulador de préstamos también está disponible desde el menú de Inicio. Estima la cuota mensual, el costo total y el calendario a partir del monto, el plazo, la tasa anual fija, el primer pago y los cargos opcionales.
+
 ## Historial del roadmap
 
 ## Completado en v0.2

@@ -1,4 +1,4 @@
-import { Router } from 'express';
+import { Router, type Request, type Response } from 'express';
 import { z } from 'zod';
 import { db } from '@flowsaldo/database';
 import {
@@ -70,9 +70,12 @@ recurringRoutes.patch('/recurring/:id', async (req, res) => {
   });
   res.json(item);
 });
-recurringRoutes.post('/recurring/:id/confirm', async (req, res) => {
+async function confirmOccurrence(req: Request, res: Response, recordMovement: boolean) {
   const { scheduledFor, expectedVersion } = z
-    .object({ scheduledFor: date, expectedVersion: z.number().int().nonnegative() })
+    .object({
+      scheduledFor: date,
+      expectedVersion: z.number().int().nonnegative(),
+    })
     .parse(req.body);
   const result = await db.$transaction(async (tx) => {
     const [template] = await tx.$queryRaw<
@@ -86,14 +89,23 @@ recurringRoutes.post('/recurring/:id/confirm', async (req, res) => {
       );
     let occurrence;
     try {
-      occurrence = prepareOccurrence(template, scheduledFor, new Date().toISOString());
+      occurrence = prepareOccurrence(
+        template,
+        scheduledFor,
+        new Date().toISOString(),
+        [],
+        recordMovement,
+      );
     } catch (e) {
       throw new CategoryError((e as Error).message, 409);
     }
-    const category = await assignCategory(tx, template);
-    const movement = await tx.movement.create({ data: { ...occurrence.movement, ...category } });
+    const movement = recordMovement
+      ? await tx.movement.create({
+          data: { ...occurrence.movement, ...(await assignCategory(tx, template)) },
+        })
+      : null;
     await tx.recurringOccurrence.create({
-      data: { templateId: template.id, scheduledFor, movementId: movement.id },
+      data: { templateId: template.id, scheduledFor, movementId: movement?.id ?? null },
     });
     await tx.recurringTemplate.update({
       where: { id: template.id },
@@ -102,4 +114,7 @@ recurringRoutes.post('/recurring/:id/confirm', async (req, res) => {
     return { movement, nextDate: occurrence.nextDate };
   });
   res.status(201).json(result);
-});
+}
+
+recurringRoutes.post('/recurring/:id/confirm', (req, res) => confirmOccurrence(req, res, true));
+recurringRoutes.post('/recurring/:id/close', (req, res) => confirmOccurrence(req, res, false));

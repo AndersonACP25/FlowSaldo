@@ -83,7 +83,7 @@ BEGIN
 END $$;
 TRUNCATE public."OwnerBank",public."GmailConnection",public."AppOwner",public."AccessSession",public."AuthThrottle",public."RecoveryCode",
  public."DataCleanup",public."CleanupPreview",public."MovementRequest",public."RecurringOccurrence",
- public."RecurringTemplate",public."Movement",public."MailImport",public."BudgetCategory",
+ public."RecurringTemplate",public."MovementSplit",public."Movement",public."MailImport",public."BudgetCategory",
  public."BudgetPeriod",public."Reconciliation",public."FinancialAccount",public."Category";
 INSERT INTO public."Category" (id,name,"normalizedName",system)
  SELECT 'category-'||md5(lower(name)),name,lower(name),name='Sin categorizar'

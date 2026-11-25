@@ -2,6 +2,19 @@ import { demoReviews, type ReviewItem } from './reviews';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import {
   isCurrency,
+  validSavingsGoals,
+  validPendingItems,
+  validDebtPlans,
+  validMonthlyClosings,
+  validCommerceRules,
+  type CommerceRule,
+  type MonthlyClosing,
+  type DebtPlan,
+  type PendingItem,
+  type SavingsGoal,
+  parseDominicanDateTime,
+  type CashProjectionPlan,
+  type Currency,
   upgradeCategories,
   validClockTime,
   validDate,
@@ -10,6 +23,8 @@ import {
   type Category,
   type Movement,
 } from '@flowsaldo/domain';
+type CashProjectionKey = `demo:${Currency}` | `api:${Currency}`;
+
 export interface LocalData {
   movements: Movement[];
   budgets: Record<string, number>;
@@ -19,6 +34,12 @@ export interface LocalData {
   recurring: RecurringTemplate[];
   bankIds: string[];
   receipts: RecurringReceipt[];
+  cashProjections: Partial<Record<CashProjectionKey, CashProjectionPlan>>;
+  savingsGoals: Record<'demo' | 'api', SavingsGoal[]>;
+  pendingItems: Record<string, PendingItem[]>;
+  debtPlans: Record<string, DebtPlan[]>;
+  monthlyClosings: Record<string, MonthlyClosing[]>;
+  commerceRules: Record<string, CommerceRule[]>;
 }
 const key = 'flowsaldo.demo.v2';
 export async function loadLocal(): Promise<LocalData | null> {
@@ -121,6 +142,61 @@ export async function loadLocal(): Promise<LocalData | null> {
     new Set(value.bankIds).size !== value.bankIds.length
   )
     throw new Error('Bancos locales inválidos');
+  if (value.cashProjections === undefined) value.cashProjections = {};
+  if (
+    !value.cashProjections ||
+    typeof value.cashProjections !== 'object' ||
+    Array.isArray(value.cashProjections) ||
+    Object.entries(value.cashProjections).some(
+      ([key, plan]) =>
+        !/^(demo|api):(DOP|USD|EUR)$/.test(key) ||
+        !plan ||
+        !Number.isSafeInteger(plan.balanceMinor) ||
+        Math.abs(plan.balanceMinor) > 2147483647 ||
+        typeof plan.nextIncomeAt !== 'string' ||
+        !parseDominicanDateTime(plan.nextIncomeAt),
+    )
+  )
+    throw new Error('Proyección local inválida.');
+  if (value.pendingItems === undefined) value.pendingItems = {};
+  if (
+    !value.pendingItems ||
+    typeof value.pendingItems !== 'object' ||
+    Array.isArray(value.pendingItems) ||
+    !Object.values(value.pendingItems).every(validPendingItems)
+  )
+    throw new Error('Pagos y cobros locales inválidos.');
+  if (value.debtPlans === undefined) value.debtPlans = {};
+  if (
+    !value.debtPlans ||
+    typeof value.debtPlans !== 'object' ||
+    Array.isArray(value.debtPlans) ||
+    !Object.values(value.debtPlans).every(validDebtPlans)
+  )
+    throw new Error('Planes de pago locales inválidos.');
+  if (value.monthlyClosings === undefined) value.monthlyClosings = {};
+  if (
+    !value.monthlyClosings ||
+    typeof value.monthlyClosings !== 'object' ||
+    Array.isArray(value.monthlyClosings) ||
+    !Object.values(value.monthlyClosings).every(validMonthlyClosings)
+  )
+    throw new Error('Cierres mensuales locales inválidos.');
+  if (value.commerceRules === undefined) value.commerceRules = {};
+  if (
+    !value.commerceRules ||
+    typeof value.commerceRules !== 'object' ||
+    Array.isArray(value.commerceRules) ||
+    !Object.values(value.commerceRules).every(validCommerceRules)
+  )
+    throw new Error('Reglas de comercio locales inválidas.');
+  if (value.savingsGoals === undefined) value.savingsGoals = { demo: [], api: [] };
+  if (
+    !value.savingsGoals ||
+    !validSavingsGoals(value.savingsGoals.demo) ||
+    !validSavingsGoals(value.savingsGoals.api)
+  )
+    throw new Error('Metas locales inválidas.');
   value.reviews = value.reviews.map((r) =>
     r.status === 'PARSED' && !r.movement
       ? {

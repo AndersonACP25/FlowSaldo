@@ -38,7 +38,7 @@ export async function checkCoreFlows(browser) {
       await context.close();
     }
   }
-  await scenario('register → persist → export filtered CSV', async (page, button) => {
+  await scenario('register → persist → export filtered CSV', async (page, button, stored) => {
     let apiRequests = 0;
     await page.route(apiUrl + '/**', (route) => {
       apiRequests++;
@@ -57,12 +57,24 @@ export async function checkCoreFlows(browser) {
     await button('Guardar preferencias').click();
     await page.getByText('Preferencias guardadas en este dispositivo.', { exact: true }).waitFor();
     await button('Volver').click();
+    await button('Reglas por comercio').click();
+    await button('Nueva regla por comercio').click();
+    await page.getByLabel('Comercio o frase', { exact: true }).fill('Compra CORE');
+    await button('Asignar Servicios').click();
+    await button('Guardar regla').click();
+    await page.getByText('Regla guardada.', { exact: true }).waitFor();
+    await button('Volver').click();
     await button('Volver').click();
     await button('+ Nuevo movimiento').click();
     await page.getByLabel('Descripción', { exact: true }).fill('Compra CORE');
     await page.getByLabel('Monto (sin separadores de miles)', { exact: true }).fill('100.29');
+    await button('Usar Servicios').click();
     await button('Guardar movimiento').click();
     await page.getByText('Movimiento guardado.', { exact: true }).waitFor();
+    assert.equal(
+      (await stored()).movements.find((item) => item.description === 'Compra CORE').category,
+      'Servicios',
+    );
     await button('Configuración').click();
     await button('Mis bancos').click();
     await button('Agregar bancos').click();
@@ -93,6 +105,18 @@ export async function checkCoreFlows(browser) {
     await button('Volver').click();
     await button('Volver').click();
     await button('Movimientos').click();
+    await button('+ Nuevo movimiento').click();
+    await page.getByLabel('Descripción', { exact: true }).fill('COMPRA-CORE factura 2');
+    await page.getByLabel('Monto (sin separadores de miles)', { exact: true }).fill('20.51');
+    await button('Usar Servicios').waitFor();
+    await button('Categoría: Transporte').click();
+    await button('Guardar movimiento').click();
+    await page.getByText('Movimiento guardado.', { exact: true }).waitFor();
+    assert.equal(
+      (await stored()).movements.find((item) => item.description === 'COMPRA-CORE factura 2')
+        .category,
+      'Transporte',
+    );
     await page.getByLabel('Buscar descripción o categoría', { exact: true }).fill('Compra CORE');
     await page.getByText('1 movimiento', { exact: true }).waitFor();
     await button('Editar Compra CORE').click();
@@ -107,6 +131,17 @@ export async function checkCoreFlows(browser) {
     const amount = page.getByLabel('Monto (sin separadores de miles)', { exact: true });
     assert.equal(await amount.inputValue(), '100.29');
     await amount.fill('101.29');
+    await button('Dividir gasto').click();
+    await button('Parte 1: Alimentación').click();
+    await button('Parte 2: Transporte').click();
+    await page.getByLabel('Importe de la parte 1', { exact: true }).fill('70.20');
+    await page.getByLabel('Importe de la parte 2', { exact: true }).fill('31.00');
+    await button('Guardar movimiento').click();
+    await page
+      .getByRole('alert')
+      .filter({ hasText: 'Las partes deben sumar el importe total del gasto.' })
+      .waitFor();
+    await page.getByLabel('Importe de la parte 2', { exact: true }).fill('31.09');
     await button('Guardar movimiento').click();
     await page.getByText('Movimiento guardado.', { exact: true }).waitFor();
     await page.getByLabel('Buscar descripción o categoría', { exact: true }).fill('Compra CORE');
@@ -115,6 +150,94 @@ export async function checkCoreFlows(browser) {
     await button('Exportar CSV').click();
     const file = await waiting;
     assert.equal(file.suggestedFilename(), `FlowSaldo-${month}.csv`);
+    const rows = parseCsv(await readFile(await file.path(), 'utf8'));
+    assert.equal(rows.length, 2);
+    assert.equal(rows[1].at(-1), 'Gasto dividido');
+    await button('Inicio').click();
+    await button('Metas de ahorro').click();
+    await button('Nueva meta de ahorro').click();
+    await page.getByLabel('Nombre de la meta', { exact: true }).fill('Laptop CORE');
+    await page.getByLabel('Monto objetivo', { exact: true }).fill('1000');
+    await button('Guardar meta').click();
+    await page.getByRole('heading', { name: 'Laptop CORE', exact: true }).waitFor();
+    await button('Aportar a Laptop CORE').click();
+    await page.getByLabel('Monto del aporte', { exact: true }).fill('150');
+    await button('Guardar aporte').click();
+    await page.getByText('EUR 150.00 de EUR 1,000.00', { exact: true }).waitFor();
+    await button('Movimientos').click();
+    await button('+ Nuevo movimiento').click();
+    await page.getByLabel('Descripción', { exact: true }).fill('Apartado CORE');
+    await page.getByLabel('Monto (sin separadores de miles)', { exact: true }).fill('350');
+    await button('Transferencia').first().click();
+    await button('Guardar movimiento').click();
+    await button('Vincular a meta: Apartado CORE').click();
+    await button('Vincular transferencia a Laptop CORE').click();
+    await page.getByText('EUR 500.00 de EUR 1,000.00', { exact: true }).waitFor();
+    assert.equal(await button('Vincular transferencia a Laptop CORE').count(), 0);
+    assert.equal(
+      (await stored()).movements.filter((item) => item.description === 'Apartado CORE').length,
+      1,
+    );
+    assert.equal(
+      (await stored()).movements.find((item) => item.description === 'Apartado CORE').type,
+      'TRANSFER',
+    );
+    const beforePlanning = (await stored()).movements;
+    await button('Inicio').click();
+    await button('Menú de Inicio').click();
+    await button('Simulador de préstamos').click();
+    await button('DOP').click();
+    const loanFields = {
+      'Monto del préstamo': '100000',
+      'Tasa nominal anual (%)': '18',
+      'Número de cuotas mensuales': '12',
+      'Comisión inicial (opcional)': '1000',
+      'Seguro mensual (opcional)': '250',
+      'Fecha y hora del primer pago': '2028-01-31T17:30',
+    };
+    for (const [label, value] of Object.entries(loanFields))
+      await page.getByLabel(label, { exact: true }).fill(value);
+    await button('Calcular préstamo').click();
+    await page.getByText('DOP 9,418.00', { exact: true }).waitFor();
+    await page.getByText('DOP 114,015.99', { exact: true }).waitFor();
+    await button('Ver amortización').click();
+    await page.getByText('Cuota 2 · 2028-02-29 · 17:30', { exact: true }).waitFor();
+    assert.deepEqual((await stored()).movements, beforePlanning);
+    await button('Volver').click();
+    await button('Plan de pago de tarjetas y préstamos').click();
+    await button('Nuevo plan de pago').click();
+    await button('DOP').click();
+    const debtFields = {
+      'Nombre del plan': 'Tarjeta CORE',
+      'Fecha y hora de corte': '2026-11-01T08:00',
+      'Fecha y hora del próximo vencimiento': '2026-11-30T19:00',
+      'Capital pendiente': '10000',
+      'Interés al corte': '250',
+      'Cargos al corte': '100',
+      'Tasa nominal anual (%)': '24',
+      'Cuota mensual': '3000',
+      'Abono adicional mensual': '1000',
+    };
+    for (const [label, value] of Object.entries(debtFields))
+      await page.getByLabel(label, { exact: true }).fill(value);
+    await button('Guardar y comparar').click();
+    const savings = page.getByText('DOP 92.14 menos en intereses · 1 cuota menos', { exact: true });
+    await savings.waitFor();
+    assert.deepEqual((await stored()).movements, beforePlanning);
+    await page.reload({ waitUntil: 'networkidle' });
+    await loginAsTestAccount(page);
+    await button('Plan de pago de tarjetas y préstamos').click();
+    await savings.waitFor();
+    const edited = (await stored()).movements.find((item) => item.description === 'Compra CORE');
+    assert.equal(edited.splits.length, 2);
+    await button('Volver').click();
+    await button('Metas de ahorro').click();
+    await page.getByText('EUR 500.00 de EUR 1,000.00', { exact: true }).waitFor();
+    await button('Quitar aporte 2 de Laptop CORE').click();
+    await button('Confirmar retiro de aporte').click();
+    await page.getByText('EUR 150.00 de EUR 1,000.00', { exact: true }).waitFor();
+    assert.ok((await stored()).movements.some((item) => item.description === 'Apartado CORE'));
+    await button('Inicio').click();
     await page.route('https://api.frankfurter.dev/v2/rate/**', async (route) => {
       const url = new URL(route.request().url());
       const base = url.pathname.split('/').at(-2);
@@ -195,7 +318,7 @@ export async function checkCoreFlows(browser) {
     ],
   };
   await scenario(
-    'confirm recurrence once → confirm review → open generated movement',
+    'settle a recurring expense in parts → confirm review → open generated movement',
     async (page, button, stored) => {
       await page.goto('http://127.0.0.1:8082', { waitUntil: 'networkidle' });
       await loginAsTestAccount(page);
@@ -209,19 +332,74 @@ export async function checkCoreFlows(browser) {
       const day = dominicanDateTime(new Date()).slice(0, 10);
       await page.getByLabel('Fecha y hora de inicio', { exact: true }).fill(day + 'T00:00');
       await page.getByLabel('Descripción', { exact: true }).fill('Alquiler CORE');
-      await page.getByLabel('Monto (sin separadores de miles)', { exact: true }).fill('100');
+      await page.getByLabel('Monto (sin separadores de miles)', { exact: true }).fill('12000');
       await button('Categoría: Servicios').click();
       await button('Guardar plantilla mensual').click();
       await page.getByText('Plantilla mensual guardada.', { exact: true }).waitFor();
       assert.equal((await stored()).movements.length, 0);
-      await button('Registrar vencimiento Alquiler CORE').click();
-      await button('Confirmar registro de vencimiento').click();
-      await page.getByText('Vencimiento registrado una sola vez.', { exact: true }).waitFor();
+      await button('Inicio').click();
+      await button('Disponible hasta el próximo cobro').click();
+      await page.getByLabel('Saldo disponible hoy', { exact: true }).fill('20000');
+      const payday = dominicanDateTime(new Date(Date.now() + 86_400_000));
+      await page.getByLabel('Fecha y hora del próximo cobro', { exact: true }).fill(payday);
+      await page.getByText('DOP 8,000.00', { exact: true }).waitFor();
+      await page.getByLabel('Gasto simulado', { exact: true }).fill('3000');
+      await page.getByText('Después del gasto: DOP 5,000.00', { exact: true }).waitFor();
+      await button('Guardar proyección').click();
+      await page.getByText('Proyección guardada.', { exact: true }).waitFor();
+      assert.equal((await stored()).movements.length, 0);
+      await button('EUR').click();
+      assert.equal(await page.getByLabel('Saldo disponible hoy', { exact: true }).inputValue(), '');
+      await button('Movimientos').click();
+      await button('Registrar pendiente Alquiler CORE').click();
+      await page.getByRole('heading', { name: 'Pagos y cobros pendientes', exact: true }).waitFor();
+      await page.getByLabel('Monto del abono', { exact: true }).fill('5000');
+      await button('Registrar abono').click();
+      await page.getByText('Abono registrado.', { exact: true }).waitFor();
+      assert.equal((await stored()).movements.length, 0);
+      await button('Inicio').click();
+      await button('Cierre mensual').click();
+      await button('Elegir período').click();
+      await page.getByLabel('Fecha exacta (AAAA-MM-DD)', { exact: true }).fill(day);
+      await button('Aplicar fecha').click();
+      await page.getByText('Por pagar · DOP 7,000.00', { exact: true }).waitFor();
+      await button('Revisar pendiente Alquiler CORE').click();
+      await page.getByRole('heading', { name: 'Pagos y cobros pendientes', exact: true }).waitFor();
+      await button('Volver').click();
+      await button('Guardar cierre mensual').click();
+      await page.getByText('Cierre mensual guardado.', { exact: true }).waitFor();
+      assert.equal((await stored()).monthlyClosings.demo[0].toPayMinor, 700_000);
+      await button('Volver').click();
+      await button('Disponible hasta el próximo cobro').click();
+      await page.getByText('DOP 13,000.00', { exact: true }).waitFor();
+      await button('Movimientos').click();
+      await button('+ Nuevo movimiento').click();
+      await page.getByLabel('Descripción', { exact: true }).fill('Abono alquiler CORE');
+      await page.getByLabel('Monto (sin separadores de miles)', { exact: true }).fill('7000');
+      await button('Guardar movimiento').click();
+      await page.getByText('Movimiento guardado.', { exact: true }).waitFor();
+      await button('Vincular a pendiente: Abono alquiler CORE').click();
+      await button('Vincular a Alquiler CORE').click();
+      await page.getByText('Movimiento vinculado.', { exact: true }).waitFor();
+      await button('Ver todos los pendientes').click();
+      await button('Cerrar vencimiento').click();
+      await page.getByText('Vencimiento cerrado.', { exact: true }).waitFor();
       assert.equal((await stored()).movements.length, 1);
-      assert.equal((await stored()).movements[0].occurredAt, day + 'T04:00:00.000Z');
       assert.equal((await stored()).receipts.length, 1);
+      assert.equal((await stored()).receipts[0].movementId, null);
       await page.reload({ waitUntil: 'networkidle' });
       await loginAsTestAccount(page);
+      await button('Cierre mensual').click();
+      await button('Elegir período').click();
+      await page.getByLabel('Fecha exacta (AAAA-MM-DD)', { exact: true }).fill(day);
+      await button('Aplicar fecha').click();
+      await page.getByText('Por pagar · DOP 0.00', { exact: true }).waitFor();
+      await button('Cierre guardado').click();
+      await page.getByText('Por pagar · DOP 7,000.00', { exact: true }).waitFor();
+      await button('Volver').click();
+      await button('Disponible hasta el próximo cobro').click();
+      await page.getByText('DOP 20,000.00', { exact: true }).waitFor();
+      assert.equal(await page.getByLabel('Gasto simulado', { exact: true }).inputValue(), '');
       await button('Movimientos').click();
       assert.ok(await button('Registrar vencimiento Alquiler CORE').isDisabled());
       await button('Por revisar').click();

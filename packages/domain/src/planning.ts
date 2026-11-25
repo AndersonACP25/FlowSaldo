@@ -1,3 +1,4 @@
+import { checkMovementSplits } from './movementSplits.ts';
 import type { Movement } from './index.ts';
 export interface Category {
   id: string;
@@ -39,7 +40,7 @@ export function selectedCategory(
   catalog: Category[],
   id: string | undefined,
   name: string,
-  previous?: Movement,
+  previous?: Pick<Movement, 'category' | 'categoryId'>,
 ) {
   const category = id
     ? catalog.find((c) => c.id === id)
@@ -97,6 +98,19 @@ export function upgradeCategories(movements: Movement[], stored?: Category[]) {
       ? categories.find((c) => c.id === m.categoryId)
       : categories.find((c) => c.normalizedName === categoryKey(m.category));
     if (!category) throw new Error('Categoría del movimiento no encontrada');
+    if (m.splits !== undefined) {
+      if (!Array.isArray(m.splits)) throw new Error('División local inválida');
+      checkMovementSplits(m.type, m.amountMinor, m.splits);
+      if (
+        m.splits.some(
+          (part) =>
+            typeof part.category !== 'string' ||
+            !part.category.trim() ||
+            !categories.some((c) => c.id === part.categoryId),
+        )
+      )
+        throw new Error('Categoría del reparto no encontrada');
+    }
     return { ...m, categoryId: category.id };
   });
   return { movements: upgraded, categories };

@@ -32,7 +32,7 @@ export function AppFrame({ children }: { children: React.ReactNode }) {
   );
 }
 
-type HomeDestination = 'Presupuestos' | 'Análisis' | 'Tasas';
+type HomeDestination = 'Presupuestos' | 'Análisis' | 'Tasas' | 'Simulador de préstamos';
 
 export function HomeOptions({
   children,
@@ -133,6 +133,11 @@ function HomeDrawer({
               text="Tasas de cambio"
               selected={false}
               onPress={() => onSelect('Tasas')}
+            />
+            <Choice
+              label="Simulador de préstamos"
+              selected={false}
+              onPress={() => onSelect('Simulador de préstamos')}
             />
           </ScrollView>
         </Animated.View>
