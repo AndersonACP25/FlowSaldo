@@ -59,6 +59,7 @@ import {
   type LocalAccount,
   addSavingsContribution,
   addPendingSettlement,
+  updatePendingManualSettlement,
   checkPendingDraft,
   checkDebtPlan,
   type DebtPlan,
@@ -1392,6 +1393,17 @@ function Home({
     );
   }
 
+  function canEditPending(item: PendingItem) {
+    return (
+      !item.occurrence ||
+      recurring.some(
+        (template) =>
+          template.id === item.occurrence?.templateId &&
+          template.nextDate === item.occurrence.scheduledFor,
+      )
+    );
+  }
+
   async function verifiedPendingMovements(item: PendingItem, extraId?: string) {
     const ids = item.settlements.flatMap((entry) =>
       entry.kind === 'movement' ? [entry.movementId] : [],
@@ -1460,7 +1472,7 @@ function Home({
   }
 
   const debtPlanScreen = screen === 'Plan de pago de tarjetas y préstamos';
-  const backButton = <Choice label="Volver" selected={false} disabled={busy} onPress={goBack} />;
+  const backButton = <IconButton icon="back" label="Volver" disabled={busy} onPress={goBack} />;
 
   const content = (
     <View style={s.root}>
@@ -1580,6 +1592,7 @@ function Home({
                 saving={busy}
                 money={money}
                 canClose={(item) => !!currentPendingTemplate(item)}
+                canEdit={canEditPending}
                 onSave={savePending}
                 onSettle={(id, settlement) =>
                   saveForm(async () => {
@@ -1596,6 +1609,25 @@ function Home({
                         items,
                         id,
                         { ...settlement, id: newLocalId() },
+                        movements,
+                      ),
+                    );
+                  })
+                }
+                onEdit={(id, settlementId, amountMinor) =>
+                  saveForm(async () => {
+                    const item = (localRef.current.pendingItems[pendingScope] ?? []).find(
+                      (entry) => entry.id === id,
+                    );
+                    if (!item || !canEditPending(item))
+                      throw new Error('El pendiente ya no está disponible para edición.');
+                    const movements = await verifiedPendingMovements(item);
+                    await updatePending((items) =>
+                      updatePendingManualSettlement(
+                        items,
+                        id,
+                        settlementId,
+                        amountMinor,
                         movements,
                       ),
                     );

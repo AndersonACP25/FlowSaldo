@@ -118,6 +118,7 @@ export function CommerceRulesScreen({
             />
             <Choice
               label="Cancelar edición de regla"
+              centered
               text="Cancelar"
               selected={false}
               disabled={saving}

@@ -8,6 +8,18 @@ import { useTheme } from './theme';
 import { Button, Choice, Field } from './ui';
 
 const rateFormat = new Intl.NumberFormat('es-DO', { maximumFractionDigits: 6 });
+const rateInputFormat = new Intl.NumberFormat('en-US', {
+  useGrouping: false,
+  maximumFractionDigits: 15,
+});
+
+function parseConversionRate(input: string) {
+  const text = input.trim();
+  if (!/^\d+(?:[.,]\d+)?$/.test(text)) return undefined;
+  const value = Number(text.replace(',', '.'));
+  return Number.isFinite(value) && value > 0 ? value : undefined;
+}
+
 const pesos = new Intl.NumberFormat('es-DO', {
   style: 'currency',
   currency: 'DOP',
@@ -19,6 +31,7 @@ export function RatesScreen() {
   const [draft, setDraft] = useState('');
   const [date, setDate] = useState('');
   const [amount, setAmount] = useState('');
+  const [manualRates, setManualRates] = useState<Partial<Record<RateCurrency, string>>>({});
   const [currency, setCurrency] = useState<RateCurrency>('USD');
   const rates = useQuery({
     queryKey: ['exchange-rates', date],
@@ -26,7 +39,16 @@ export function RatesScreen() {
     staleTime: 60 * 60 * 1000,
     retry: false,
   });
-  const rate = rates.data?.find((row) => row.base === currency)?.rate;
+  const rateText = (unit: RateCurrency) => {
+    const published = rates.data?.find((row) => row.base === unit)?.rate;
+    return manualRates[unit] ?? (published === undefined ? '' : rateInputFormat.format(published));
+  };
+  const rate = parseConversionRate(rateText(currency));
+  function changeDate(value: string) {
+    if (value === date) return;
+    setDate(value);
+    setManualRates({});
+  }
   let conversion: number | undefined;
   if (rate !== undefined && amount.trim()) {
     try {
@@ -84,14 +106,14 @@ export function RatesScreen() {
           <Button
             label="Consultar fecha"
             disabled={!canSearch || selectedDay === date}
-            onPress={() => setDate(selectedDay)}
+            onPress={() => changeDate(selectedDay)}
           />
           <Choice
             label="Ver tasas recientes"
             text="Recientes"
             selected={!date}
             onPress={() => {
-              setDate('');
+              changeDate('');
               setDraft('');
             }}
           />
@@ -109,6 +131,31 @@ export function RatesScreen() {
             />
           ))}
         </View>
+        {rateCurrencies.map((unit) => (
+          <View key={unit} style={{ gap: 6 }}>
+            <Field
+              label={`Tasa ${unit} a DOP`}
+              value={rateText(unit)}
+              onChangeText={(value) => setManualRates((current) => ({ ...current, [unit]: value }))}
+              keyboardType="decimal-pad"
+              maxLength={20}
+            />
+            {manualRates[unit] !== undefined && (
+              <>
+                {parseConversionRate(manualRates[unit]) === undefined && (
+                  <Text accessibilityRole="alert" style={s.error}>
+                    Escribe una tasa positiva.
+                  </Text>
+                )}
+                <Choice
+                  label={`Restaurar tasa de ${unit}`}
+                  selected={false}
+                  onPress={() => setManualRates((current) => ({ ...current, [unit]: undefined }))}
+                />
+              </>
+            )}
+          </View>
+        ))}
         <Field
           label={`Monto en ${currency}`}
           value={amount}
@@ -124,7 +171,7 @@ export function RatesScreen() {
             Escribe un monto positivo con hasta dos decimales y sin separadores de miles.
           </Text>
         )}
-        <Text style={s.muted}>Tasa de referencia. Los bancos pueden aplicar otra tasa.</Text>
+        <Text style={s.muted}>Las tasas editadas se usan solo en esta conversión.</Text>
       </View>
     </>
   );

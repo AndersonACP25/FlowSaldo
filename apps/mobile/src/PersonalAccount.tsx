@@ -96,6 +96,7 @@ export function PersonalAccount({
             />
             <Button
               label="Cancelar edición"
+              centered
               disabled={busy}
               onPress={() => {
                 setEditing(false);

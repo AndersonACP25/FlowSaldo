@@ -139,7 +139,13 @@ export function LocalReconciliationForm({
           {error}
         </Text>
       )}
-      <Choice label="Cerrar conciliación" selected={false} disabled={busy} onPress={onCancel} />
+      <Choice
+        label="Cerrar conciliación"
+        centered
+        selected={false}
+        disabled={busy}
+        onPress={onCancel}
+      />
     </View>
   );
 }

@@ -99,6 +99,33 @@ export function addPendingSettlement(
   );
 }
 
+export function updatePendingManualSettlement(
+  items: PendingItem[],
+  id: string,
+  settlementId: string,
+  amountMinor: number,
+  movements: ReadonlyMap<string, Movement>,
+) {
+  const item = items.find((entry) => entry.id === id);
+  const settlement = item?.settlements.find((entry) => entry.id === settlementId);
+  if (!item || settlement?.kind !== 'manual')
+    throw new Error('Solo se pueden editar abonos manuales existentes.');
+  const withoutSettlement = item.settlements.filter((entry) => entry.id !== settlementId);
+  if (!validAmount(amountMinor)) throw new Error('El abono debe ser mayor a cero.');
+  if (amountMinor > pendingRemaining({ ...item, settlements: withoutSettlement }, movements))
+    throw new Error('El abono excede el monto pendiente.');
+  return items.map((entry) =>
+    entry.id === id
+      ? {
+          ...entry,
+          settlements: entry.settlements.map((saved) =>
+            saved.id === settlementId ? { ...settlement, amountMinor } : saved,
+          ),
+        }
+      : entry,
+  );
+}
+
 export function validPendingItems(value: unknown): value is PendingItem[] {
   if (!Array.isArray(value)) return false;
   const ids = new Set<string>();

@@ -109,7 +109,7 @@ export function MonthlyClosingScreen({
               {amount(ledgerBalance(0, view.incomeMinor, view.expenseMinor, 0))}
             </Text>
             <Text style={s.muted}>Ingresos menos gastos</Text>
-            <View style={s.between}>
+            <View style={{ gap: 6 }}>
               <Text style={s.income}>Ingresos · {amount(view.incomeMinor)}</Text>
               <Text style={s.expense}>Gastos · {amount(view.expenseMinor)}</Text>
             </View>
