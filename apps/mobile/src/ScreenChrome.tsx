@@ -12,7 +12,7 @@ import {
 } from 'react-native';
 import { BrandMark } from './BrandMark';
 import { SettingsOptionsContext, useTheme } from './theme';
-import { IconButton } from './IconButton';
+import { IconButton, type IconName } from './IconButton';
 import { Choice } from './ui';
 import { StatusBar } from 'expo-status-bar';
 import {
@@ -46,6 +46,19 @@ const destinations = [
 ] as const;
 
 export type DrawerDestination = (typeof destinations)[number][0];
+
+const drawerIcons: Record<DrawerDestination, IconName> = {
+  Presupuestos: 'wallet',
+  Análisis: 'chart-pie',
+  'Analíticas y reportes': 'chart-column',
+  Tasas: 'arrow-left-right',
+  'Disponible hasta el próximo cobro': 'coins',
+  'Pagos y cobros pendientes': 'list-checks',
+  'Cierre mensual': 'calendar',
+  'Plan de pago de tarjetas y préstamos': 'credit-card',
+  'Metas de ahorro': 'piggy-bank',
+  'Simulador de préstamos': 'calculator',
+};
 
 export function AppHeader({
   name,
@@ -152,13 +165,20 @@ function HomeDrawer({
                 <Choice
                   key={key}
                   label={label ?? key}
+                  icon={drawerIcons[key]}
                   text={title ?? key}
                   selected={false}
                   disabled={disabled}
                   onPress={() => onSelect(key)}
                 />
               ))}
-              <Choice label="Salir" selected={false} disabled={disabled} onPress={onLogout} />
+              <Choice
+                label="Salir"
+                icon="logout"
+                selected={false}
+                disabled={disabled}
+                onPress={onLogout}
+              />
             </ScrollView>
           </SettingsOptionsContext.Provider>
         </Animated.View>

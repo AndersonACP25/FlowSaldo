@@ -1,6 +1,7 @@
 import React from 'react';
 import { Platform, View } from 'react-native';
 import { useTheme } from './theme';
+import type { IconName } from './IconButton';
 import { Choice } from './ui';
 
 export const settingsSections = [
@@ -22,6 +23,24 @@ export const settingsSections = [
 ] as const;
 
 export type SettingsSection = (typeof settingsSections)[number];
+
+const sectionIcons: Record<SettingsSection, IconName> = {
+  'Mi cuenta': 'user',
+  Preferencias: 'sliders-horizontal',
+  'Tasa del día': 'arrow-left-right',
+  Apariencia: 'palette',
+  'Mis bancos': 'landmark',
+  'Administrar categorías': 'tags',
+  'Reglas por comercio': 'list-filter',
+  'Cuentas y saldos': 'wallet',
+  'Cuentas y conciliación': 'list-checks',
+  Notificaciones: 'bell',
+  'Correo y Gmail': 'mail',
+  'Seguridad y privacidad': 'shield',
+  'Respaldo y restauración': 'archive',
+  'Preguntas frecuentes': 'circle-help',
+  'Acerca de la aplicación': 'info',
+};
 
 export function SettingsMenu({
   personal,
@@ -46,7 +65,13 @@ export function SettingsMenu({
   return (
     <View style={[s.card, { borderWidth: 0 }]}>
       {visible.map((section) => (
-        <Choice key={section} label={section} selected={false} onPress={() => onOpen(section)} />
+        <Choice
+          key={section}
+          label={section}
+          icon={sectionIcons[section]}
+          selected={false}
+          onPress={() => onOpen(section)}
+        />
       ))}
     </View>
   );

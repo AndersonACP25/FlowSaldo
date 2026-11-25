@@ -11,6 +11,10 @@ const sections = [
         'En Movimientos, toca Añadir. Elige el tipo, la moneda y la categoría. Puedes dividir un gasto entre varias categorías.',
       ],
       [
+        '¿Cómo registro una devolución y reviso su efecto?',
+        'Abre el gasto en Movimientos y usa Devolución. Puedes devolver parte o todo el importe disponible. Analíticas y reportes muestra el efecto en los gastos netos y permite exportar el mes por moneda.',
+      ],
+      [
         '¿Cómo organizo mis categorías?',
         'En Configuración puedes administrar categorías y crear reglas por comercio. Al escribir una descripción que coincida con una regla, puedes usar la sugerencia o elegir otra categoría.',
       ],
@@ -25,7 +29,7 @@ const sections = [
     questions: [
       [
         '¿Dónde reviso mis pagos pendientes?',
-        'Abre Pagos y cobros pendientes para registrar vencimientos, abonos y movimientos vinculados. Disponible hasta el próximo cobro usa tus gastos previstos para estimar cuánto puedes gastar.',
+        'Abre Pagos y cobros pendientes y expande un registro. Usa el icono de lápiz para cambiar el importe de un abono manual. Si vinculaste un movimiento, su importe se actualiza desde Movimientos.',
       ],
       [
         '¿Cómo uso el cierre mensual?',
@@ -38,15 +42,36 @@ const sections = [
     ],
   },
   {
+    title: 'Cuentas, respaldo y notificaciones',
+    questions: [
+      [
+        '¿Cómo registro cuentas y pago una tarjeta?',
+        'En Configuración, abre Cuentas y saldos para crear cuentas de efectivo, banco o tarjeta. Para pagar una tarjeta, registra una transferencia desde una cuenta de la misma moneda. Disminuye la deuda de la tarjeta sin duplicar el gasto.',
+      ],
+      [
+        '¿Cómo comparo mi saldo con el estado de cuenta?',
+        'En Cuentas y saldos, toca Conciliar en la cuenta que quieras revisar. Indica la fecha y hora de corte y el importe del estado de cuenta. Puedes confirmar la diferencia como un ajuste de saldo en el historial.',
+      ],
+      [
+        '¿Cómo guardo o recupero mi información?',
+        'En Configuración, abre Respaldo y restauración. Exporta un archivo JSON con tus datos locales. Al seleccionar un respaldo, podrás revisar su contenido antes de reemplazar los datos de este dispositivo.',
+      ],
+      [
+        '¿Cómo activo recordatorios de vencimiento?',
+        'En Android, abre Configuración y entra en Notificaciones. Activa los recordatorios de pagos pendientes y plantillas mensuales. El aviso se cancela al saldar el pago o pausar la plantilla.',
+      ],
+    ],
+  },
+  {
     title: 'Bancos y acceso',
     questions: [
       [
         '¿Dónde consulto tasas y bancos?',
-        'Tasa del día en Configuración muestra las tasas de referencia de USD y EUR. En Mis bancos puedes registrar los bancos dominicanos que utilizas y consultar sus opciones en Conexiones.',
+        'Busca Tasa del día en Configuración. Conversión se llena con las tasas USD y EUR de Frankfurter. Puedes editar cada tasa para tu cálculo o restaurar la publicada. En Mis bancos puedes registrar los bancos dominicanos que utilizas.',
       ],
       [
         '¿Qué puedo usar con la cuenta de prueba?',
-        'Puedes registrar movimientos, presupuestos y metas, consultar el historial, simular préstamos y exportar CSV. Los datos de prueba se guardan en este dispositivo.',
+        'Puedes llevar tus cuentas, movimientos, presupuestos y metas, simular préstamos y exportar reportes. Los datos de la cuenta de prueba se guardan en este dispositivo.',
       ],
     ],
   },

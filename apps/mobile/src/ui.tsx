@@ -1,5 +1,5 @@
 import React, { useContext, useEffect, useState } from 'react';
-import { IconButton } from './IconButton';
+import { Icon, IconButton, type IconName } from './IconButton';
 import { Pressable, Text, TextInput, View, type TextInputProps } from 'react-native';
 import { SettingsOptionsContext, useTheme } from './theme';
 export function Button({
@@ -7,11 +7,13 @@ export function Button({
   onPress,
   disabled = false,
   text,
+  centered = false,
 }: {
   label: string;
   onPress: () => void;
   disabled?: boolean;
   text?: string;
+  centered?: boolean;
 }) {
   const { styles: s } = useTheme();
   return (
@@ -20,7 +22,7 @@ export function Button({
       accessibilityLabel={label}
       disabled={disabled}
       onPress={onPress}
-      style={[s.button, disabled && s.disabled]}
+      style={[s.button, centered && { alignSelf: 'center' }, disabled && s.disabled]}
     >
       <Text style={s.buttonText}>{text ?? label}</Text>
     </Pressable>
@@ -34,9 +36,13 @@ export function Choice({
   text,
   compact = false,
   variant = 'default',
+  icon,
+  centered = false,
 }: {
   compact?: boolean;
   variant?: 'default' | 'text';
+  icon?: IconName;
+  centered?: boolean;
   label: string;
   selected: boolean;
   onPress: () => void;
@@ -56,13 +62,27 @@ export function Choice({
       style={({ pressed }) => [
         s.pill,
         plain && s.settingsOption,
+        icon && {
+          flexDirection: 'row',
+          alignItems: 'center',
+          justifyContent: 'flex-start',
+          gap: 10,
+        },
+        centered && { alignSelf: 'center' },
         compact && { paddingHorizontal: 0 },
         selected && s.selected,
         plain && pressed && { backgroundColor: palette.raised },
         disabled && s.disabled,
       ]}
     >
-      <Text style={[s.pillText, variant === 'text' && { textAlign: 'center' }]}>
+      {icon && <Icon name={icon} />}
+      <Text
+        style={[
+          s.pillText,
+          icon && { flexShrink: 1 },
+          variant === 'text' && { textAlign: 'center' },
+        ]}
+      >
         {text ?? label}
       </Text>
     </Pressable>

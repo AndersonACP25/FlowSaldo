@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useRef, useState } from 'react';
 import { ScrollView, Text, View } from 'react-native';
 import {
   currencies,
@@ -12,6 +12,7 @@ import {
   type PendingItem,
   type PendingSettlement,
 } from '@flowsaldo/domain';
+import { IconButton } from './IconButton';
 import { DateTimeField } from './DateTimeField';
 import { useTheme } from './theme';
 import { Button, Choice, Field } from './ui';
@@ -27,9 +28,11 @@ export function PendingPaymentsScreen({
   saving,
   money,
   canClose,
+  canEdit,
   onSave,
   onSettle,
   onRemove,
+  onEdit,
   onDelete,
   onClose,
   onRetry,
@@ -45,6 +48,7 @@ export function PendingPaymentsScreen({
   saving: boolean;
   money: (amountMinor: number, currency: Currency) => string;
   canClose: (item: PendingItem) => boolean;
+  canEdit: (item: PendingItem) => boolean;
   onSave: (draft: PendingDraft) => Promise<void>;
   onSettle: (
     id: string,
@@ -52,6 +56,7 @@ export function PendingPaymentsScreen({
       | Omit<Extract<PendingSettlement, { kind: 'manual' }>, 'id'>
       | Omit<Extract<PendingSettlement, { kind: 'movement' }>, 'id'>,
   ) => Promise<void>;
+  onEdit: (id: string, settlementId: string, amountMinor: number) => Promise<void>;
   onRemove: (id: string, settlementId: string) => Promise<void>;
   onDelete: (id: string) => Promise<void>;
   onClose: (item: PendingItem) => Promise<void>;
@@ -68,6 +73,8 @@ export function PendingPaymentsScreen({
   const [amount, setAmount] = useState('');
   const [date, setDate] = useState('');
   const [partial, setPartial] = useState('');
+  const [edited, setEdited] = useState<{ id: string; amount: string } | null>(null);
+  const processing = useRef(false);
   const [removing, setRemoving] = useState('');
   const [deleting, setDeleting] = useState('');
   const [error, setError] = useState('');
@@ -97,6 +104,8 @@ export function PendingPaymentsScreen({
     .sort((a, b) => a.item.dueAt.localeCompare(b.item.dueAt));
 
   async function run(work: () => Promise<void>, message: string) {
+    if (processing.current) return;
+    processing.current = true;
     setError('');
     setNotice('');
     try {
@@ -104,6 +113,8 @@ export function PendingPaymentsScreen({
       setNotice(message);
     } catch (e) {
       setError(e instanceof Error ? e.message : 'No se pudo completar la acción.');
+    } finally {
+      processing.current = false;
     }
   }
 
@@ -134,6 +145,7 @@ export function PendingPaymentsScreen({
                   selected={filter === status}
                   onPress={() => {
                     setExpanded(null);
+                    setEdited(null);
                     setFilter(status);
                   }}
                 />
@@ -272,7 +284,8 @@ export function PendingPaymentsScreen({
               {item.dueAt.replace('T', ' · ')}
             </Text>
             {link && !alreadyLinked ? (
-              <Button
+              <IconButton
+                icon="link"
                 label={`Vincular a ${item.name}`}
                 disabled={blocked}
                 onPress={() =>
@@ -284,14 +297,14 @@ export function PendingPaymentsScreen({
               />
             ) : (
               <>
-                <Choice
+                <IconButton
+                  icon={open ? 'chevron-up' : 'chevron-down'}
                   label={`${open ? 'Ocultar' : 'Ver'} detalle de ${item.name}`}
-                  text={open ? 'Ocultar detalle' : 'Ver detalle'}
-                  selected={open}
                   disabled={saving || !!alreadyLinked}
                   onPress={() => {
                     setExpanded(open ? null : item.id);
                     setPartial('');
+                    setEdited(null);
                     setRemoving('');
                   }}
                 />
@@ -309,33 +322,96 @@ export function PendingPaymentsScreen({
                           ? 'Abono manual'
                           : (movement?.description ?? 'Movimiento');
                       return (
-                        <View key={entry.id} style={s.between}>
-                          <Text style={[s.muted, { flexShrink: 1 }]}>
-                            {label} ·{' '}
-                            {!ready && entry.kind === 'movement'
-                              ? 'Por verificar'
-                              : applied
-                                ? money(applied, item.currency)
-                                : 'Ya no coincide o no está disponible'}
-                          </Text>
-                          <Choice
-                            label={
-                              removing === entry.id ? 'Confirmar quitar abono' : `Quitar ${label}`
-                            }
-                            text={removing === entry.id ? 'Confirmar' : 'Quitar'}
-                            selected={removing === entry.id}
-                            disabled={blocked}
-                            onPress={() => {
-                              if (removing !== entry.id) {
-                                setRemoving(entry.id);
-                                return;
-                              }
-                              void run(async () => {
-                                await onRemove(item.id, entry.id);
-                                setRemoving('');
-                              }, 'Abono quitado.');
-                            }}
-                          />
+                        <View key={entry.id} style={{ gap: 8 }}>
+                          <View style={s.between}>
+                            <Text style={[s.muted, { flexShrink: 1 }]}>
+                              {label} ·{' '}
+                              {!ready && entry.kind === 'movement'
+                                ? 'Por verificar'
+                                : applied
+                                  ? money(applied, item.currency)
+                                  : 'Ya no coincide o no está disponible'}
+                            </Text>
+                            <View style={s.row}>
+                              {entry.kind === 'manual' && canEdit(item) && (
+                                <IconButton
+                                  icon="edit"
+                                  label="Editar abono manual"
+                                  disabled={blocked}
+                                  onPress={() => {
+                                    setEdited({
+                                      id: entry.id,
+                                      amount: String(entry.amountMinor / 100),
+                                    });
+                                    setRemoving('');
+                                    setError('');
+                                  }}
+                                />
+                              )}
+                              <IconButton
+                                icon={removing === entry.id ? 'check' : 'trash'}
+                                label={
+                                  removing === entry.id
+                                    ? 'Confirmar quitar abono'
+                                    : `Quitar ${label}`
+                                }
+                                danger={removing !== entry.id}
+                                disabled={blocked}
+                                onPress={() => {
+                                  if (removing !== entry.id) {
+                                    setEdited(null);
+                                    setRemoving(entry.id);
+                                    return;
+                                  }
+                                  void run(async () => {
+                                    await onRemove(item.id, entry.id);
+                                    setRemoving('');
+                                  }, 'Abono quitado.');
+                                }}
+                              />
+                              {removing === entry.id && (
+                                <IconButton
+                                  icon="close"
+                                  label="Cancelar retiro de abono"
+                                  disabled={blocked}
+                                  onPress={() => setRemoving('')}
+                                />
+                              )}
+                            </View>
+                          </View>
+                          {edited?.id === entry.id && (
+                            <>
+                              <Field
+                                label="Nuevo monto del abono"
+                                value={edited.amount}
+                                keyboardType="decimal-pad"
+                                editable={!blocked}
+                                onChangeText={(value) => setEdited({ id: entry.id, amount: value })}
+                              />
+                              <View style={[s.row, { justifyContent: 'center' }]}>
+                                <IconButton
+                                  icon="check"
+                                  label="Guardar cambios del abono"
+                                  disabled={blocked || !edited.amount.trim()}
+                                  onPress={() =>
+                                    void run(async () => {
+                                      await onEdit(item.id, entry.id, parseAmount(edited.amount));
+                                      setEdited(null);
+                                    }, 'Abono actualizado.')
+                                  }
+                                />
+                                <IconButton
+                                  icon="close"
+                                  label="Cancelar edición del abono"
+                                  disabled={blocked}
+                                  onPress={() => {
+                                    setEdited(null);
+                                    setError('');
+                                  }}
+                                />
+                              </View>
+                            </>
+                          )}
                         </View>
                       );
                     })}
@@ -370,7 +446,8 @@ export function PendingPaymentsScreen({
                           editable={!blocked}
                         />
                         <Text style={s.muted}>El abono actualiza solo este pendiente.</Text>
-                        <Button
+                        <IconButton
+                          icon="add"
                           label="Registrar abono"
                           disabled={blocked || !partial.trim()}
                           onPress={() =>

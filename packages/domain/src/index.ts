@@ -272,6 +272,7 @@ export { dominicanBanks, type BankRegistration } from './dominicanBanks.ts';
 
 export {
   addPendingSettlement,
+  updatePendingManualSettlement,
   checkPendingDraft,
   pendingOccurrence,
   pendingRemaining,

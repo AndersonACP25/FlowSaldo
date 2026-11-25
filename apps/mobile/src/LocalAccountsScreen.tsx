@@ -163,6 +163,7 @@ export function LocalAccountsScreen({
           />
           <Choice
             label="Cancelar"
+            centered
             selected={false}
             disabled={busy}
             onPress={() => {

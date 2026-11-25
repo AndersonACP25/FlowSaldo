@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { validDate } from '@flowsaldo/domain';
-import { IconButton } from './IconButton';
+import { Icon, IconButton } from './IconButton';
 import { useTheme } from './theme';
 import { Button, Choice, Field } from './ui';
 
@@ -87,7 +87,7 @@ export function PeriodPicker({
           pressed && styles.todayPressed,
         ]}
       >
-        <Text style={[styles.todayText, { color: palette.income }]}>Hoy</Text>
+        <Icon name="restore" />
       </Pressable>
       {open && (
         <View style={styles.picker}>
@@ -149,7 +149,6 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     borderWidth: 1,
   },
-  todayText: { fontSize: 16, fontWeight: '800' },
   todayPressed: { opacity: 0.74 },
   month: { textTransform: 'capitalize' },
   picker: { gap: 12 },

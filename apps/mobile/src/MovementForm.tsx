@@ -415,7 +415,7 @@ export function MovementForm({
         disabled={busy}
         onPress={() => void save()}
       />
-      <Button label="Cancelar" disabled={busy} onPress={onCancel} />
+      <Button label="Cancelar" centered disabled={busy} onPress={onCancel} />
     </View>
   );
 }

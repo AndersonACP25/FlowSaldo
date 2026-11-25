@@ -61,6 +61,7 @@ export function BackupSettings({
         />
         <Choice
           label="Seleccionar respaldo"
+          centered
           selected={false}
           disabled={disabled}
           onPress={() =>
@@ -104,6 +105,7 @@ export function BackupSettings({
           />
           <Choice
             label="Cancelar"
+            centered
             selected={false}
             disabled={disabled}
             onPress={() => {

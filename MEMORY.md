@@ -264,3 +264,7 @@ Cuentas y saldos compara una cuenta activa con el importe del estado de cuenta a
 ## Recordatorios de vencimiento locales (2026-11-25)
 
 En Android, Configuración → Notificaciones activa avisos por pagos pendientes y próximos vencimientos de plantillas mensuales de la cuenta de prueba. Los disparos se calculan en hora dominicana con la regla de fechas existente. Un pago vinculado sustituye el aviso de su plantilla. Abonos parciales conservan el aviso y saldar, pausar o confirmar evita que el aviso anterior siga activo. La preferencia pertenece al dispositivo y la programación se actualiza al guardar y al volver en primer plano. No se exponen nombres ni montos en las notificaciones. La app funciona con entrega aproximada y permite habilitar la hora exacta desde Android.
+
+## Ajustes de navegación, conversión y abonos (2026-11-25)
+
+Los controles de retorno usan iconos y los menús muestran un icono por opción. Las acciones secundarias independientes de cancelar o cerrar se centran. Conversión permite probar tasas USD y EUR a DOP con valores iniciales de Frankfurter y restaurarlos. La edición se limita a la pantalla y consulta activa. Los abonos manuales se pueden editar sin duplicar registros, con validación del saldo y conservando los movimientos vinculados. Cierre mensual apila ingresos y gastos.

@@ -280,7 +280,7 @@ export async function checkCoreFlows(browser) {
     await button('Ver amortización').click();
     await page.getByText('Cuota 2 · 2028-02-29 · 17:30', { exact: true }).waitFor();
     assert.deepEqual((await stored()).movements, beforePlanning);
-    assert.equal(await button('Volver').innerText(), 'Volver');
+    assert.equal(await button('Volver').innerText(), '←');
     await button('Abrir menú').click();
     const planLink = button('Plan de pago de tarjetas y préstamos');
     assert.equal(
@@ -355,6 +355,7 @@ export async function checkCoreFlows(browser) {
     await button('Configuración').click();
     const dailyRate = button('Tasa del día');
     assert.equal(await dailyRate.innerText(), 'Tasa del día');
+    assert.ok(await dailyRate.locator('[aria-hidden="true"]').count());
     assert.equal(
       await dailyRate.evaluate(
         (element) => element.ownerDocument.defaultView.getComputedStyle(element).borderTopWidth,
@@ -385,6 +386,16 @@ export async function checkCoreFlows(browser) {
     await button('Consultar fecha').click();
     await page.getByText('Publicada el 2024-01-03', { exact: true }).first().waitFor();
     await page.getByLabel('Monto en USD', { exact: true }).fill('2');
+    await page.getByText(/DOP\s*120[.,]00/).waitFor();
+    const usdRate = page.getByLabel('Tasa USD a DOP', { exact: true });
+    const eurRate = page.getByLabel('Tasa EUR a DOP', { exact: true });
+    assert.equal(await usdRate.inputValue(), '60');
+    assert.equal(await eurRate.inputValue(), '65');
+    await usdRate.fill('61,25');
+    await page.getByText(/DOP\s*122[.,]50/).waitFor();
+    await usdRate.fill('0');
+    await page.getByRole('alert').filter({ hasText: 'Escribe una tasa positiva.' }).waitFor();
+    await button('Restaurar tasa de USD').click();
     await page.getByText(/DOP\s*120[.,]00/).waitFor();
     await button('Inicio').click();
     await button('Volver a hoy').click();
@@ -675,9 +686,26 @@ export async function checkCoreFlows(browser) {
       await button('Movimientos').click();
       await button('Registrar pendiente Alquiler CORE').click();
       await page.getByRole('heading', { name: 'Pagos y cobros pendientes', exact: true }).waitFor();
-      await page.getByLabel('Monto del abono', { exact: true }).fill('5000');
+      await page.getByLabel('Monto del abono', { exact: true }).fill('4000');
       await button('Registrar abono').click();
       await page.getByText('Abono registrado.', { exact: true }).waitFor();
+      const originalSettlement = (await stored()).pendingItems.demo[0].settlements[0];
+      await button('Editar abono manual').click();
+      const editedAmount = page.getByLabel('Nuevo monto del abono', { exact: true });
+      assert.equal(await editedAmount.inputValue(), '4000');
+      await editedAmount.fill('12001');
+      await button('Guardar cambios del abono').click();
+      await page
+        .getByRole('alert')
+        .filter({ hasText: 'El abono excede el monto pendiente.' })
+        .waitFor();
+      assert.deepEqual((await stored()).pendingItems.demo[0].settlements, [originalSettlement]);
+      await editedAmount.fill('5000');
+      await button('Guardar cambios del abono').click();
+      await page.getByText('Abono actualizado.', { exact: true }).waitFor();
+      assert.deepEqual((await stored()).pendingItems.demo[0].settlements, [
+        { ...originalSettlement, amountMinor: 500000 },
+      ]);
       assert.equal((await stored()).movements.length, 0);
       await button('Inicio').click();
       await button('Abrir menú').click();
@@ -686,6 +714,11 @@ export async function checkCoreFlows(browser) {
       await page.getByLabel('Fecha exacta (AAAA-MM-DD)', { exact: true }).fill(day);
       await button('Aplicar fecha').click();
       await page.getByText('Por pagar · DOP 7,000.00', { exact: true }).waitFor();
+      const incomeBounds = await page.getByText(/^Ingresos · DOP /).boundingBox();
+      const expenseBounds = await page.getByText(/^Gastos · DOP /).boundingBox();
+      assert.ok(
+        incomeBounds && expenseBounds && expenseBounds.y >= incomeBounds.y + incomeBounds.height,
+      );
       await button('Revisar pendiente Alquiler CORE').click();
       await page.getByRole('heading', { name: 'Pagos y cobros pendientes', exact: true }).waitFor();
       await button('Volver').click();

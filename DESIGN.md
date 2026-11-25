@@ -95,3 +95,5 @@ Inicio de sesión y registro conservan la paleta y muestran «Vista previa de ac
 ## Grilla adaptable y acciones
 
 Distribuir tarjetas y filtros en una grilla según el espacio disponible. Apilar módulos en pantallas estrechas y priorizar la información principal. Usar iconos reconocibles para mostrar u ocultar contraseña, editar, duplicar, eliminar y cerrar sesión. Mantener nombres accesibles, foco visible y controles táctiles de al menos 44 × 44.
+
+Los controles de retorno usan una flecha como icono y conservan su nombre accesible. Las opciones de Configuración y del menú lateral muestran el icono a la izquierda del texto. Las acciones secundarias de cancelar o cerrar se centran cuando ocupan una fila propia. En un grupo de confirmación, las acciones pueden compartir una fila con iconos y nombres accesibles.

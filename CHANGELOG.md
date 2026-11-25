@@ -79,3 +79,20 @@ Diseño Dark Slate, revisión manual, flujo semanal y launcher Expo con prueba M
 - Conciliación manual por fecha UTC con diferencias, versión e historial protegido.
 - Presupuestos API en servidor, control de conflictos y copia explícita de límites locales anteriores.
 - Migración aditiva y pruebas enfocadas en integridad financiera.
+
+
+## v0.10.3 — Finanzas personales y aplicación Android
+
+- Menú lateral, navegación inferior, temas y preferencias reorganizadas. Tasas USD y EUR a DOP e histórico con selector de fecha y hora.
+- Proyección de efectivo, metas de ahorro, cobros y pagos pendientes, plan de deuda y simulador de préstamos.
+- Gastos divididos, reglas por comercio, cierre mensual y devoluciones parciales o totales vinculadas al gasto original.
+- Analíticas por mes y moneda con exportación de reportes a CSV.
+
+
+## En desarrollo
+
+- Respaldo y restauración local en JSON. Cuentas, saldos, transferencias y pagos de tarjetas para la cuenta de prueba.
+- Conciliación manual por fecha y hora con ajustes identificados en el historial. Avisos de Android para pagos pendientes y plantillas mensuales.
+- Iconos de retorno y en todas las opciones de Configuración y del menú lateral. Acciones secundarias centradas en respaldo, cuentas y conciliación.
+- Tasas de conversión USD y EUR editables a partir de Frankfurter. Ingresos y gastos apilados en el cierre mensual.
+- Edición validada de abonos manuales y acciones con iconos accesibles en Pagos y cobros pendientes. Preguntas frecuentes actualizadas.

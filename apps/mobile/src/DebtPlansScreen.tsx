@@ -283,6 +283,7 @@ function DebtPlanForm({
         <Button label="Guardar y comparar" disabled={saving} onPress={() => void submit()} />
         <Choice
           label="Cancelar edición del plan"
+          centered
           text="Cancelar"
           selected={false}
           disabled={saving}
