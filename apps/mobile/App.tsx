@@ -12,6 +12,12 @@ import { SettingsMenu, settingsSections, type SettingsSection } from './src/Sett
 import { BackupSettings } from './src/BackupSettings';
 import { LocalAccountsScreen } from './src/LocalAccountsScreen';
 import { restoreLocalBackup } from './src/localBackup';
+import {
+  cashProjectionKey,
+  hasUnassignedConnectedData,
+  localDataScope,
+  replaceDemoData,
+} from './src/dataScopes';
 import { ThemeProvider, ThemeSettings } from './src/ThemeProvider';
 import { DateTimeField } from './src/DateTimeField';
 import { AboutApp } from './src/AboutApp';
@@ -320,16 +326,12 @@ function Home({
     /* Auth screen explains invalid API configuration. Demo stays available. */
   }
   const connected = !!session;
-  const savingsMode = connected ? 'api' : 'demo';
-  const savingsGoals = local.savingsGoals[savingsMode];
-  const pendingScope = personal ? `owner:${personal.owner.id}` : savingsMode;
-  const pendingItems = local.pendingItems[pendingScope] ?? [];
-  const planningScope = connected
-    ? JSON.stringify([url, personal?.owner.id ?? 'development'])
-    : 'demo';
-  const debtPlans = local.debtPlans[planningScope] ?? [];
-  const monthlyClosings = local.monthlyClosings[planningScope] ?? [];
-  const commerceRules = local.commerceRules[planningScope] ?? [];
+  const dataScope = localDataScope(url, connected ? (personal?.owner.id ?? 'development') : null);
+  const savingsGoals = local.savingsGoals[dataScope] ?? [];
+  const pendingItems = local.pendingItems[dataScope] ?? [];
+  const debtPlans = local.debtPlans[dataScope] ?? [];
+  const monthlyClosings = local.monthlyClosings[dataScope] ?? [];
+  const commerceRules = local.commerceRules[dataScope] ?? [];
   const pendingMovementIds = [
     ...new Set(
       pendingItems.flatMap((item) =>
@@ -346,7 +348,7 @@ function Home({
       ),
     ),
   ].sort();
-  const projectionKey = `${connected ? 'api' : 'demo'}:${projectionCurrency}` as const;
+  const projectionKey = cashProjectionKey(dataScope, projectionCurrency);
   useEffect(() => {
     let active = true;
     void loadLocal()
@@ -400,7 +402,7 @@ function Home({
     }
   }
   const savingsTransfersQuery = useQuery({
-    queryKey: ['savings-transfers', url, savingsTransferIds],
+    queryKey: ['savings-transfers', dataScope, savingsTransferIds],
     enabled: connected && screen === 'Metas de ahorro' && savingsTransferIds.length > 0,
     retry: false,
     queryFn: async () => {
@@ -430,7 +432,7 @@ function Home({
       ].sort()
     : pendingMovementIds;
   const pendingLinksQuery = useQuery({
-    queryKey: ['pending-links', url, pendingScope, relevantPendingIds],
+    queryKey: ['pending-links', dataScope, relevantPendingIds],
     enabled:
       connected &&
       relevantPendingIds.length > 0 &&
@@ -446,7 +448,7 @@ function Home({
     : localMovementIndex(local);
 
   const bankDirectory = useQuery({
-    queryKey: ['banks', personal?.owner.id],
+    queryKey: ['banks', dataScope],
     enabled: !!personal && (screen === 'Mis bancos' || screen === 'Conexiones'),
     retry: false,
     queryFn: async (): Promise<BankRegistration[]> => request('/banks'),
@@ -456,7 +458,7 @@ function Home({
     : dominicanBanks.map((bank) => ({ ...bank, registered: local.bankIds.includes(bank.id) }));
 
   const accountsQuery = useQuery({
-    queryKey: ['accounts', connected],
+    queryKey: ['accounts', dataScope],
     enabled:
       connected &&
       (screen === 'Cuentas y conciliación' ||
@@ -467,27 +469,27 @@ function Home({
     queryFn: async (): Promise<FinancialAccount[]> => request('/accounts'),
   });
   const serverBudget = useQuery({
-    queryKey: ['budgets', connected, month, currency],
+    queryKey: ['budgets', dataScope, month, currency],
     enabled: connected,
     retry: false,
     queryFn: async (): Promise<ServerBudget> =>
       request(`/budgets?month=${month}&currency=${currency}`),
   });
   const catalog = useQuery({
-    queryKey: ['categories', connected],
+    queryKey: ['categories', dataScope],
     enabled: connected,
     retry: false,
     queryFn: async (): Promise<Category[]> => request('/categories'),
   });
   const queue = useQuery({
-    queryKey: ['import-stats', connected],
+    queryKey: ['import-stats', dataScope],
     enabled: connected,
     retry: false,
     refetchInterval: connected && screen === 'Conexiones' ? 5000 : false,
     queryFn: async (): Promise<ImportStats> => request('/imports/stats'),
   });
   const recurringQuery = useQuery({
-    queryKey: ['recurring', connected],
+    queryKey: ['recurring', dataScope],
     enabled: connected,
     retry: false,
     queryFn: async (): Promise<RecurringTemplate[]> => request('/recurring'),
@@ -516,13 +518,13 @@ function Home({
     refreshMovements,
     exportAll,
   } = useMovementHistory({
-    connection: connected ? { url, token: session, ownerId: personal?.owner.id, request } : null,
+    connection: connected ? { url, token: session, scope: dataScope, request } : null,
     rows: local.movements,
     month,
     currency,
     periodDate,
     filters: { type, search, categoryId: categoryFilter, accountId: accountFilter },
-    closing: { active: closing, scope: planningScope, categoryId: uncategorizedId },
+    closing: { active: closing, categoryId: uncategorizedId },
     refundSource: screen === 'Registrar devolución' ? (refundDraft?.expense ?? null) : null,
   });
   const commands = movementCommands({
@@ -539,7 +541,7 @@ function Home({
     (reviewTo && !rangeEnd) ||
     (rangeStart && rangeEnd && rangeStart >= rangeEnd);
   const imports = useInfiniteQuery({
-    queryKey: ['imports', connected, reviewParams],
+    queryKey: ['imports', dataScope, reviewParams],
     enabled: connected && !reviewDateError,
     retry: false,
     refetchInterval:
@@ -852,7 +854,7 @@ function Home({
       connected &&
       recordMovement &&
       pendingOccurrence(
-        localRef.current.pendingItems[pendingScope] ?? [],
+        localRef.current.pendingItems[dataScope] ?? [],
         template.id,
         template.nextDate,
       )
@@ -879,7 +881,7 @@ function Home({
       } else {
         await persist((current) => {
           const linked = pendingOccurrence(
-            current.pendingItems[pendingScope] ?? [],
+            current.pendingItems[dataScope] ?? [],
             template.id,
             template.nextDate,
           );
@@ -945,10 +947,10 @@ function Home({
   async function changeBank(id: string, registered: boolean) {
     if (connected) {
       await request(`/banks/${id}`, { method: 'PATCH', body: JSON.stringify({ registered }) });
-      client.setQueryData<BankRegistration[]>(['banks', personal?.owner.id], (current) =>
+      client.setQueryData<BankRegistration[]>(['banks', dataScope], (current) =>
         current?.map((bank) => (bank.id === id ? { ...bank, registered } : bank)),
       );
-      await client.invalidateQueries({ queryKey: ['banks', personal?.owner.id] });
+      await client.invalidateQueries({ queryKey: ['banks', dataScope] });
     } else {
       await persist((current) => {
         const bankIds = new Set(current.bankIds);
@@ -1094,22 +1096,7 @@ function Home({
     setNotice('Correo descartado sin contabilizar.');
   }
   async function reset() {
-    await persist((current) => {
-      const next = initialData();
-      next.cashProjections = Object.fromEntries(
-        Object.entries(current.cashProjections).filter(([key]) => key.startsWith('api:')),
-      );
-      next.savingsGoals.api = current.savingsGoals.api;
-      next.pendingItems = { ...current.pendingItems };
-      delete next.pendingItems.demo;
-      next.debtPlans = { ...current.debtPlans };
-      delete next.debtPlans.demo;
-      next.monthlyClosings = { ...current.monthlyClosings };
-      delete next.monthlyClosings.demo;
-      next.commerceRules = { ...current.commerceRules };
-      delete next.commerceRules.demo;
-      return next;
-    }, !!loadError);
+    await persist((current) => replaceDemoData(current, initialData()), !!loadError);
     setLoadError('');
     setReady(true);
     setResetConfirm(false);
@@ -1141,7 +1128,7 @@ function Home({
       ...current,
       savingsGoals: {
         ...current.savingsGoals,
-        [savingsMode]: update(current.savingsGoals[savingsMode], current),
+        [dataScope]: update(current.savingsGoals[dataScope] ?? [], current),
       },
     }));
   }
@@ -1223,10 +1210,10 @@ function Home({
 
   function updatePending(update: (items: PendingItem[], current: LocalData) => PendingItem[]) {
     return persist((current) => {
-      const items = current.pendingItems[pendingScope] ?? [];
+      const items = current.pendingItems[dataScope] ?? [];
       const next = update(items, current);
       if (next === items) return current;
-      return { ...current, pendingItems: { ...current.pendingItems, [pendingScope]: next } };
+      return { ...current, pendingItems: { ...current.pendingItems, [dataScope]: next } };
     });
   }
 
@@ -1312,7 +1299,7 @@ function Home({
         ...current,
         commerceRules: {
           ...current.commerceRules,
-          [planningScope]: update(current.commerceRules[planningScope] ?? []),
+          [dataScope]: update(current.commerceRules[dataScope] ?? []),
         },
       }));
     });
@@ -1323,7 +1310,7 @@ function Home({
         ...current,
         debtPlans: {
           ...current.debtPlans,
-          [planningScope]: update(current.debtPlans[planningScope] ?? []),
+          [dataScope]: update(current.debtPlans[dataScope] ?? []),
         },
       }));
     });
@@ -1488,7 +1475,7 @@ function Home({
                 onSave={savePending}
                 onSettle={(id, settlement) =>
                   saveForm(async () => {
-                    const item = (localRef.current.pendingItems[pendingScope] ?? []).find(
+                    const item = (localRef.current.pendingItems[dataScope] ?? []).find(
                       (entry) => entry.id === id,
                     );
                     if (!item) throw new Error('El pendiente ya no está disponible.');
@@ -1512,7 +1499,7 @@ function Home({
                 }
                 onEdit={(id, settlementId, amountMinor) =>
                   saveForm(async () => {
-                    const item = (localRef.current.pendingItems[pendingScope] ?? []).find(
+                    const item = (localRef.current.pendingItems[dataScope] ?? []).find(
                       (entry) => entry.id === id,
                     );
                     if (!item) throw new Error('El pendiente ya no está disponible para edición.');
@@ -1567,7 +1554,7 @@ function Home({
                 onClose={(item) =>
                   saveForm(async () => {
                     const template = currentPendingTemplate(item);
-                    const current = (localRef.current.pendingItems[pendingScope] ?? []).find(
+                    const current = (localRef.current.pendingItems[dataScope] ?? []).find(
                       (entry) => entry.id === item.id,
                     );
                     if (
@@ -1589,7 +1576,7 @@ function Home({
             )}
             {screen === 'Plan de pago de tarjetas y préstamos' && (
               <DebtPlansScreen
-                key={planningScope}
+                key={dataScope}
                 plans={debtPlans}
                 defaultCurrency={currency}
                 saving={busy}
@@ -1667,7 +1654,7 @@ function Home({
             )}
             {closing && (
               <MonthlyClosingScreen
-                key={planningScope + month + currency}
+                key={dataScope + month + currency}
                 current={currentClosing}
                 saved={monthlyClosings.find(
                   (item) => item.month === month && item.currency === currency,
@@ -1704,12 +1691,12 @@ function Home({
                 onSave={(snapshot) =>
                   saveForm(() =>
                     persist((current) => {
-                      const previous = current.monthlyClosings[planningScope] ?? [];
+                      const previous = current.monthlyClosings[dataScope] ?? [];
                       return {
                         ...current,
                         monthlyClosings: {
                           ...current.monthlyClosings,
-                          [planningScope]: [
+                          [dataScope]: [
                             ...previous.filter(
                               (item) => item.month !== month || item.currency !== currency,
                             ),
@@ -2475,12 +2462,20 @@ function Home({
               ))}
             {screen === 'Mi cuenta' &&
               (personal ? (
-                <PersonalAccount
-                  session={personal}
-                  onLogout={onLogout}
-                  onPasswordChanged={onExpired}
-                  onProfileChanged={onProfileChanged}
-                />
+                <>
+                  <PersonalAccount
+                    session={personal}
+                    onLogout={onLogout}
+                    onPasswordChanged={onExpired}
+                    onProfileChanged={onProfileChanged}
+                  />
+                  {hasUnassignedConnectedData(local) && (
+                    <Text style={s.muted}>
+                      Este dispositivo conserva datos conectados antiguos sin servidor identificado.
+                      Permanecen fuera de la cuenta actual.
+                    </Text>
+                  )}
+                </>
               ) : (
                 <View style={s.card}>
                   <Text style={s.title}>{testAccount.name}</Text>

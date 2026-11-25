@@ -276,3 +276,8 @@ El hook de historial centraliza paginación, filtros, totales API, vista previa 
 ## Escrituras locales en cola (2026-11-25)
 
 El almacenamiento local serializa las transformaciones dentro de la misma instancia de la app. Cada escritura parte de la última versión confirmada y un error de guardado conserva esa versión. La restauración comprueba dentro de la cola que su vista previa siga vigente. Los vínculos locales de abonos, metas y devoluciones se verifican al ejecutar la escritura. El restablecimiento confirmado puede recuperar almacenamiento ilegible. Se mantienen la clave del almacenamiento y los formatos de respaldo v1 y v2.
+
+
+## Aislamiento de datos conectados en el dispositivo (2026-11-25)
+
+Las metas, los pendientes, las proyecciones, los planes de pago, los cierres mensuales, las reglas por comercio y la caché de consultas usan la URL base de la API y el identificador de la cuenta. Desarrollo tiene un ámbito propio por servidor. Los datos ya asociados a ese par conservan su clave. Las antiguas claves compartidas de metas, pendientes y proyecciones se mantienen sin asignación automática porque carecen de servidor verificable. Mi cuenta avisa si el dispositivo conserva estos registros. Restaurar un respaldo v1 o v2 y restablecer la demo mantienen los datos conectados y los registros antiguos. Exportar un respaldo incluye solo el contenido de la cuenta de prueba.

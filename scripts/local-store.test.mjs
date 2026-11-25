@@ -1,6 +1,13 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import { createLocalStore } from '../apps/mobile/src/localStore.ts';
+import {
+  cashProjectionKey,
+  hasUnassignedConnectedData,
+  isCashProjectionKey,
+  localDataScope,
+  replaceDemoData,
+} from '../apps/mobile/src/dataScopes.ts';
 import { movementCommands } from '../apps/mobile/src/movementCommands.ts';
 
 test('local writes use the last committed snapshot and reject a stale restore preview', async () => {
@@ -125,4 +132,66 @@ test('concurrent local refunds respect the original amount and replay only once'
       .map((movement) => movement.amountMinor),
     [600],
   );
+});
+
+test('demo replacement preserves connected and unassigned records across accounts and servers', () => {
+  const url = 'https://saldo.example.test:8443/api';
+  const personal = localDataScope(url, 1);
+  const otherOwner = localDataScope(url, 2);
+  const otherServer = localDataScope('https://saldo2.example.test/api', 1);
+  const development = localDataScope(url, 'development');
+  assert.equal(personal, JSON.stringify([url, 1]));
+  assert.equal(
+    new Set([personal, otherOwner, otherServer, development, localDataScope(url, null)]).size,
+    5,
+  );
+
+  const personalKey = cashProjectionKey(personal, 'EUR');
+  for (const key of [personalKey, 'demo:DOP', 'api:USD']) assert.ok(isCashProjectionKey(key));
+  for (const key of [
+    personalKey.replace('EUR', 'GBP'),
+    'owner:1:EUR',
+    '["https://saldo.example.test",0]:EUR',
+  ])
+    assert.equal(isCashProjectionKey(key), false);
+
+  const cache = {
+    budgets: {},
+    categoryBudgets: {},
+    cashProjections: { [personalKey]: { balanceMinor: 1250 }, 'api:USD': { balanceMinor: 700 } },
+    savingsGoals: {
+      demo: ['old demo'],
+      api: ['unassigned'],
+      [personal]: ['personal'],
+      [development]: ['dev'],
+    },
+    pendingItems: {
+      demo: ['old demo'],
+      'owner:1': ['unassigned'],
+      [personal]: ['personal'],
+      [otherServer]: ['other'],
+    },
+    debtPlans: { [personal]: ['existing plan'] },
+    monthlyClosings: { [otherOwner]: ['existing closing'] },
+    commerceRules: { [otherServer]: ['existing rule'] },
+  };
+  const demo = {
+    budgets: {},
+    categoryBudgets: {},
+    cashProjections: { 'demo:EUR': { balanceMinor: 900 } },
+    savingsGoals: { demo: ['restored demo'], api: [] },
+    pendingItems: {},
+    debtPlans: {},
+    monthlyClosings: {},
+    commerceRules: {},
+  };
+  assert.equal(hasUnassignedConnectedData(demo), false);
+  const restored = replaceDemoData(cache, demo);
+  assert.deepEqual(restored, {
+    ...cache,
+    cashProjections: { ...cache.cashProjections, ...demo.cashProjections },
+    savingsGoals: { ...cache.savingsGoals, demo: demo.savingsGoals.demo },
+    pendingItems: { 'owner:1': ['unassigned'], [personal]: ['personal'], [otherServer]: ['other'] },
+  });
+  assert.equal(hasUnassignedConnectedData(restored), true);
 });

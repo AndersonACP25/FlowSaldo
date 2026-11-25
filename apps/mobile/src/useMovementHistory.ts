@@ -6,6 +6,7 @@ import {
   type Movement,
   type MovementType,
 } from '@flowsaldo/domain';
+import type { LocalScope } from './dataScopes';
 import { exportCsv, exportCsvText } from './exportCsv';
 import { movementParams, type MonthlySummary, type MovementRequest, type Page } from './history';
 
@@ -19,13 +20,13 @@ export function useMovementHistory({
   closing,
   refundSource,
 }: {
-  connection: { url: string; token: string; ownerId?: number; request: MovementRequest } | null;
+  connection: { url: string; token: string; scope: LocalScope; request: MovementRequest } | null;
   rows: Movement[];
   month: string;
   currency: Currency;
   periodDate: string;
   filters: { type: MovementType | 'ALL'; search: string; categoryId: string; accountId: string };
-  closing: { active: boolean; scope: string; categoryId?: string };
+  closing: { active: boolean; categoryId?: string };
   refundSource: Movement | null;
 }) {
   const client = useQueryClient();
@@ -36,7 +37,7 @@ export function useMovementHistory({
     (connected && accountId ? `&accountId=${encodeURIComponent(accountId)}` : '');
 
   const query = useInfiniteQuery({
-    queryKey: ['movements', connected, params],
+    queryKey: ['movements', connection?.scope, params],
     enabled: connected,
     retry: false,
     initialPageParam: null as string | null,
@@ -50,8 +51,7 @@ export function useMovementHistory({
     queryKey: [
       'movements',
       'closing-uncategorized',
-      connection?.url,
-      closing.scope,
+      connection?.scope,
       month,
       currency,
       closing.categoryId,
@@ -67,7 +67,7 @@ export function useMovementHistory({
     },
   });
   const refundQuery = useQuery({
-    queryKey: ['movements', 'refunds', connection?.url, connection?.ownerId, refundSource?.id],
+    queryKey: ['movements', 'refunds', connection?.scope, refundSource?.id],
     enabled: connected && !!refundSource,
     retry: false,
     queryFn: () =>
@@ -76,7 +76,7 @@ export function useMovementHistory({
       ),
   });
   const totals = useQuery({
-    queryKey: ['summary', connected, month, currency, periodDate],
+    queryKey: ['summary', connection?.scope, month, currency, periodDate],
     enabled: connected,
     retry: false,
     queryFn: () =>

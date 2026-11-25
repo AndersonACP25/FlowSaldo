@@ -1,4 +1,5 @@
 import { createLocalStore } from './localStore';
+import { isCashProjectionKey, isConnectedScope, type CashProjectionKey } from './dataScopes';
 import { demoReviews, type ReviewItem } from './reviews';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import {
@@ -19,7 +20,6 @@ import {
   type SavingsGoal,
   parseDominicanDateTime,
   type CashProjectionPlan,
-  type Currency,
   upgradeCategories,
   validClockTime,
   validDate,
@@ -28,7 +28,6 @@ import {
   type Category,
   type Movement,
 } from '@flowsaldo/domain';
-type CashProjectionKey = `demo:${Currency}` | `api:${Currency}`;
 
 export interface LocalData {
   movements: Movement[];
@@ -41,7 +40,7 @@ export interface LocalData {
   bankIds: string[];
   receipts: RecurringReceipt[];
   cashProjections: Partial<Record<CashProjectionKey, CashProjectionPlan>>;
-  savingsGoals: Record<'demo' | 'api', SavingsGoal[]>;
+  savingsGoals: Record<'demo', SavingsGoal[]> & Partial<Record<string, SavingsGoal[]>>;
   pendingItems: Record<string, PendingItem[]>;
   debtPlans: Record<string, DebtPlan[]>;
   monthlyClosings: Record<string, MonthlyClosing[]>;
@@ -195,7 +194,7 @@ export function normalizeLocalData(input: unknown): LocalData {
     Array.isArray(value.cashProjections) ||
     Object.entries(value.cashProjections).some(
       ([key, plan]) =>
-        !/^(demo|api):(DOP|USD|EUR)$/.test(key) ||
+        !isCashProjectionKey(key) ||
         !plan ||
         !Number.isSafeInteger(plan.balanceMinor) ||
         Math.abs(plan.balanceMinor) > 2147483647 ||
@@ -239,8 +238,14 @@ export function normalizeLocalData(input: unknown): LocalData {
   if (value.savingsGoals === undefined) value.savingsGoals = { demo: [], api: [] };
   if (
     !value.savingsGoals ||
+    typeof value.savingsGoals !== 'object' ||
+    Array.isArray(value.savingsGoals) ||
     !validSavingsGoals(value.savingsGoals.demo) ||
-    !validSavingsGoals(value.savingsGoals.api)
+    Object.entries(value.savingsGoals).some(
+      ([scope, goals]) =>
+        (scope !== 'demo' && scope !== 'api' && !isConnectedScope(scope)) ||
+        !validSavingsGoals(goals),
+    )
   )
     throw new Error('Metas locales inválidas.');
   value.reviews = value.reviews.map((r) =>
