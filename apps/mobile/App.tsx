@@ -111,7 +111,7 @@ import { RecurringPanel } from './src/RecurringPanel';
 import { CategoryManager } from './src/CategoryManager';
 import { CategoryBudgets, BudgetProgress } from './src/CategoryBudgets';
 import { MovementForm, type Draft, typeLabels } from './src/MovementForm';
-import { loadLocal, saveLocal, type LocalData } from './src/storage';
+import { loadLocal, updateLocal, type LocalData, type LocalUpdate } from './src/storage';
 import { ReviewInbox } from './src/ReviewInbox';
 import { demoReviews, type ReviewItem } from './src/reviews';
 import { WeeklyFlow } from './src/WeeklyFlow';
@@ -147,6 +147,8 @@ const client = new QueryClient();
 const formatMoney = (minor: number, currency: Currency) =>
   `${currency} ${formatMinorAmount(minor)}`;
 const currentMonth = () => localToday().slice(0, 7);
+const localMovementIndex = (data: LocalData) =>
+  new Map(data.movements.map((movement) => [movement.id, movement]));
 function initialData(): LocalData {
   return {
     ...upgradeCategories(
@@ -287,7 +289,8 @@ function Home({
   const session = personal?.token ?? developmentSession;
   const [notice, setNotice] = useState('');
   const [error, setError] = useState('');
-  const [busy, setBusy] = useState(false);
+  const [operations, setOperations] = useState(0);
+  const busy = operations > 0;
   const goBack = useCallback(() => {
     if (busy) return;
     if (fromMovements) {
@@ -366,8 +369,8 @@ function Home({
       active = false;
     };
   }, []);
-  async function persist(next: LocalData) {
-    await saveLocal(next);
+  async function persist(change: LocalUpdate, recoverUnreadable = false) {
+    const next = await updateLocal(localRef.current, change, recoverUnreadable);
     localRef.current = next;
     setLocal(next);
   }
@@ -440,7 +443,7 @@ function Home({
   const pendingLinksReady = !connected || !relevantPendingIds.length || pendingLinksQuery.isSuccess;
   const linkedPendingMovements = connected
     ? (pendingLinksQuery.data ?? new Map<string, Movement>())
-    : new Map(local.movements.map((movement) => [movement.id, movement]));
+    : localMovementIndex(local);
 
   const bankDirectory = useQuery({
     queryKey: ['banks', personal?.owner.id],
@@ -524,7 +527,6 @@ function Home({
   });
   const commands = movementCommands({
     request: connected ? request : null,
-    getLocal: () => localRef.current,
     persist,
     refreshMovements,
   });
@@ -667,21 +669,23 @@ function Home({
       });
       await catalog.refetch();
     } else {
-      const items = localRef.current.categories;
-      const existing = items.find((c) => c.id === id);
-      if (existing?.system) throw new Error('Sin categorizar es una categoría del sistema.');
-      if (items.some((c) => c.normalizedName === normalizedName && c.id !== id))
-        throw new Error('Ya existe una categoría con ese nombre.');
-      const item: Category = {
-        id: id ?? `local-${Date.now()}-${Math.random().toString(36).slice(2)}`,
-        name,
-        normalizedName,
-        archived: existing?.archived ?? false,
-        system: false,
-      };
-      await persist({
-        ...localRef.current,
-        categories: id ? items.map((c) => (c.id === id ? item : c)) : [...items, item],
+      await persist((current) => {
+        const items = current.categories;
+        const existing = items.find((c) => c.id === id);
+        if (existing?.system) throw new Error('Sin categorizar es una categoría del sistema.');
+        if (items.some((c) => c.normalizedName === normalizedName && c.id !== id))
+          throw new Error('Ya existe una categoría con ese nombre.');
+        const item: Category = {
+          id: id ?? `local-${Date.now()}-${Math.random().toString(36).slice(2)}`,
+          name,
+          normalizedName,
+          archived: existing?.archived ?? false,
+          system: false,
+        };
+        return {
+          ...current,
+          categories: id ? items.map((c) => (c.id === id ? item : c)) : [...items, item],
+        };
       });
     }
   }
@@ -690,11 +694,13 @@ function Home({
       await request(`/categories/${id}`, { method: 'PATCH', body: JSON.stringify({ archived }) });
       await catalog.refetch();
     } else {
-      if (localRef.current.categories.find((c) => c.id === id)?.system)
-        throw new Error('Sin categorizar es una categoría del sistema.');
-      await persist({
-        ...localRef.current,
-        categories: localRef.current.categories.map((c) => (c.id === id ? { ...c, archived } : c)),
+      await persist((current) => {
+        if (current.categories.find((c) => c.id === id)?.system)
+          throw new Error('Sin categorizar es una categoría del sistema.');
+        return {
+          ...current,
+          categories: current.categories.map((c) => (c.id === id ? { ...c, archived } : c)),
+        };
       });
     }
   }
@@ -703,21 +709,22 @@ function Home({
       await request(`/categories/${encodeURIComponent(id)}`, { method: 'DELETE' });
       await catalog.refetch();
     } else {
-      const data = localRef.current;
-      const category = data.categories.find((item) => item.id === id);
-      if (!category) throw new Error('Categoría no encontrada.');
-      if (category.system) throw new Error('Sin categorizar es una categoría del sistema.');
-      const used =
-        data.movements.some(
-          (m) => m.categoryId === id || m.splits?.some((p) => p.categoryId === id),
-        ) ||
-        data.recurring.some((item) => item.categoryId === id) ||
-        Object.keys(data.categoryBudgets).some((key) => key.split(':').slice(3).join(':') === id);
-      if (used)
-        throw new Error(
-          'La categoría tiene movimientos, plantillas o presupuestos. Puedes archivarla para conservar esos datos.',
-        );
-      await persist({ ...data, categories: data.categories.filter((item) => item.id !== id) });
+      await persist((data) => {
+        const category = data.categories.find((item) => item.id === id);
+        if (!category) throw new Error('Categoría no encontrada.');
+        if (category.system) throw new Error('Sin categorizar es una categoría del sistema.');
+        const used =
+          data.movements.some(
+            (m) => m.categoryId === id || m.splits?.some((p) => p.categoryId === id),
+          ) ||
+          data.recurring.some((item) => item.categoryId === id) ||
+          Object.keys(data.categoryBudgets).some((key) => key.split(':').slice(3).join(':') === id);
+        if (used)
+          throw new Error(
+            'La categoría tiene movimientos, plantillas o presupuestos. Puedes archivarla para conservar esos datos.',
+          );
+        return { ...data, categories: data.categories.filter((item) => item.id !== id) };
+      });
     }
     setCategoryFilter((current) => (current === id ? '' : current));
   }
@@ -749,25 +756,31 @@ function Home({
       await saveServerBudget(value, serverBudget.data?.categoryLimits ?? []);
       return;
     }
-    const budgets = { ...localRef.current.budgets };
-    if (value === null) delete budgets[budgetKey];
-    else budgets[budgetKey] = value;
-    await persist({ ...localRef.current, budgets });
+    await persist((current) => {
+      const budgets = { ...current.budgets };
+      if (value === null) delete budgets[budgetKey];
+      else budgets[budgetKey] = value;
+      return { ...current, budgets };
+    });
   }
   async function saveCategoryBudget(id: string, value: number | null) {
-    if (value !== null && categoryCatalog.find((c) => c.id === id)?.archived)
-      throw new Error('Selecciona una categoría activa.');
     if (connected) {
+      if (value !== null && categoryCatalog.find((c) => c.id === id)?.archived)
+        throw new Error('Selecciona una categoría activa.');
       const limits = (serverBudget.data?.categoryLimits ?? []).filter((c) => c.categoryId !== id);
       if (value !== null) limits.push({ categoryId: id, limitMinor: value });
       await saveServerBudget(serverBudget.data?.limitMinor ?? null, limits);
       return;
     }
-    const budgets = { ...localRef.current.categoryBudgets };
-    const key = `${budgetKey}:${id}`;
-    if (value === null) delete budgets[key];
-    else budgets[key] = value;
-    await persist({ ...localRef.current, categoryBudgets: budgets });
+    await persist((current) => {
+      if (value !== null && !current.categories.some((c) => c.id === id && !c.archived))
+        throw new Error('Selecciona una categoría activa.');
+      const budgets = { ...current.categoryBudgets };
+      const key = `${budgetKey}:${id}`;
+      if (value === null) delete budgets[key];
+      else budgets[key] = value;
+      return { ...current, categoryBudgets: budgets };
+    });
   }
   async function saveRecurring(draft: Draft, id?: string) {
     const data = {
@@ -789,29 +802,31 @@ function Home({
       });
       await recurringQuery.refetch();
     } else {
-      const existing = localRef.current.recurring.find((t) => t.id === id);
-      const category = selectedCategory(
-        localRef.current.categories,
-        draft.categoryId ?? undefined,
-        draft.category,
-        existing,
-      );
-      const item: RecurringTemplate = {
-        ...data,
-        ...category,
-        version: existing ? existing.version + 1 : 0,
-        id: id ?? `recurring-${Date.now()}-${Math.random().toString(36).slice(2)}`,
-        startDate: existing?.startDate ?? startDate,
-        timeOfDay: existing ? existing.timeOfDay : timeOfDay,
-        nextDate: existing?.nextDate ?? startDate,
-        anchorDay: existing?.anchorDay ?? Number(startDate.slice(8)),
-        active: existing?.active ?? true,
-      };
-      await persist({
-        ...localRef.current,
-        recurring: id
-          ? localRef.current.recurring.map((t) => (t.id === id ? item : t))
-          : [...localRef.current.recurring, item],
+      await persist((current) => {
+        const existing = current.recurring.find((t) => t.id === id);
+        const category = selectedCategory(
+          current.categories,
+          draft.categoryId ?? undefined,
+          draft.category,
+          existing,
+        );
+        const item: RecurringTemplate = {
+          ...data,
+          ...category,
+          version: existing ? existing.version + 1 : 0,
+          id: id ?? `recurring-${Date.now()}-${Math.random().toString(36).slice(2)}`,
+          startDate: existing?.startDate ?? startDate,
+          timeOfDay: existing ? existing.timeOfDay : timeOfDay,
+          nextDate: existing?.nextDate ?? startDate,
+          anchorDay: existing?.anchorDay ?? Number(startDate.slice(8)),
+          active: existing?.active ?? true,
+        };
+        return {
+          ...current,
+          recurring: id
+            ? current.recurring.map((t) => (t.id === id ? item : t))
+            : [...current.recurring, item],
+        };
       });
     }
     setCurrency(draft.currency);
@@ -821,15 +836,20 @@ function Home({
       await request(`/recurring/${id}`, { method: 'PATCH', body: JSON.stringify({ active }) });
       await recurringQuery.refetch();
     } else
-      await persist({
-        ...localRef.current,
-        recurring: localRef.current.recurring.map((t) =>
+      await persist((current) => ({
+        ...current,
+        recurring: current.recurring.map((t) =>
           t.id === id ? { ...t, active, version: t.version + 1 } : t,
         ),
-      });
+      }));
   }
-  async function confirmRecurring(template: RecurringTemplate, recordMovement = true) {
+  async function confirmRecurring(
+    template: RecurringTemplate,
+    recordMovement = true,
+    pendingId?: string,
+  ) {
     if (
+      connected &&
       recordMovement &&
       pendingOccurrence(
         localRef.current.pendingItems[pendingScope] ?? [],
@@ -857,46 +877,56 @@ function Home({
         if (personal && result.movement)
           void notifyTransaction(result.movement.id, 'Movimiento recurrente confirmado');
       } else {
-        const existing = localRef.current.recurring.find((t) => t.id === template.id);
-        if (!existing) throw new Error('Plantilla no encontrada.');
-        if (existing.version !== template.version)
-          throw new Error('La plantilla cambió. Revisa sus datos antes de confirmar.');
-        const occurrence = prepareOccurrence(
-          existing,
-          template.nextDate,
-          new Date().toISOString(),
-          localRef.current.receipts,
-          recordMovement,
-        );
-        const movement: Movement | null = recordMovement
-          ? {
-              ...occurrence.movement,
-              ...selectedCategory(
-                localRef.current.categories,
-                existing.categoryId,
-                existing.category,
-              ),
-              id: `occurrence-${Date.now()}-${Math.random().toString(36).slice(2)}`,
-            }
-          : null;
-        await persist({
-          ...localRef.current,
-          movements: movement
-            ? [movement, ...localRef.current.movements]
-            : localRef.current.movements,
-          recurring: localRef.current.recurring.map((t) =>
-            t.id === existing.id
-              ? { ...t, nextDate: occurrence.nextDate, version: t.version + 1 }
-              : t,
-          ),
-          receipts: [
-            ...localRef.current.receipts,
-            {
-              templateId: existing.id,
-              scheduledFor: template.nextDate,
-              movementId: movement?.id ?? null,
-            },
-          ],
+        await persist((current) => {
+          const linked = pendingOccurrence(
+            current.pendingItems[pendingScope] ?? [],
+            template.id,
+            template.nextDate,
+          );
+          if (recordMovement && linked)
+            throw new Error('Este vencimiento se gestiona en Pagos y cobros pendientes.');
+          if (
+            !recordMovement &&
+            (!linked ||
+              linked.id !== pendingId ||
+              pendingRemaining(linked, localMovementIndex(current)) !== 0)
+          )
+            throw new Error('El vencimiento debe estar saldado y la plantilla activa.');
+          const existing = current.recurring.find((t) => t.id === template.id);
+          if (!existing) throw new Error('Plantilla no encontrada.');
+          if (existing.version !== template.version)
+            throw new Error('La plantilla cambió. Revisa sus datos antes de confirmar.');
+          const occurrence = prepareOccurrence(
+            existing,
+            template.nextDate,
+            new Date().toISOString(),
+            current.receipts,
+            recordMovement,
+          );
+          const movement: Movement | null = recordMovement
+            ? {
+                ...occurrence.movement,
+                ...selectedCategory(current.categories, existing.categoryId, existing.category),
+                id: `occurrence-${Date.now()}-${Math.random().toString(36).slice(2)}`,
+              }
+            : null;
+          return {
+            ...current,
+            movements: movement ? [movement, ...current.movements] : current.movements,
+            recurring: current.recurring.map((t) =>
+              t.id === existing.id
+                ? { ...t, nextDate: occurrence.nextDate, version: t.version + 1 }
+                : t,
+            ),
+            receipts: [
+              ...current.receipts,
+              {
+                templateId: existing.id,
+                scheduledFor: template.nextDate,
+                movementId: movement?.id ?? null,
+              },
+            ],
+          };
         });
       }
     } finally {
@@ -904,15 +934,12 @@ function Home({
     }
   }
   async function action(work: () => Promise<void>) {
-    setBusy(true);
     setError('');
     setNotice('');
     try {
-      await work();
+      await saveForm(work);
     } catch (e) {
       setError(e instanceof Error ? e.message : 'No se pudo completar la acción.');
-    } finally {
-      setBusy(false);
     }
   }
   async function changeBank(id: string, registered: boolean) {
@@ -923,11 +950,12 @@ function Home({
       );
       await client.invalidateQueries({ queryKey: ['banks', personal?.owner.id] });
     } else {
-      const current = localRef.current;
-      const bankIds = new Set(current.bankIds);
-      if (registered) bankIds.add(id);
-      else bankIds.delete(id);
-      await persist({ ...current, bankIds: [...bankIds] });
+      await persist((current) => {
+        const bankIds = new Set(current.bankIds);
+        if (registered) bankIds.add(id);
+        else bankIds.delete(id);
+        return { ...current, bankIds: [...bankIds] };
+      });
     }
     setNotice(registered ? 'Banco agregado.' : 'Banco quitado.');
   }
@@ -936,35 +964,39 @@ function Home({
       !connected && movement.type === 'TRANSFER' && localCardIds.has(movement.targetAccountId ?? '')
     );
   }
-  async function saveLocalAccounts(accounts: LocalAccount[]) {
-    validateLocalAccounts(accounts);
-    await persist({ ...localRef.current, accounts });
+  function saveLocalAccounts(update: (accounts: LocalAccount[]) => LocalAccount[]) {
+    return persist((current) => {
+      const accounts = update(current.accounts);
+      validateLocalAccounts(accounts);
+      return { ...current, accounts };
+    });
   }
   async function saveLocalReconciliation(preview: LocalReconciliation) {
-    const current = localRef.current;
-    const { accountId, occurredAt, statementMinor } = preview;
-    const verified = previewLocalReconciliation(current.accounts, current.movements, {
-      accountId,
-      occurredAt,
-      statementMinor,
+    await persist((current) => {
+      const { accountId, occurredAt, statementMinor } = preview;
+      const verified = previewLocalReconciliation(current.accounts, current.movements, {
+        accountId,
+        occurredAt,
+        statementMinor,
+      });
+      if (verified.expectedMinor !== preview.expectedMinor || verified.differenceMinor === 0)
+        throw new Error('El saldo cambió. Compara los saldos de nuevo.');
+      const account = current.accounts.find((item) => item.id === accountId)!;
+      const category = current.categories.find((item) => item.system)!;
+      const movement: Movement = {
+        id: 'adjustment-' + newLocalId(),
+        description: `Ajuste de conciliación · ${account.name}`,
+        type: 'TRANSFER',
+        currency: account.currency,
+        category: category.name,
+        categoryId: category.id,
+        occurredAt,
+        amountMinor: Math.abs(verified.differenceMinor),
+        accountId,
+        balanceAdjustment: { expectedMinor: verified.expectedMinor, statementMinor },
+      };
+      return { ...current, movements: [movement, ...current.movements] };
     });
-    if (verified.expectedMinor !== preview.expectedMinor || verified.differenceMinor === 0)
-      throw new Error('El saldo cambió. Compara los saldos de nuevo.');
-    const account = current.accounts.find((item) => item.id === accountId)!;
-    const category = current.categories.find((item) => item.system)!;
-    const movement: Movement = {
-      id: 'adjustment-' + newLocalId(),
-      description: `Ajuste de conciliación · ${account.name}`,
-      type: 'TRANSFER',
-      currency: account.currency,
-      category: category.name,
-      categoryId: category.id,
-      occurredAt,
-      amountMinor: Math.abs(verified.differenceMinor),
-      accountId,
-      balanceAdjustment: { expectedMinor: verified.expectedMinor, statementMinor },
-    };
-    await persist({ ...current, movements: [movement, ...current.movements] });
   }
   async function saveMovement(draft: Draft) {
     const edit = editor && editor !== 'new' ? editor : null;
@@ -1012,28 +1044,30 @@ function Home({
       await Promise.all([client.invalidateQueries({ queryKey: ['imports'] }), refreshMovements()]);
       if (personal) void notifyTransaction(movement.id, 'Transacción de aviso confirmada');
     } else {
-      const review = localRef.current.reviews.find((i) => i.id === id);
-      if (review?.status !== 'REVIEW') throw new Error('Este correo ya fue revisado.');
-      checkLocalMovementAccounts(localRef.current.accounts, draft);
-      await persist({
-        ...localRef.current,
-        movements: [
-          {
-            ...draft,
-            ...selectedCategory(
-              localRef.current.categories,
-              draft.categoryId ?? undefined,
-              draft.category,
-            ),
-            id: `reviewed-${id}`,
-          },
-          ...localRef.current.movements,
-        ],
-        reviews: localRef.current.reviews.map((i) =>
-          i.id === id
-            ? { ...i, status: 'PARSED' as const, body: '', movement: { id: `reviewed-${id}` } }
-            : i,
-        ),
+      await persist((current) => {
+        const review = current.reviews.find((i) => i.id === id);
+        if (review?.status !== 'REVIEW') throw new Error('Este correo ya fue revisado.');
+        checkLocalMovementAccounts(current.accounts, draft);
+        return {
+          ...current,
+          movements: [
+            {
+              ...draft,
+              ...selectedCategory(
+                current.categories,
+                draft.categoryId ?? undefined,
+                draft.category,
+              ),
+              id: `reviewed-${id}`,
+            },
+            ...current.movements,
+          ],
+          reviews: current.reviews.map((i) =>
+            i.id === id
+              ? { ...i, status: 'PARSED' as const, body: '', movement: { id: `reviewed-${id}` } }
+              : i,
+          ),
+        };
       });
     }
     setNotice('Revisión confirmada. Movimiento registrado.');
@@ -1051,29 +1085,31 @@ function Home({
       await request(`/imports/${id}/dismiss`, { method: 'POST' });
       await client.invalidateQueries({ queryKey: ['imports'] });
     } else
-      await persist({
-        ...localRef.current,
-        reviews: localRef.current.reviews.map((i) =>
+      await persist((current) => ({
+        ...current,
+        reviews: current.reviews.map((i) =>
           i.id === id ? { ...i, status: 'DISMISSED' as const, body: '' } : i,
         ),
-      });
+      }));
     setNotice('Correo descartado sin contabilizar.');
   }
   async function reset() {
-    const next = initialData();
-    next.cashProjections = Object.fromEntries(
-      Object.entries(localRef.current.cashProjections).filter(([key]) => key.startsWith('api:')),
-    );
-    next.savingsGoals.api = localRef.current.savingsGoals.api;
-    next.pendingItems = { ...localRef.current.pendingItems };
-    delete next.pendingItems.demo;
-    next.debtPlans = { ...localRef.current.debtPlans };
-    delete next.debtPlans.demo;
-    next.monthlyClosings = { ...localRef.current.monthlyClosings };
-    delete next.monthlyClosings.demo;
-    next.commerceRules = { ...localRef.current.commerceRules };
-    delete next.commerceRules.demo;
-    await persist(next);
+    await persist((current) => {
+      const next = initialData();
+      next.cashProjections = Object.fromEntries(
+        Object.entries(current.cashProjections).filter(([key]) => key.startsWith('api:')),
+      );
+      next.savingsGoals.api = current.savingsGoals.api;
+      next.pendingItems = { ...current.pendingItems };
+      delete next.pendingItems.demo;
+      next.debtPlans = { ...current.debtPlans };
+      delete next.debtPlans.demo;
+      next.monthlyClosings = { ...current.monthlyClosings };
+      delete next.monthlyClosings.demo;
+      next.commerceRules = { ...current.commerceRules };
+      delete next.commerceRules.demo;
+      return next;
+    }, !!loadError);
     setLoadError('');
     setReady(true);
     setResetConfirm(false);
@@ -1092,23 +1128,22 @@ function Home({
     setNotice('Sesión cerrada. Volviste a la demo local.');
   }
   async function saveForm(save: () => Promise<void>) {
-    setBusy(true);
+    setOperations((count) => count + 1);
     try {
       await save();
     } finally {
-      setBusy(false);
+      setOperations((count) => count - 1);
     }
   }
 
-  function updateSavingsGoals(update: (goals: SavingsGoal[]) => SavingsGoal[]) {
-    const current = localRef.current;
-    return persist({
+  function updateSavingsGoals(update: (goals: SavingsGoal[], current: LocalData) => SavingsGoal[]) {
+    return persist((current) => ({
       ...current,
       savingsGoals: {
         ...current.savingsGoals,
-        [savingsMode]: update(current.savingsGoals[savingsMode]),
+        [savingsMode]: update(current.savingsGoals[savingsMode], current),
       },
-    });
+    }));
   }
 
   function newLocalId() {
@@ -1134,13 +1169,26 @@ function Home({
 
   function addSavings(goalId: string, item: SavingsContribution) {
     return saveForm(async () => {
-      const transfer = item.kind === 'transfer' ? await movementForLink(item.movementId) : null;
-      if (transfer?.balanceAdjustment)
-        throw new Error('Los ajustes de conciliación no se vinculan a metas de ahorro.');
-      if (transfer && isLocalCardPayment(transfer))
-        throw new Error('Los pagos de tarjeta no se vinculan a metas de ahorro.');
-      const transfers = new Map(transfer ? [[transfer.id, transfer]] : []);
-      await updateSavingsGoals((goals) => addSavingsContribution(goals, goalId, item, transfers));
+      const remote =
+        connected && item.kind === 'transfer' ? await movementForLink(item.movementId) : null;
+      await updateSavingsGoals((goals, current) => {
+        const transfer =
+          !connected && item.kind === 'transfer'
+            ? current.movements.find((movement) => movement.id === item.movementId)
+            : remote;
+        if (transfer?.balanceAdjustment)
+          throw new Error('Los ajustes de conciliación no se vinculan a metas de ahorro.');
+        if (
+          !connected &&
+          transfer?.type === 'TRANSFER' &&
+          current.accounts.some(
+            (account) => account.id === transfer.targetAccountId && account.kind === 'CREDIT_CARD',
+          )
+        )
+          throw new Error('Los pagos de tarjeta no se vinculan a metas de ahorro.');
+        const transfers = new Map(transfer ? [[transfer.id, transfer]] : []);
+        return addSavingsContribution(goals, goalId, item, transfers);
+      });
     });
   }
 
@@ -1173,14 +1221,12 @@ function Home({
     setScreen('Pagos y cobros pendientes');
   }
 
-  function updatePending(update: (items: PendingItem[]) => PendingItem[]) {
-    const current = localRef.current;
-    return persist({
-      ...current,
-      pendingItems: {
-        ...current.pendingItems,
-        [pendingScope]: update(current.pendingItems[pendingScope] ?? []),
-      },
+  function updatePending(update: (items: PendingItem[], current: LocalData) => PendingItem[]) {
+    return persist((current) => {
+      const items = current.pendingItems[pendingScope] ?? [];
+      const next = update(items, current);
+      if (next === items) return current;
+      return { ...current, pendingItems: { ...current.pendingItems, [pendingScope]: next } };
     });
   }
 
@@ -1194,34 +1240,41 @@ function Home({
   }
 
   async function openRecurringPending(template: RecurringTemplate) {
-    const existing = pendingOccurrence(
-      localRef.current.pendingItems[pendingScope] ?? [],
-      template.id,
-      template.nextDate,
-    );
-    const id = existing?.id ?? newLocalId();
-    if (!existing) {
-      if (!template.active || template.type === 'TRANSFER')
+    let id = newLocalId();
+    await updatePending((items, current) => {
+      const existing = pendingOccurrence(items, template.id, template.nextDate);
+      if (existing) {
+        id = existing.id;
+        return items;
+      }
+      const latest = connected
+        ? template
+        : current.recurring.find((item) => item.id === template.id);
+      if (
+        !latest ||
+        latest.nextDate !== template.nextDate ||
+        !latest.active ||
+        latest.type === 'TRANSFER'
+      )
         throw new Error('Esta plantilla no admite pagos ni cobros pendientes.');
-      const occurrence = { templateId: template.id, scheduledFor: template.nextDate };
-      await updatePending((items) => [
+      return [
         ...items,
         {
           ...checkPendingDraft({
-            name: template.description,
-            kind: template.type === 'EXPENSE' ? 'pay' : 'collect',
-            currency: template.currency,
+            name: latest.description,
+            kind: latest.type === 'EXPENSE' ? 'pay' : 'collect',
+            currency: latest.currency,
             dueAt: dominicanDateTime(
-              new Date(recurringOccurrenceAt(template.nextDate, template.timeOfDay)),
+              new Date(recurringOccurrenceAt(latest.nextDate, latest.timeOfDay)),
             ),
-            amountMinor: template.amountMinor,
+            amountMinor: latest.amountMinor,
           }),
           id,
-          occurrence,
+          occurrence: { templateId: latest.id, scheduledFor: latest.nextDate },
           settlements: [],
         },
-      ]);
-    }
+      ];
+    });
     openPending(null, id, 'Movimientos');
   }
 
@@ -1234,10 +1287,10 @@ function Home({
     );
   }
 
-  function canEditPending(item: PendingItem) {
+  function canEditPending(item: PendingItem, templates = recurring) {
     return (
       !item.occurrence ||
-      recurring.some(
+      templates.some(
         (template) =>
           template.id === item.occurrence?.templateId &&
           template.nextDate === item.occurrence.scheduledFor,
@@ -1255,26 +1308,24 @@ function Home({
 
   function updateCommerceRules(update: (rules: CommerceRule[]) => CommerceRule[]) {
     return saveForm(() => {
-      const current = localRef.current;
-      return persist({
+      return persist((current) => ({
         ...current,
         commerceRules: {
           ...current.commerceRules,
           [planningScope]: update(current.commerceRules[planningScope] ?? []),
         },
-      });
+      }));
     });
   }
   function updateDebtPlans(update: (plans: DebtPlan[]) => DebtPlan[]) {
     return saveForm(() => {
-      const current = localRef.current;
-      return persist({
+      return persist((current) => ({
         ...current,
         debtPlans: {
           ...current.debtPlans,
           [planningScope]: update(current.debtPlans[planningScope] ?? []),
         },
-      });
+      }));
     });
   }
 
@@ -1392,13 +1443,13 @@ function Home({
                   saving={busy}
                   onSave={(plan) =>
                     saveForm(() =>
-                      persist({
-                        ...localRef.current,
+                      persist((current) => ({
+                        ...current,
                         cashProjections: {
-                          ...localRef.current.cashProjections,
+                          ...current.cashProjections,
                           [projectionKey]: plan,
                         },
-                      }),
+                      })),
                     )
                   }
                   money={money}
@@ -1441,18 +1492,22 @@ function Home({
                       (entry) => entry.id === id,
                     );
                     if (!item) throw new Error('El pendiente ya no está disponible.');
-                    const movements = await verifiedPendingMovements(
-                      item,
-                      settlement.kind === 'movement' ? settlement.movementId : undefined,
-                    );
-                    await updatePending((items) =>
-                      addPendingSettlement(
+                    const remote = connected
+                      ? await verifiedPendingMovements(
+                          item,
+                          settlement.kind === 'movement' ? settlement.movementId : undefined,
+                        )
+                      : null;
+                    await updatePending((items, current) => {
+                      if (connected && items.find((entry) => entry.id === id) !== item)
+                        throw new Error('El pendiente cambió. Vuelve a verificar sus abonos.');
+                      return addPendingSettlement(
                         items,
                         id,
                         { ...settlement, id: newLocalId() },
-                        movements,
-                      ),
-                    );
+                        remote ?? localMovementIndex(current),
+                      );
+                    });
                   })
                 }
                 onEdit={(id, settlementId, amountMinor) =>
@@ -1460,18 +1515,25 @@ function Home({
                     const item = (localRef.current.pendingItems[pendingScope] ?? []).find(
                       (entry) => entry.id === id,
                     );
-                    if (!item || !canEditPending(item))
-                      throw new Error('El pendiente ya no está disponible para edición.');
-                    const movements = await verifiedPendingMovements(item);
-                    await updatePending((items) =>
-                      updatePendingManualSettlement(
+                    if (!item) throw new Error('El pendiente ya no está disponible para edición.');
+                    const remote = connected ? await verifiedPendingMovements(item) : null;
+                    await updatePending((items, current) => {
+                      const latest = items.find((entry) => entry.id === id);
+                      if (connected && latest !== item)
+                        throw new Error('El pendiente cambió. Vuelve a verificar sus abonos.');
+                      if (
+                        !latest ||
+                        !canEditPending(latest, connected ? recurring : current.recurring)
+                      )
+                        throw new Error('El pendiente ya no está disponible para edición.');
+                      return updatePendingManualSettlement(
                         items,
                         id,
                         settlementId,
                         amountMinor,
-                        movements,
-                      ),
-                    );
+                        remote ?? localMovementIndex(current),
+                      );
+                    });
                   })
                 }
                 onRemove={(id, settlementId) =>
@@ -1492,18 +1554,11 @@ function Home({
                 }
                 onDelete={(id) =>
                   saveForm(() =>
-                    updatePending((items) => {
+                    updatePending((items, current) => {
                       const item = items.find((entry) => entry.id === id);
                       if (item?.settlements.length)
                         throw new Error('Quita los abonos antes de eliminar el pendiente.');
-                      if (
-                        item?.occurrence &&
-                        !recurring.some(
-                          (template) =>
-                            template.id === item.occurrence?.templateId &&
-                            template.nextDate === item.occurrence.scheduledFor,
-                        )
-                      )
+                      if (item && !canEditPending(item, connected ? recurring : current.recurring))
                         throw new Error('El vencimiento ya se cerró.');
                       return items.filter((entry) => entry.id !== id);
                     }),
@@ -1518,10 +1573,11 @@ function Home({
                     if (
                       !template ||
                       !current ||
-                      pendingRemaining(current, await verifiedPendingMovements(current)) !== 0
+                      (connected &&
+                        pendingRemaining(current, await verifiedPendingMovements(current)) !== 0)
                     )
                       throw new Error('El vencimiento debe estar saldado y la plantilla activa.');
-                    await confirmRecurring(template, false);
+                    await confirmRecurring(template, false, current.id);
                   })
                 }
                 onRetry={() => void pendingLinksQuery.refetch()}
@@ -1646,22 +1702,23 @@ function Home({
                 }}
                 onPending={(id) => openPending(null, id, 'Cierre mensual')}
                 onSave={(snapshot) =>
-                  saveForm(() => {
-                    const current = localRef.current;
-                    const previous = current.monthlyClosings[planningScope] ?? [];
-                    return persist({
-                      ...current,
-                      monthlyClosings: {
-                        ...current.monthlyClosings,
-                        [planningScope]: [
-                          ...previous.filter(
-                            (item) => item.month !== month || item.currency !== currency,
-                          ),
-                          snapshot,
-                        ],
-                      },
-                    });
-                  })
+                  saveForm(() =>
+                    persist((current) => {
+                      const previous = current.monthlyClosings[planningScope] ?? [];
+                      return {
+                        ...current,
+                        monthlyClosings: {
+                          ...current.monthlyClosings,
+                          [planningScope]: [
+                            ...previous.filter(
+                              (item) => item.month !== month || item.currency !== currency,
+                            ),
+                            snapshot,
+                          ],
+                        },
+                      };
+                    }),
+                  )
                 }
               />
             )}
@@ -2319,11 +2376,13 @@ function Home({
                 busy={busy}
                 onRestore={(backup, expected) =>
                   saveForm(async () => {
-                    if (localRef.current !== expected)
-                      throw new Error(
-                        'Los datos locales cambiaron. Selecciona el respaldo de nuevo.',
-                      );
-                    await persist(restoreLocalBackup(expected, backup));
+                    await persist((current) => {
+                      if (current !== expected)
+                        throw new Error(
+                          'Los datos locales cambiaron. Selecciona el respaldo de nuevo.',
+                        );
+                      return restoreLocalBackup(current, backup);
+                    });
                     setCategoryFilter('');
                     setAccountFilter('');
                     setSearch('');
@@ -2370,8 +2429,8 @@ function Home({
                 busy={busy}
                 onCreate={(input) =>
                   saveForm(() =>
-                    saveLocalAccounts([
-                      ...localRef.current.accounts,
+                    saveLocalAccounts((accounts) => [
+                      ...accounts,
                       { ...input, id: newLocalId(), archived: false },
                     ]),
                   )
@@ -2379,8 +2438,8 @@ function Home({
                 onReconcile={(preview) => saveForm(() => saveLocalReconciliation(preview))}
                 onUpdate={(id, changes) =>
                   saveForm(() =>
-                    saveLocalAccounts(
-                      localRef.current.accounts.map((account) =>
+                    saveLocalAccounts((accounts) =>
+                      accounts.map((account) =>
                         account.id === id ? { ...account, ...changes } : account,
                       ),
                     ),

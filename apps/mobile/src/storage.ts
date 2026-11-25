@@ -1,3 +1,4 @@
+import { createLocalStore } from './localStore';
 import { demoReviews, type ReviewItem } from './reviews';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import {
@@ -47,7 +48,7 @@ export interface LocalData {
   commerceRules: Record<string, CommerceRule[]>;
 }
 const key = 'flowsaldo.demo.v2';
-export async function loadLocal(): Promise<LocalData | null> {
+async function readLocal(): Promise<LocalData | null> {
   const raw = await AsyncStorage.getItem(key);
   if (!raw) return null;
   return normalizeLocalData(JSON.parse(raw));
@@ -254,4 +255,11 @@ export function normalizeLocalData(input: unknown): LocalData {
   );
   return value;
 }
-export const saveLocal = (data: LocalData) => AsyncStorage.setItem(key, JSON.stringify(data));
+export type LocalUpdate = (current: LocalData) => LocalData;
+
+const localStore = createLocalStore(readLocal, (data) =>
+  AsyncStorage.setItem(key, JSON.stringify(data)),
+);
+
+export const loadLocal = localStore.load;
+export const updateLocal = localStore.update;

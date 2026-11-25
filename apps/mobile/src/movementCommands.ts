@@ -8,7 +8,7 @@ import {
 } from '@flowsaldo/domain';
 import type { MovementRequest } from './history';
 import type { Draft } from './MovementForm';
-import type { LocalData } from './storage';
+import type { LocalUpdate } from './storage';
 
 export interface RefundDraft {
   expense: Movement;
@@ -33,13 +33,11 @@ export function checkLocalMovementAccounts(
 
 export function movementCommands({
   request,
-  getLocal,
   persist,
   refreshMovements,
 }: {
   request: MovementRequest | null;
-  getLocal: () => LocalData;
-  persist: (next: LocalData) => Promise<void>;
+  persist: (change: LocalUpdate) => Promise<void>;
   refreshMovements: () => Promise<void>;
 }) {
   return {
@@ -53,39 +51,43 @@ export function movementCommands({
         return movement.id;
       }
 
-      const current = getLocal();
-      checkLocalMovementAccounts(current.accounts, draft, edit);
-      const item: Movement = {
-        ...draft,
-        ...selectedCategory(
-          current.categories,
-          draft.categoryId ?? undefined,
-          draft.category,
-          edit ?? undefined,
-        ),
-        id: edit?.id ?? `local-${Date.now()}-${Math.random().toString(36).slice(2)}`,
-      };
-      if (
-        edit &&
-        current.movements.some((row) => row.refundOfId === edit.id) &&
-        refusesRefundSourceChange(edit, { ...item, accountId: edit.accountId })
-      )
-        throw new Error(
-          'El gasto tiene devoluciones. Quita las devoluciones antes de cambiar sus datos financieros.',
-        );
-      const accountChanged = (edit?.accountId ?? null) !== (item.accountId ?? null);
-      await persist({
-        ...current,
-        movements: edit
-          ? current.movements.map((movement) => {
-              if (movement.id === item.id) return item;
-              if (accountChanged && movement.refundOfId === item.id)
-                return { ...movement, accountId: item.accountId ?? null };
-              return movement;
-            })
-          : [item, ...current.movements],
+      const id = edit?.id ?? `local-${Date.now()}-${Math.random().toString(36).slice(2)}`;
+      await persist((current) => {
+        const previous = edit && current.movements.find((movement) => movement.id === edit.id);
+        if (edit && !previous) throw new Error('El movimiento ya no está disponible.');
+        checkLocalMovementAccounts(current.accounts, draft, previous);
+        const item: Movement = {
+          ...draft,
+          ...selectedCategory(
+            current.categories,
+            draft.categoryId ?? undefined,
+            draft.category,
+            previous ?? undefined,
+          ),
+          id,
+        };
+        if (
+          previous &&
+          current.movements.some((row) => row.refundOfId === previous.id) &&
+          refusesRefundSourceChange(previous, { ...item, accountId: previous.accountId })
+        )
+          throw new Error(
+            'El gasto tiene devoluciones. Quita las devoluciones antes de cambiar sus datos financieros.',
+          );
+        const accountChanged = (previous?.accountId ?? null) !== (item.accountId ?? null);
+        return {
+          ...current,
+          movements: previous
+            ? current.movements.map((movement) => {
+                if (movement.id === item.id) return item;
+                if (accountChanged && movement.refundOfId === item.id)
+                  return { ...movement, accountId: item.accountId ?? null };
+                return movement;
+              })
+            : [item, ...current.movements],
+        };
       });
-      return item.id;
+      return id;
     },
 
     async refund({ expense, requestKey }: RefundDraft, amountMinor: number, occurredAt: string) {
@@ -98,16 +100,27 @@ export function movementCommands({
         return;
       }
 
-      const current = getLocal();
-      const source = current.movements.find((item) => item.id === expense.id);
-      if (!source) throw new Error('Gasto no encontrado.');
-      const refund = {
-        ...prepareRefund(source, current.movements, { amountMinor, occurredAt }),
-        id: requestKey,
-        accountId: source.accountId ?? null,
-        description: ('Devolución: ' + source.description).slice(0, 100),
-      };
-      await persist({ ...current, movements: [refund, ...current.movements] });
+      await persist((current) => {
+        const saved = current.movements.find((item) => item.id === requestKey);
+        if (saved) {
+          if (
+            saved.refundOfId === expense.id &&
+            saved.amountMinor === amountMinor &&
+            saved.occurredAt === occurredAt
+          )
+            return current;
+          throw new Error('Este identificador de devolución ya se utilizó.');
+        }
+        const source = current.movements.find((item) => item.id === expense.id);
+        if (!source) throw new Error('Gasto no encontrado.');
+        const refund = {
+          ...prepareRefund(source, current.movements, { amountMinor, occurredAt }),
+          id: requestKey,
+          accountId: source.accountId ?? null,
+          description: ('Devolución: ' + source.description).slice(0, 100),
+        };
+        return { ...current, movements: [refund, ...current.movements] };
+      });
     },
 
     async remove(id: string) {
@@ -117,18 +130,19 @@ export function movementCommands({
         return;
       }
 
-      const current = getLocal();
-      if (current.movements.some((item) => item.refundOfId === id))
-        throw new Error('Elimina las devoluciones vinculadas antes de quitar el gasto.');
-      await persist({
-        ...current,
-        movements: current.movements.filter((movement) => movement.id !== id),
-        receipts: current.receipts.map((receipt) =>
-          receipt.movementId === id ? { ...receipt, movementId: null } : receipt,
-        ),
-        reviews: current.reviews.map((review) =>
-          review.movement?.id === id ? { ...review, movement: null } : review,
-        ),
+      await persist((current) => {
+        if (current.movements.some((item) => item.refundOfId === id))
+          throw new Error('Elimina las devoluciones vinculadas antes de quitar el gasto.');
+        return {
+          ...current,
+          movements: current.movements.filter((movement) => movement.id !== id),
+          receipts: current.receipts.map((receipt) =>
+            receipt.movementId === id ? { ...receipt, movementId: null } : receipt,
+          ),
+          reviews: current.reviews.map((review) =>
+            review.movement?.id === id ? { ...review, movement: null } : review,
+          ),
+        };
       });
     },
   };

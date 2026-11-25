@@ -272,3 +272,7 @@ Los controles de retorno usan iconos y los menús muestran un icono por opción.
 ## Consultas y operaciones de movimientos (2026-11-25)
 
 El hook de historial centraliza paginación, filtros, totales API, vista previa de devoluciones, CSV e invalidaciones de las consultas dependientes. Los comandos de movimientos manejan alta, edición, devolución y eliminación para el modo local y conectado. App.tsx conserva el estado de navegación, los avisos y la persistencia compartida. El recorrido web restaura respaldos v1 y v2 y comprueba el vínculo de devolución.
+
+## Escrituras locales en cola (2026-11-25)
+
+El almacenamiento local serializa las transformaciones dentro de la misma instancia de la app. Cada escritura parte de la última versión confirmada y un error de guardado conserva esa versión. La restauración comprueba dentro de la cola que su vista previa siga vigente. Los vínculos locales de abonos, metas y devoluciones se verifican al ejecutar la escritura. El restablecimiento confirmado puede recuperar almacenamiento ilegible. Se mantienen la clave del almacenamiento y los formatos de respaldo v1 y v2.
