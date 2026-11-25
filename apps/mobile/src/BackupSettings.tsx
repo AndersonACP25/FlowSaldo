@@ -87,6 +87,7 @@ export function BackupSettings({
                 'devoluciones',
               ),
               countLabel(preview.data.categories.length, 'categoría', 'categorías'),
+              countLabel(preview.data.accounts.length, 'cuenta', 'cuentas'),
             ].join(' · ')}
           </Text>
           <Text style={s.muted}>Esta acción reemplaza los datos locales actuales.</Text>

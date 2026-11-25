@@ -10,6 +10,7 @@ import { SavingsGoalsScreen } from './src/SavingsGoalsScreen';
 import { CashProjectionScreen } from './src/CashProjectionScreen';
 import { SettingsMenu, settingsSections, type SettingsSection } from './src/SettingsMenu';
 import { BackupSettings } from './src/BackupSettings';
+import { LocalAccountsScreen } from './src/LocalAccountsScreen';
 import { restoreLocalBackup } from './src/localBackup';
 import { ThemeProvider, ThemeSettings } from './src/ThemeProvider';
 import { DateTimeField } from './src/DateTimeField';
@@ -50,6 +51,9 @@ import {
 } from '@tanstack/react-query';
 import {
   formatMinorAmount,
+  localMovementAccount,
+  validateLocalAccounts,
+  type LocalAccount,
   addSavingsContribution,
   addPendingSettlement,
   checkPendingDraft,
@@ -142,6 +146,7 @@ function initialData(): LocalData {
     ...upgradeCategories(
       demoMovements.map((m) => ({ ...m, occurredAt: currentMonth() + m.occurredAt.slice(7) })),
     ),
+    accounts: [],
     recurring: [],
     bankIds: [],
     receipts: [],
@@ -496,6 +501,12 @@ function Home({
       ),
     getNextPageParam: (last) => last.nextCursor ?? undefined,
   });
+  const accounts = connected ? (accountsQuery.data ?? []) : local.accounts;
+  const movementAccounts = connected
+    ? accountsQuery.data
+    : local.accounts.length
+      ? local.accounts
+      : undefined;
   const uncategorizedId = categoryCatalog.find((category) => category.system)?.id;
   const closingUncategorized = useQuery({
     queryKey: [
@@ -579,7 +590,7 @@ function Home({
         type,
         search,
         categoryId: categoryFilter || undefined,
-      });
+      }).filter((movement) => !accountFilter || movement.accountId === accountFilter);
   const summary = connected
     ? (totals.data ?? { incomeMinor: 0, expenseMinor: 0, differenceMinor: 0 })
     : summarize(period, currency);
@@ -980,6 +991,18 @@ function Home({
     }
     setNotice(registered ? 'Banco agregado.' : 'Banco quitado.');
   }
+  function checkLocalAccount(draft: Draft, previousAccountId?: string | null) {
+    const account = localMovementAccount(
+      new Map(localRef.current.accounts.map((item) => [item.id, item])),
+      draft,
+    );
+    if (account?.archived && account.id !== previousAccountId)
+      throw new Error('Reactiva la cuenta antes de vincular un movimiento.');
+  }
+  async function saveLocalAccounts(accounts: LocalAccount[]) {
+    validateLocalAccounts(accounts);
+    await persist({ ...localRef.current, accounts });
+  }
   async function saveMovement(draft: Draft) {
     const edit = editor && editor !== 'new' ? editor : null;
     let movementId: string;
@@ -991,10 +1014,12 @@ function Home({
       movementId = movement.id;
       await refreshMovements();
     } else {
+      const current = localRef.current;
+      checkLocalAccount(draft, edit?.accountId);
       const item: Movement = {
         ...draft,
         ...selectedCategory(
-          localRef.current.categories,
+          current.categories,
           draft.categoryId ?? undefined,
           draft.category,
           edit ?? undefined,
@@ -1003,18 +1028,24 @@ function Home({
       };
       if (
         edit &&
-        localRef.current.movements.some((row) => row.refundOfId === edit.id) &&
-        refusesRefundSourceChange(edit, item)
+        current.movements.some((row) => row.refundOfId === edit.id) &&
+        refusesRefundSourceChange(edit, { ...item, accountId: edit.accountId })
       )
         throw new Error(
           'El gasto tiene devoluciones. Quita las devoluciones antes de cambiar sus datos financieros.',
         );
       movementId = item.id;
+      const accountChanged = (edit?.accountId ?? null) !== (item.accountId ?? null);
       await persist({
-        ...localRef.current,
+        ...current,
         movements: edit
-          ? localRef.current.movements.map((m) => (m.id === item.id ? item : m))
-          : [item, ...localRef.current.movements],
+          ? current.movements.map((movement) => {
+              if (movement.id === item.id) return item;
+              if (accountChanged && movement.refundOfId === item.id)
+                return { ...movement, accountId: item.accountId ?? null };
+              return movement;
+            })
+          : [item, ...current.movements],
       });
     }
     if (personal && !edit && draft.type !== 'EXPENSE') {
@@ -1050,6 +1081,7 @@ function Home({
       const refund = {
         ...prepareRefund(source, current.movements, { amountMinor, occurredAt }),
         id: requestKey,
+        accountId: source.accountId ?? null,
         description: ('Devolución: ' + source.description).slice(0, 100),
       };
       await persist({ ...current, movements: [refund, ...current.movements] });
@@ -1094,6 +1126,7 @@ function Home({
     } else {
       const review = localRef.current.reviews.find((i) => i.id === id);
       if (review?.status !== 'REVIEW') throw new Error('Este correo ya fue revisado.');
+      checkLocalAccount(draft);
       await persist({
         ...localRef.current,
         movements: [
@@ -1156,6 +1189,7 @@ function Home({
     setLoadError('');
     setReady(true);
     setResetConfirm(false);
+    setAccountFilter('');
     setNotice('Demo restablecida.');
   }
   function disconnect() {
@@ -1982,7 +2016,8 @@ function Home({
                   <MovementForm
                     allowSplits
                     commerceRules={commerceRules}
-                    accounts={connected ? accountsQuery.data : undefined}
+                    accounts={movementAccounts}
+                    allowAccountTransfers={connected}
                     categories={categoryCatalog}
                     recent={recent}
                     editing={editor !== 'new'}
@@ -2077,7 +2112,7 @@ function Home({
                     />
                   ))}
                 </FilterRow>
-                {connected && (
+                {(connected || accounts.length > 0) && (
                   <FilterRow label="Filtrar por cuenta">
                     <Choice
                       label="Todas las cuentas"
@@ -2085,7 +2120,7 @@ function Home({
                       selected={!accountFilter}
                       onPress={() => setAccountFilter('')}
                     />
-                    {(accountsQuery.data ?? [])
+                    {accounts
                       .filter((a) => a.currency === currency)
                       .map((a) => (
                         <Choice
@@ -2171,10 +2206,9 @@ function Home({
                     </View>
                     {!!m.accountId && (
                       <Text style={s.muted}>
-                        Cuenta:{' '}
-                        {accountsQuery.data?.find((a) => a.id === m.accountId)?.name ?? 'Asignada'}
+                        Cuenta: {accounts.find((a) => a.id === m.accountId)?.name ?? 'Asignada'}
                         {m.targetAccountId
-                          ? ` → ${accountsQuery.data?.find((a) => a.id === m.targetAccountId)?.name ?? 'Destino asignado'}`
+                          ? ` → ${accounts.find((a) => a.id === m.targetAccountId)?.name ?? 'Destino asignado'}`
                           : ''}
                       </Text>
                     )}
@@ -2350,6 +2384,7 @@ function Home({
                       );
                     await persist(restoreLocalBackup(expected, backup));
                     setCategoryFilter('');
+                    setAccountFilter('');
                     setSearch('');
                     setType('ALL');
                     setNotice('');
@@ -2385,6 +2420,32 @@ function Home({
                   )}
                 </View>
               ))}
+            {screen === 'Cuentas y saldos' && !connected && (
+              <LocalAccountsScreen
+                accounts={local.accounts}
+                movements={local.movements}
+                currency={currency}
+                money={money}
+                busy={busy}
+                onCreate={(input) =>
+                  saveForm(() =>
+                    saveLocalAccounts([
+                      ...localRef.current.accounts,
+                      { ...input, id: newLocalId(), archived: false },
+                    ]),
+                  )
+                }
+                onUpdate={(id, changes) =>
+                  saveForm(() =>
+                    saveLocalAccounts(
+                      localRef.current.accounts.map((account) =>
+                        account.id === id ? { ...account, ...changes } : account,
+                      ),
+                    ),
+                  )
+                }
+              />
+            )}
             {screen === 'Cuentas y conciliación' &&
               connected &&
               (accountsQuery.isSuccess ? (
@@ -2451,6 +2512,7 @@ function Home({
                   await savePreferences(value);
                   setPreferences(value);
                   setCurrency(value.currency);
+                  setAccountFilter('');
                 }}
               />
             )}
@@ -2574,7 +2636,8 @@ function Home({
                 {!reviewDateError &&
                   (!connected || (imports.isSuccess && accountsQuery.isSuccess)) && (
                     <ReviewInbox
-                      accounts={connected ? accountsQuery.data : undefined}
+                      accounts={movementAccounts}
+                      allowAccountTransfers={connected}
                       onRetry={connected ? retryImport : undefined}
                       money={money}
                       onMovement={async (id) =>

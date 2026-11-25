@@ -248,3 +248,7 @@ El menú lateral incluye Analíticas y reportes con balance del mes, ingresos, g
 ## Respaldo y restauración local (2026-11-25)
 
 Configuración ofrece exportar y restaurar un JSON versionado para el modo local. La copia conserva movimientos, repartos, devoluciones, categorías, presupuestos, bancos, plantillas y confirmaciones, revisiones y herramientas de planificación locales. Omite credenciales, preferencias del dispositivo y datos del modo conectado. Se valida y muestra una vista previa antes de reemplazar los datos locales en una sola escritura. Web descarga el archivo y Android usa el selector y el menú de compartir. El archivo tiene un límite de 2 MB y contiene datos sin cifrar.
+
+## Cuentas y saldos locales (2026-11-25)
+
+Configuración permite crear efectivo, cuentas bancarias y tarjetas en DOP, USD o EUR para la cuenta de prueba. El saldo inicial precede a los movimientos vinculados. Cada ingreso o gasto puede vincularse a una cuenta de la misma moneda. Las devoluciones heredan la cuenta del gasto y se reasignan en la misma escritura cuando se cambia su cuenta. El filtro de historial incluye las cuentas archivadas y conserva sus saldos. El respaldo JSON v2 añade las cuentas y acepta v1 con catálogo vacío. Las transferencias entre cuentas y la conciliación local corresponden a fases posteriores.

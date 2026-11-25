@@ -2,7 +2,7 @@ import { isCurrency, type Movement } from '@flowsaldo/domain';
 import { normalizeLocalData, type LocalData } from './storage';
 
 const format = 'flowsaldo-local-backup';
-const version = 1;
+const version = 2;
 // Android's default AsyncStorage backend must be able to read the restored record.
 export const maxBackupBytes = 2_000_000;
 export const backupSizeMessage = 'El respaldo supera el límite de 2 MB.';
@@ -18,6 +18,7 @@ function byScope<T>(entries: Record<string, T>, local: boolean): Record<string, 
 function localSnapshot(data: LocalData): LocalData {
   return {
     movements: data.movements,
+    accounts: data.accounts,
     categories: data.categories,
     budgets: byScope(data.budgets, true),
     categoryBudgets: byScope(data.categoryBudgets, true),
@@ -74,7 +75,7 @@ export function readLocalBackup(text: string) {
     throw new Error('El archivo no es un respaldo válido de FlowSaldo.');
   }
   if (file?.format !== format) throw new Error('El archivo no es un respaldo válido de FlowSaldo.');
-  if (file.version !== version)
+  if (file.version !== 1 && file.version !== version)
     throw new Error('Esta versión de FlowSaldo no admite el formato del respaldo.');
 
   try {
@@ -85,7 +86,11 @@ export function readLocalBackup(text: string) {
     const keys = Object.keys(snapshot);
     // A current-format backup must include every section. Legacy defaults only apply to device storage.
     if (
-      keys.some((key) => !Object.hasOwn(file.data as object, key)) ||
+      keys.some(
+        (key) =>
+          !(key === 'accounts' && file.version === 1) && !Object.hasOwn(file.data as object, key),
+      ) ||
+      (file.version === 1 && data.accounts.length > 0) ||
       !(file.data as LocalData).categories ||
       data.savingsGoals.api.length > 0
     )

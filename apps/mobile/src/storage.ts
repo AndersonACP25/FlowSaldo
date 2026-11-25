@@ -2,6 +2,9 @@ import { demoReviews, type ReviewItem } from './reviews';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import {
   isCurrency,
+  localAccountBalances,
+  validateLocalAccounts,
+  type LocalAccount,
   validSavingsGoals,
   refundBalance,
   validPendingItems,
@@ -28,6 +31,7 @@ type CashProjectionKey = `demo:${Currency}` | `api:${Currency}`;
 
 export interface LocalData {
   movements: Movement[];
+  accounts: LocalAccount[];
   budgets: Record<string, number>;
   reviews: ReviewItem[];
   categories: Category[];
@@ -95,6 +99,9 @@ export function normalizeLocalData(input: unknown): LocalData {
     )
   )
     throw new Error('Revisiones locales inválidas');
+  if (value.accounts === undefined) value.accounts = [];
+  validateLocalAccounts(value.accounts);
+  localAccountBalances(value.accounts, value.movements);
   const upgraded = upgradeCategories(value.movements, value.categories);
   value.categories = upgraded.categories;
   value.movements = upgraded.movements;
@@ -109,7 +116,11 @@ export function normalizeLocalData(input: unknown): LocalData {
     const source = value.movements.find((movement) => movement.id === sourceId);
     if (
       !source ||
-      refunds.some((refund) => refund.occurredAt.slice(0, 10) < source.occurredAt.slice(0, 10))
+      refunds.some(
+        (refund) =>
+          refund.occurredAt.slice(0, 10) < source.occurredAt.slice(0, 10) ||
+          (refund.accountId ?? null) !== (source.accountId ?? null),
+      )
     )
       throw new Error('Devolución local inválida.');
     refundBalance(source, refunds);

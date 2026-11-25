@@ -37,7 +37,7 @@ interface Reconcile {
   differenceMinor: number;
   expectedRevision: number;
 }
-const kinds = {
+export const accountKindLabels = {
   BANK: 'Cuenta bancaria',
   CASH: 'Efectivo',
   CREDIT_CARD: 'Tarjeta de crédito',
@@ -102,7 +102,7 @@ export function FinancePanel({
             {a.archived ? ' · Archivada' : ''}
           </Text>
           <Text style={s.muted}>
-            {kinds[a.kind]} · {a.currency}
+            {accountKindLabels[a.kind]} · {a.currency}
           </Text>
           <Text style={s.text}>Saldo registrado: {money(a.balanceMinor, a.currency)}</Text>
           {['CREDIT_CARD', 'LOAN'].includes(a.kind) && (
@@ -269,7 +269,7 @@ export function FinancePanel({
       <Text style={s.title}>Crear cuenta</Text>
       <Field label="Nombre de la nueva cuenta" value={name} onChangeText={setName} maxLength={60} />
       <FilterRow label="Seleccionar tipo de cuenta">
-        {Object.entries(kinds).map(([value, label]) => (
+        {Object.entries(accountKindLabels).map(([value, label]) => (
           <Choice
             key={value}
             label={label}

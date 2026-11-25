@@ -11,6 +11,7 @@ export const settingsSections = [
   'Mis bancos',
   'Administrar categorías',
   'Reglas por comercio',
+  'Cuentas y saldos',
   'Cuentas y conciliación',
   'Notificaciones',
   'Correo y Gmail',
@@ -34,6 +35,7 @@ export function SettingsMenu({
   const { styles: s } = useTheme();
   const visible = settingsSections.filter((section) => {
     if (section === 'Cuentas y conciliación') return connected;
+    if (section === 'Cuentas y saldos') return !connected;
     if (section === 'Respaldo y restauración') return !connected;
     if (section === 'Mis bancos') return personal || !connected;
     if (

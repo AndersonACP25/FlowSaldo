@@ -8,6 +8,7 @@ export * from './cashProjection.ts';
 export * from './savings.ts';
 export * from './planning.ts';
 export * from './finance.ts';
+export * from './localAccounts.ts';
 export * from './movementSplits.ts';
 export * from './monthlyClosing.ts';
 export * from './refunds.ts';

@@ -3,6 +3,9 @@ import assert from 'node:assert/strict';
 import {
   formatMinorAmount,
   ledgerBalance,
+  localAccountBalances,
+  validateLocalAccounts,
+  type LocalAccount,
   parseSignedAmount,
   parseAmount,
   summarize,
@@ -91,6 +94,66 @@ test('CORE: totals isolate currencies/months and exclude own transfers', () => {
   assert.equal(ledgerBalance(0, 10029, 0, 0), 10029);
   assert.throws(() => ledgerBalance(Number.MAX_SAFE_INTEGER, 1, 0, 0));
   assert.equal(filterMovements(rows, { month: '2026-09', currency: 'DOP' }).length, 0);
+});
+test('CORE: local account balances preserve signed debt, linked refunds and currency', () => {
+  const accounts: LocalAccount[] = [
+    {
+      id: 'bank',
+      name: 'Banco',
+      kind: 'BANK',
+      currency: 'DOP',
+      openingMinor: 100000,
+      archived: false,
+    },
+    {
+      id: 'card',
+      name: 'Tarjeta',
+      kind: 'CREDIT_CARD',
+      currency: 'USD',
+      openingMinor: -2500,
+      archived: true,
+    },
+  ];
+  validateLocalAccounts(accounts);
+  const income = { ...demoMovements[0], accountId: 'bank' };
+  const expense = {
+    ...demoMovements[0],
+    id: 'purchase',
+    accountId: 'card',
+    currency: 'USD',
+    type: 'EXPENSE',
+    amountMinor: 2501,
+  } as const;
+  const refund = {
+    ...expense,
+    id: 'refund',
+    type: 'INCOME',
+    amountMinor: 503,
+    refundOfId: expense.id,
+  } as const;
+  assert.deepEqual(
+    [...localAccountBalances(accounts, [income, expense, refund, ...demoMovements])],
+    [
+      ['bank', 4600000],
+      ['card', -4498],
+    ],
+  );
+  assert.throws(
+    () => localAccountBalances(accounts, [{ ...expense, currency: 'EUR' }]),
+    /misma moneda/,
+  );
+  assert.throws(
+    () => localAccountBalances(accounts, [{ ...expense, accountId: 'missing' }]),
+    /no existe/,
+  );
+  assert.throws(
+    () => localAccountBalances(accounts, [{ ...expense, type: 'TRANSFER' }]),
+    /sin cuenta/,
+  );
+  assert.throws(
+    () => validateLocalAccounts([...accounts, { ...accounts[0], id: 'duplicate' }]),
+    /nombre y moneda/,
+  );
 });
 test('CORE: only explicit valid synthetic messages become movements', () => {
   assert.equal(
