@@ -232,3 +232,7 @@ El encabezado permanece visible en las pantallas de la cuenta. Explorar FlowSald
 ## Temas y ajustes de formularios en móvil (2026-11-25)
 
 Apariencia conserva los seis temas y suma nueve, con muestras de color en el selector. El plan de pago coloca Volver encima del título y utiliza una fila por campo. Metas centra las acciones Cancelar. Preguntas frecuentes conserva sus respuestas y agrupa los acordeones por tema, alineados a la izquierda.
+
+## Acceso y controles secundarios (2026-11-25)
+
+El acceso agrupa las tres acciones debajo de Entrar como texto centrado sin bordes. Registro y recuperación vuelven al acceso con una flecha junto al título. Resumen mensual usa −7 días y +7 días para navegar semanas. Cancelar aporte manual queda centrado y sin borde.

@@ -1,5 +1,5 @@
 import React, { useContext, useState } from 'react';
-import { Image, Pressable, StyleSheet } from 'react-native';
+import { Image, Pressable, StyleSheet, Text } from 'react-native';
 import { SettingsOptionsContext, useTheme } from './theme';
 
 // Metro resolves bundled images through static require calls.
@@ -28,7 +28,7 @@ export function IconButton({
   disabled = false,
   danger = false,
 }: {
-  icon: keyof typeof icons;
+  icon: keyof typeof icons | 'back';
   label: string;
   onPress: () => void;
   disabled?: boolean;
@@ -54,11 +54,17 @@ export function IconButton({
         disabled && s.disabled,
       ]}
     >
-      <Image
-        source={icons[icon]}
-        accessible={false}
-        style={[styles.icon, { tintColor: danger ? palette.danger : palette.ink }]}
-      />
+      {icon === 'back' ? (
+        <Text accessible={false} style={[styles.arrow, { color: palette.ink }]}>
+          ←
+        </Text>
+      ) : (
+        <Image
+          source={icons[icon]}
+          accessible={false}
+          style={[styles.icon, { tintColor: danger ? palette.danger : palette.ink }]}
+        />
+      )}
     </Pressable>
   );
 }
@@ -77,4 +83,5 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   icon: { width: 21, height: 21 },
+  arrow: { fontSize: 24, lineHeight: 28, fontWeight: '600' },
 });

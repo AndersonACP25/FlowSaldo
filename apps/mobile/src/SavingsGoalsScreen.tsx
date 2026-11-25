@@ -246,6 +246,7 @@ export function SavingsGoalsScreen({
                 <View style={{ alignItems: 'center' }}>
                   <Choice
                     label="Cancelar aporte"
+                    variant="text"
                     text="Cancelar"
                     selected={false}
                     disabled={saving}

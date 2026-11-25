@@ -45,6 +45,16 @@ export async function checkCoreFlows(browser) {
       return route.abort();
     });
     await page.goto('http://127.0.0.1:8082', { waitUntil: 'networkidle' });
+    for (const label of ['Usar cuenta de prueba', 'Registrarse', 'Recuperar cuenta con código']) {
+      const option = await button(label).evaluate((el) => {
+        const style = el.ownerDocument.defaultView.getComputedStyle(el);
+        return {
+          border: style.borderTopWidth,
+          align: el.ownerDocument.defaultView.getComputedStyle(el.firstElementChild).textAlign,
+        };
+      });
+      assert.deepEqual(option, { border: '0px', align: 'center' });
+    }
     await button('Usar cuenta de prueba').click();
     await page.getByLabel('Contraseña', { exact: true }).fill('Contraseña incorrecta');
     await button('Entrar').click();
@@ -175,6 +185,14 @@ export async function checkCoreFlows(browser) {
     await button('Guardar meta').click();
     await page.getByRole('heading', { name: 'Laptop CORE', exact: true }).waitFor();
     await button('Aportar a Laptop CORE').click();
+    const cancelContribution = await button('Cancelar aporte').evaluate((el) => {
+      const browser = el.ownerDocument.defaultView;
+      return {
+        border: browser.getComputedStyle(el).borderTopWidth,
+        alignment: browser.getComputedStyle(el.parentElement).alignItems,
+      };
+    });
+    assert.deepEqual(cancelContribution, { border: '0px', alignment: 'center' });
     await page.getByLabel('Monto del aporte', { exact: true }).fill('150');
     await button('Guardar aporte').click();
     await page.getByText('EUR 150.00 de EUR 1,000.00', { exact: true }).waitFor();
@@ -318,6 +336,8 @@ export async function checkCoreFlows(browser) {
     await page.getByLabel('Año', { exact: true }).fill('2040');
     await button('febrero de 2040').click();
     await page.getByText('2040-02-29', { exact: true }).waitFor();
+    assert.equal(await button('Semana anterior').innerText(), '−7 días');
+    assert.equal(await button('Semana siguiente').innerText(), '+7 días');
     await button('Semana siguiente').click();
     await page.getByText('2040-03-07', { exact: true }).waitFor();
     await button('Abrir menú').click();

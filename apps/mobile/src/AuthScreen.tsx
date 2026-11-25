@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { ScrollView, Text, View } from 'react-native';
 import { BrandMark } from './BrandMark';
+import { IconButton } from './IconButton';
 import { Button, Field, Choice } from './ui';
 import { useTheme } from './theme';
 import { isTestAccountEmail, testAccount } from './testAccount';
@@ -92,9 +93,19 @@ export function AuthScreen({
         <BrandMark />
         {!!notice && <Text style={s.muted}>{notice}</Text>}
         <View style={[s.card, { paddingHorizontal: 14 }]}>
-          <Text style={s.title}>
-            {register ? 'Registro' : recover ? 'Recuperar cuenta' : 'Iniciar sesión'}
-          </Text>
+          <View style={s.row}>
+            {route !== 'login' && (
+              <IconButton
+                icon="back"
+                label="Volver a iniciar sesión"
+                disabled={busy}
+                onPress={() => onRoute('login')}
+              />
+            )}
+            <Text accessibilityRole="header" style={[s.title, { flexShrink: 1 }]}>
+              {register ? 'Registro' : recover ? 'Recuperar cuenta' : 'Iniciar sesión'}
+            </Text>
+          </View>
           {register && (
             <>
               <Field label="Nombre" value={name} onChangeText={setName} maxLength={60} />
@@ -193,28 +204,33 @@ export function AuthScreen({
             onPress={() => void submit()}
           />
           {route === 'login' && (
-            <Choice
-              label="Usar cuenta de prueba"
-              selected={false}
-              disabled={busy}
-              onPress={() => {
-                setEmail(testAccount.email);
-                setPassword(testAccount.password);
-                setError('');
-              }}
-            />
-          )}
-          <Choice
-            label={register || recover ? 'Ir a iniciar sesión' : 'Registrarse'}
-            selected={false}
-            onPress={() => onRoute(register || recover ? 'login' : 'register')}
-          />
-          {route === 'login' && (
-            <Choice
-              label="Recuperar cuenta con código"
-              selected={false}
-              onPress={() => onRoute('recover')}
-            />
+            <View style={{ marginTop: 4, gap: 2 }}>
+              <Choice
+                label="Usar cuenta de prueba"
+                variant="text"
+                selected={false}
+                disabled={busy}
+                onPress={() => {
+                  setEmail(testAccount.email);
+                  setPassword(testAccount.password);
+                  setError('');
+                }}
+              />
+              <Choice
+                label="Registrarse"
+                variant="text"
+                selected={false}
+                disabled={busy}
+                onPress={() => onRoute('register')}
+              />
+              <Choice
+                label="Recuperar cuenta con código"
+                variant="text"
+                selected={false}
+                disabled={busy}
+                onPress={() => onRoute('recover')}
+              />
+            </View>
           )}
           {recover && (
             <Text style={s.muted}>

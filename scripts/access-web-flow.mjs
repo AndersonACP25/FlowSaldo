@@ -160,7 +160,7 @@ export async function checkAccessFlow(browser) {
     await page.getByLabel('Token de configuración inicial', { exact: true }).fill(setupToken);
     await button('Crear cuenta personal').click();
     await page.getByText('Cuenta personal creada. Ahora inicia sesión.', { exact: true }).waitFor();
-    await button('Ir a iniciar sesión').click();
+    await button('Volver a iniciar sesión').click();
     await page.getByLabel('Correo electrónico', { exact: true }).fill(owner.email);
     assert.equal(await page.getByText('Usuario de prueba', { exact: true }).count(), 0);
     await page.getByLabel('Contraseña', { exact: true }).fill('Incorrect-Synthetic-Passphrase');
@@ -224,6 +224,8 @@ export async function checkAccessFlow(browser) {
     await button('Abrir menú').click();
     await button('Salir').click();
     await page.getByText('Sesión cerrada.', { exact: true }).waitFor();
+    await button('Recuperar cuenta con código').click();
+    await button('Volver a iniciar sesión').click();
     await button('Recuperar cuenta con código').click();
     await page.getByLabel('Correo electrónico', { exact: true }).fill(owner.email);
     await page.getByLabel('Código de recuperación', { exact: true }).fill(recoveryCode);
