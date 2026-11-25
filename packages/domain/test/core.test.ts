@@ -11,11 +11,16 @@ import {
   makeMonthlyClosing,
   pendingForClosing,
   validMonthlyClosings,
+  setCommerceRule,
+  suggestCommerceCategory,
+  validCommerceRules,
+  type CommerceRule,
   filterMovements,
   demoMovements,
   parseDemoMail,
   parseBankWithdrawal,
   upgradeCategories,
+  demoCategoryCatalog,
   selectedCategory,
   budgetStatus,
   nextMonthlyDate,
@@ -362,6 +367,58 @@ test('CORE: partial settlements use the live movement exactly once and preserve 
   );
   assert.ok(validPendingItems(settled));
   assert.equal(validPendingItems([settled[0], { ...other, settlements: [link] }]), false);
+});
+test('CORE: commerce suggestions prefer specific matches and avoid unsafe category guesses', () => {
+  const catalog = demoCategoryCatalog([]);
+  const food = catalog.find((item) => item.name === 'Alimentación')!;
+  const leisure = catalog.find((item) => item.name === 'Ocio')!;
+  const transport = catalog.find((item) => item.name === 'Transporte')!;
+  const rule: CommerceRule = { id: 'cafe', pattern: 'Café', match: 'phrase', categoryId: food.id };
+  const specific = {
+    ...rule,
+    id: 'cafe-santo-domingo',
+    pattern: 'Café Santo Domingo',
+    categoryId: leisure.id,
+  };
+  const exact: CommerceRule = {
+    ...specific,
+    id: 'cafe-exact',
+    match: 'exact',
+    categoryId: transport.id,
+  };
+  const rules = [rule, specific, exact];
+  assert.equal(
+    suggestCommerceCategory('CAFE—Santo Domingo', rules, catalog)?.category.id,
+    transport.id,
+  );
+  assert.equal(
+    suggestCommerceCategory('Pago CAFe Santo Domingo RD', rules, catalog)?.category.id,
+    leisure.id,
+  );
+  assert.equal(suggestCommerceCategory('Cafetería', rules, catalog), null);
+  assert.equal(
+    suggestCommerceCategory(
+      'Café',
+      rules,
+      catalog.filter((item) => item.id !== food.id),
+    ),
+    null,
+  );
+  const archived = catalog.map((item) =>
+    item.id === leisure.id ? { ...item, archived: true } : item,
+  );
+  assert.equal(
+    suggestCommerceCategory('PAGO CAFÉ SANTO DOMINGO', rules, archived)?.category.id,
+    food.id,
+  );
+  const conflicting = { ...rule, id: 'pago', pattern: 'Pago', categoryId: transport.id };
+  assert.equal(suggestCommerceCategory('Pago Café', [rule, conflicting], catalog), null);
+  const duplicate = { ...rule, id: 'dup', pattern: '  CAFE!' };
+  assert.throws(() => setCommerceRule(rules, duplicate), /Ya existe/);
+  assert.ok(!validCommerceRules([...rules, duplicate]));
+  const edited = setCommerceRule(rules, { ...rule, categoryId: transport.id });
+  assert.ok(validCommerceRules(edited));
+  assert.equal(suggestCommerceCategory('Café', edited, catalog)?.category.id, transport.id);
 });
 test('CORE: monthly closings preserve the budget and unpaid amounts by due month and currency', () => {
   const bill: PendingItem = {

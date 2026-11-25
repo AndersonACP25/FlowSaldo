@@ -57,12 +57,24 @@ export async function checkCoreFlows(browser) {
     await button('Guardar preferencias').click();
     await page.getByText('Preferencias guardadas en este dispositivo.', { exact: true }).waitFor();
     await button('Volver').click();
+    await button('Reglas por comercio').click();
+    await button('Nueva regla por comercio').click();
+    await page.getByLabel('Comercio o frase', { exact: true }).fill('Compra CORE');
+    await button('Asignar Servicios').click();
+    await button('Guardar regla').click();
+    await page.getByText('Regla guardada.', { exact: true }).waitFor();
+    await button('Volver').click();
     await button('Volver').click();
     await button('+ Nuevo movimiento').click();
     await page.getByLabel('Descripción', { exact: true }).fill('Compra CORE');
     await page.getByLabel('Monto (sin separadores de miles)', { exact: true }).fill('100.29');
+    await button('Usar Servicios').click();
     await button('Guardar movimiento').click();
     await page.getByText('Movimiento guardado.', { exact: true }).waitFor();
+    assert.equal(
+      (await stored()).movements.find((item) => item.description === 'Compra CORE').category,
+      'Servicios',
+    );
     await button('Configuración').click();
     await button('Mis bancos').click();
     await button('Agregar bancos').click();
@@ -93,6 +105,18 @@ export async function checkCoreFlows(browser) {
     await button('Volver').click();
     await button('Volver').click();
     await button('Movimientos').click();
+    await button('+ Nuevo movimiento').click();
+    await page.getByLabel('Descripción', { exact: true }).fill('COMPRA-CORE factura 2');
+    await page.getByLabel('Monto (sin separadores de miles)', { exact: true }).fill('20.51');
+    await button('Usar Servicios').waitFor();
+    await button('Categoría: Transporte').click();
+    await button('Guardar movimiento').click();
+    await page.getByText('Movimiento guardado.', { exact: true }).waitFor();
+    assert.equal(
+      (await stored()).movements.find((item) => item.description === 'COMPRA-CORE factura 2')
+        .category,
+      'Transporte',
+    );
     await page.getByLabel('Buscar descripción o categoría', { exact: true }).fill('Compra CORE');
     await page.getByText('1 movimiento', { exact: true }).waitFor();
     await button('Editar Compra CORE').click();

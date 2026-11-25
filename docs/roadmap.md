@@ -25,7 +25,7 @@ La siguiente implementación después de validar el acceso en una APK física es
 
 ## Funcionalidades de negocio por fases
 
-Las siete fases se trabajan en `feat/finanzas-personales-por-fases`. La proyección, las metas de ahorro, los pendientes, los planes de pago y los cierres mensuales pueden usarse con la cuenta de prueba.
+Las siete fases están implementadas en `feat/finanzas-personales-por-fases` y se pueden probar con la cuenta de prueba.
 
 | Fase | Funcionalidad | Estado y criterio de aceptación |
 | --- | --- | --- |
@@ -35,7 +35,7 @@ Las siete fases se trabajan en `feat/finanzas-personales-por-fases`. La proyecci
 | 4 | Plan de pago de tarjetas y préstamos | Implementada. Guarda planes locales de tarjetas y préstamos con corte, vencimiento, capital, intereses y cargos. Compara cuotas, fecha estimada e intereses con un abono mensual adicional, con supuestos visibles. |
 | 5 | Dividir gastos por categoría | Implementada. Permite repartir gastos entre categorías en la misma moneda. Las partes deben sumar el gasto y se distribuyen entre análisis y presupuestos. El historial conserva una sola fila. |
 | 6 | Cierre mensual personal | Implementada. Revisa movimientos sin categorizar, saldos pendientes con vencimiento en el mes y diferencias frente al presupuesto. Guarda un resumen local por mes y moneda y compáralo con el cierre anterior. |
-| 7 | Reglas de categorización por comercio | Pendiente. Sugerir categorías para descripciones coincidentes. Permitir confirmar o corregir la sugerencia y aplicar las reglas al registro manual. |
+| 7 | Reglas de categorización por comercio | Implementada. Crea reglas por frase o descripción exacta en Configuración. El formulario manual sugiere la categoría y permite usarla, omitirla o elegir otra. Las reglas se guardan en el dispositivo. |
 
 ## Historial del roadmap
 

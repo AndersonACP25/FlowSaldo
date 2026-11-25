@@ -10,6 +10,7 @@ export const settingsSections = [
   'Apariencia',
   'Mis bancos',
   'Administrar categorías',
+  'Reglas por comercio',
   'Cuentas y conciliación',
   'Notificaciones',
   'Correo y Gmail',

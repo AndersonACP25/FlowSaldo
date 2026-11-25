@@ -7,6 +7,8 @@ import {
   dominicanDateTime,
   parseDominicanDateTime,
   selectedCategory,
+  suggestCommerceCategory,
+  type CommerceRule,
   checkMovementSplits,
   parseAmount,
   validDate,
@@ -38,8 +40,10 @@ export function MovementForm({
   saveLabel = 'Guardar movimiento',
   accounts,
   allowSplits = false,
+  commerceRules,
 }: {
   allowSplits?: boolean;
+  commerceRules?: CommerceRule[];
   accounts?: FinancialAccount[];
   saveLabel?: string;
   fixedDate?: boolean;
@@ -97,6 +101,17 @@ export function MovementForm({
   const [unit, setUnit] = useState<Currency>(movement?.currency ?? currency);
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
+  const [dismissedRule, setDismissedRule] = useState<string>();
+  const suggestion =
+    commerceRules?.length && !splitting && type !== 'TRANSFER'
+      ? suggestCommerceCategory(description, commerceRules, categories)
+      : null;
+
+  function chooseCategory(id: string) {
+    setCategoryId(id);
+    setDismissedRule(suggestion?.rule.id);
+  }
+
   async function save() {
     setError('');
     try {
@@ -287,6 +302,27 @@ export function MovementForm({
       {!splitting && (
         <>
           <Text style={s.label}>Categoría</Text>
+          {suggestion &&
+            suggestion.rule.id !== dismissedRule &&
+            suggestion.category.id !== categoryId && (
+              <View style={s.banner}>
+                <Text style={s.text}>Categoría sugerida · {suggestion.category.name}</Text>
+                <View style={s.row}>
+                  <Choice
+                    label={`Usar ${suggestion.category.name}`}
+                    selected={false}
+                    disabled={busy}
+                    onPress={() => chooseCategory(suggestion.category.id)}
+                  />
+                  <Choice
+                    label="Omitir sugerencia"
+                    selected={false}
+                    disabled={busy}
+                    onPress={() => setDismissedRule(suggestion.rule.id)}
+                  />
+                </View>
+              </View>
+            )}
           {recent.length > 0 && (
             <>
               <Text style={s.label}>Categorías recientes</Text>
@@ -299,7 +335,7 @@ export function MovementForm({
                       label={`Reciente: ${c.name}`}
                       text={c.name}
                       selected={categoryId === c.id}
-                      onPress={() => setCategoryId(c.id)}
+                      onPress={() => chooseCategory(c.id)}
                     />
                   ))}
               </FilterRow>
@@ -314,7 +350,7 @@ export function MovementForm({
                   label={`Categoría: ${c.name}`}
                   text={c.name + (c.archived ? ' · Archivada' : '')}
                   selected={categoryId === c.id}
-                  onPress={() => setCategoryId(c.id)}
+                  onPress={() => chooseCategory(c.id)}
                 />
               ))}
           </FilterRow>

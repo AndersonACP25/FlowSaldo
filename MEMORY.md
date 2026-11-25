@@ -216,3 +216,7 @@ Fase 5 en el mismo PR. El formulario manual de gastos distribuye el importe entr
 ## Cierre mensual personal (2026-11-25)
 
 Fase 6 en el mismo PR. Desde Inicio se consulta por mes y moneda, con acceso al historial filtrado por Sin categorizar y a los pagos y cobros con saldo vigente y vencimiento dentro del mes. Utiliza los totales generales y por categoría, que ya incluyen repartos. El cierre guarda una copia con fecha, importes pendientes y límites de presupuesto, separada entre demo y cuenta/URL. Se puede actualizar explícitamente o consultar frente al cierre del mes anterior de la misma moneda. La captura usa los datos vigentes y no modifica el historial. Reutiliza los endpoints de presupuesto, movimientos y resumen sin una migración adicional.
+
+## Reglas de categorización por comercio (2026-11-25)
+
+Fase 7 y cierre de las siete fases del PR #21. Configuración permite crear, editar y eliminar reglas por frase o descripción exacta. La coincidencia normaliza mayúsculas, acentos y separadores, conserva la letra ñ, prioriza una descripción exacta y luego la frase más larga. Empates entre categorías distintas, categorías archivadas y categorías eliminadas quedan fuera de la sugerencia. El formulario manual de ingresos y gastos permite aplicar, omitir o corregir la sugerencia. Los repartos, las transferencias y la importación conservan sus propios flujos. Las reglas se guardan en el dispositivo por modo y cuenta/URL.

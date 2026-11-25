@@ -1,3 +1,4 @@
+import { CommerceRulesScreen } from './src/CommerceRulesScreen';
 import { MonthlyClosingScreen } from './src/MonthlyClosingScreen';
 import { DebtPlansScreen } from './src/DebtPlansScreen';
 import { PendingPaymentsScreen } from './src/PendingPaymentsScreen';
@@ -70,6 +71,8 @@ import {
   categoryExpenses,
   movementCategories,
   makeMonthlyClosing,
+  setCommerceRule,
+  type CommerceRule,
   pendingForClosing,
   type MonthlyClosing,
   demoMovements,
@@ -139,6 +142,7 @@ function initialData(): LocalData {
     pendingItems: {},
     debtPlans: {},
     monthlyClosings: {},
+    commerceRules: {},
     budgets: {},
     reviews: demoReviews(),
   };
@@ -292,6 +296,7 @@ function Home({
     : 'demo';
   const debtPlans = local.debtPlans[planningScope] ?? [];
   const monthlyClosings = local.monthlyClosings[planningScope] ?? [];
+  const commerceRules = local.commerceRules[planningScope] ?? [];
   const pendingMovementIds = [
     ...new Set(
       pendingItems.flatMap((item) =>
@@ -1055,6 +1060,8 @@ function Home({
     delete next.debtPlans.demo;
     next.monthlyClosings = { ...localRef.current.monthlyClosings };
     delete next.monthlyClosings.demo;
+    next.commerceRules = { ...localRef.current.commerceRules };
+    delete next.commerceRules.demo;
     await persist(next);
     setLoadError('');
     setReady(true);
@@ -1219,6 +1226,18 @@ function Home({
     return pendingLinks([...new Set(ids)]);
   }
 
+  function updateCommerceRules(update: (rules: CommerceRule[]) => CommerceRule[]) {
+    return saveForm(() => {
+      const current = localRef.current;
+      return persist({
+        ...current,
+        commerceRules: {
+          ...current.commerceRules,
+          [planningScope]: update(current.commerceRules[planningScope] ?? []),
+        },
+      });
+    });
+  }
   function updateDebtPlans(update: (plans: DebtPlan[]) => DebtPlan[]) {
     return saveForm(() => {
       const current = localRef.current;
@@ -1883,6 +1902,7 @@ function Home({
                 {catalogReady && (!connected || accountsQuery.isSuccess) && (
                   <MovementForm
                     allowSplits
+                    commerceRules={commerceRules}
                     accounts={connected ? accountsQuery.data : undefined}
                     categories={categoryCatalog}
                     recent={recent}
@@ -2282,6 +2302,30 @@ function Home({
                   setPreferences(value);
                   setCurrency(value.currency);
                 }}
+              />
+            )}
+            {screen === 'Reglas por comercio' && catalogReady && (
+              <CommerceRulesScreen
+                rules={commerceRules}
+                categories={categoryCatalog}
+                saving={busy}
+                onSave={(draft, id) =>
+                  updateCommerceRules((rules) => {
+                    if (
+                      !categoryCatalog.some(
+                        (category) =>
+                          category.id === draft.categoryId &&
+                          !category.archived &&
+                          !category.system,
+                      )
+                    )
+                      throw new Error('Selecciona una categoría activa.');
+                    return setCommerceRule(rules, { ...draft, id: id ?? newLocalId() });
+                  })
+                }
+                onRemove={(id) =>
+                  updateCommerceRules((rules) => rules.filter((rule) => rule.id !== id))
+                }
               />
             )}
             {screen === 'Administrar categorías' && catalogReady && (
