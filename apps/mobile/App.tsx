@@ -9,6 +9,9 @@ import { PendingPaymentsScreen } from './src/PendingPaymentsScreen';
 import { SavingsGoalsScreen } from './src/SavingsGoalsScreen';
 import { CashProjectionScreen } from './src/CashProjectionScreen';
 import { SettingsMenu, settingsSections, type SettingsSection } from './src/SettingsMenu';
+import { BackupSettings } from './src/BackupSettings';
+import { LocalAccountsScreen } from './src/LocalAccountsScreen';
+import { restoreLocalBackup } from './src/localBackup';
 import { ThemeProvider, ThemeSettings } from './src/ThemeProvider';
 import { DateTimeField } from './src/DateTimeField';
 import { AboutApp } from './src/AboutApp';
@@ -16,6 +19,7 @@ import { BankConnections, BankSettings } from './src/BankDirectory';
 import { GmailConnection } from './src/GmailConnection';
 import { ApkUpdateNotice } from './src/ApkUpdateNotice';
 import { NotificationSettings } from './src/NotificationSettings';
+import { DueNotificationSettings, useDueNotifications } from './src/DueNotificationSettings';
 import { notifyTransaction } from './src/transactionNotifications';
 import { RatesScreen } from './src/RatesScreen';
 import { localToday, PeriodPicker } from './src/PeriodPicker';
@@ -48,6 +52,11 @@ import {
 } from '@tanstack/react-query';
 import {
   formatMinorAmount,
+  localMovementAccounts,
+  previewLocalReconciliation,
+  type LocalReconciliation,
+  validateLocalAccounts,
+  type LocalAccount,
   addSavingsContribution,
   addPendingSettlement,
   checkPendingDraft,
@@ -140,6 +149,7 @@ function initialData(): LocalData {
     ...upgradeCategories(
       demoMovements.map((m) => ({ ...m, occurredAt: currentMonth() + m.occurredAt.slice(7) })),
     ),
+    accounts: [],
     recurring: [],
     bankIds: [],
     receipts: [],
@@ -185,6 +195,7 @@ function Home({
   const [local, setLocal] = useState<LocalData>(initialData);
   const localRef = useRef(local);
   const [ready, setReady] = useState(false);
+  const dueNotificationSettings = useDueNotifications(ready ? local : null);
   const [loadError, setLoadError] = useState('');
   const [currency, setCurrency] = useState<Currency>('DOP');
   const [periodDate, setPeriodDate] = useState(localToday);
@@ -494,6 +505,15 @@ function Home({
       ),
     getNextPageParam: (last) => last.nextCursor ?? undefined,
   });
+  const accounts = connected ? (accountsQuery.data ?? []) : local.accounts;
+  const localCardIds = new Set(
+    local.accounts.filter((account) => account.kind === 'CREDIT_CARD').map((account) => account.id),
+  );
+  const movementAccounts = connected
+    ? accountsQuery.data
+    : local.accounts.length
+      ? local.accounts
+      : undefined;
   const uncategorizedId = categoryCatalog.find((category) => category.system)?.id;
   const closingUncategorized = useQuery({
     queryKey: [
@@ -577,7 +597,12 @@ function Home({
         type,
         search,
         categoryId: categoryFilter || undefined,
-      });
+      }).filter(
+        (movement) =>
+          !accountFilter ||
+          movement.accountId === accountFilter ||
+          movement.targetAccountId === accountFilter,
+      );
   const summary = connected
     ? (totals.data ?? { incomeMinor: 0, expenseMinor: 0, differenceMinor: 0 })
     : summarize(period, currency);
@@ -978,6 +1003,52 @@ function Home({
     }
     setNotice(registered ? 'Banco agregado.' : 'Banco quitado.');
   }
+  function checkLocalAccounts(draft: Draft, previous?: Movement | null) {
+    const { source, target } = localMovementAccounts(
+      new Map(localRef.current.accounts.map((item) => [item.id, item])),
+      draft,
+    );
+    if (
+      (source?.archived && source.id !== previous?.accountId) ||
+      (target?.archived && target.id !== previous?.targetAccountId)
+    )
+      throw new Error('Reactiva la cuenta antes de vincular un movimiento.');
+  }
+  function isLocalCardPayment(movement: Movement) {
+    return (
+      !connected && movement.type === 'TRANSFER' && localCardIds.has(movement.targetAccountId ?? '')
+    );
+  }
+  async function saveLocalAccounts(accounts: LocalAccount[]) {
+    validateLocalAccounts(accounts);
+    await persist({ ...localRef.current, accounts });
+  }
+  async function saveLocalReconciliation(preview: LocalReconciliation) {
+    const current = localRef.current;
+    const { accountId, occurredAt, statementMinor } = preview;
+    const verified = previewLocalReconciliation(current.accounts, current.movements, {
+      accountId,
+      occurredAt,
+      statementMinor,
+    });
+    if (verified.expectedMinor !== preview.expectedMinor || verified.differenceMinor === 0)
+      throw new Error('El saldo cambió. Compara los saldos de nuevo.');
+    const account = current.accounts.find((item) => item.id === accountId)!;
+    const category = current.categories.find((item) => item.system)!;
+    const movement: Movement = {
+      id: 'adjustment-' + newLocalId(),
+      description: `Ajuste de conciliación · ${account.name}`,
+      type: 'TRANSFER',
+      currency: account.currency,
+      category: category.name,
+      categoryId: category.id,
+      occurredAt,
+      amountMinor: Math.abs(verified.differenceMinor),
+      accountId,
+      balanceAdjustment: { expectedMinor: verified.expectedMinor, statementMinor },
+    };
+    await persist({ ...current, movements: [movement, ...current.movements] });
+  }
   async function saveMovement(draft: Draft) {
     const edit = editor && editor !== 'new' ? editor : null;
     let movementId: string;
@@ -989,10 +1060,12 @@ function Home({
       movementId = movement.id;
       await refreshMovements();
     } else {
+      const current = localRef.current;
+      checkLocalAccounts(draft, edit);
       const item: Movement = {
         ...draft,
         ...selectedCategory(
-          localRef.current.categories,
+          current.categories,
           draft.categoryId ?? undefined,
           draft.category,
           edit ?? undefined,
@@ -1001,18 +1074,24 @@ function Home({
       };
       if (
         edit &&
-        localRef.current.movements.some((row) => row.refundOfId === edit.id) &&
-        refusesRefundSourceChange(edit, item)
+        current.movements.some((row) => row.refundOfId === edit.id) &&
+        refusesRefundSourceChange(edit, { ...item, accountId: edit.accountId })
       )
         throw new Error(
           'El gasto tiene devoluciones. Quita las devoluciones antes de cambiar sus datos financieros.',
         );
       movementId = item.id;
+      const accountChanged = (edit?.accountId ?? null) !== (item.accountId ?? null);
       await persist({
-        ...localRef.current,
+        ...current,
         movements: edit
-          ? localRef.current.movements.map((m) => (m.id === item.id ? item : m))
-          : [item, ...localRef.current.movements],
+          ? current.movements.map((movement) => {
+              if (movement.id === item.id) return item;
+              if (accountChanged && movement.refundOfId === item.id)
+                return { ...movement, accountId: item.accountId ?? null };
+              return movement;
+            })
+          : [item, ...current.movements],
       });
     }
     if (personal && !edit && draft.type !== 'EXPENSE') {
@@ -1048,6 +1127,7 @@ function Home({
       const refund = {
         ...prepareRefund(source, current.movements, { amountMinor, occurredAt }),
         id: requestKey,
+        accountId: source.accountId ?? null,
         description: ('Devolución: ' + source.description).slice(0, 100),
       };
       await persist({ ...current, movements: [refund, ...current.movements] });
@@ -1092,6 +1172,7 @@ function Home({
     } else {
       const review = localRef.current.reviews.find((i) => i.id === id);
       if (review?.status !== 'REVIEW') throw new Error('Este correo ya fue revisado.');
+      checkLocalAccounts(draft);
       await persist({
         ...localRef.current,
         movements: [
@@ -1154,6 +1235,7 @@ function Home({
     setLoadError('');
     setReady(true);
     setResetConfirm(false);
+    setAccountFilter('');
     setNotice('Demo restablecida.');
   }
   function disconnect() {
@@ -1211,6 +1293,10 @@ function Home({
   function addSavings(goalId: string, item: SavingsContribution) {
     return saveForm(async () => {
       const transfer = item.kind === 'transfer' ? await movementForLink(item.movementId) : null;
+      if (transfer?.balanceAdjustment)
+        throw new Error('Los ajustes de conciliación no se vinculan a metas de ahorro.');
+      if (transfer && isLocalCardPayment(transfer))
+        throw new Error('Los pagos de tarjeta no se vinculan a metas de ahorro.');
       const transfers = new Map(transfer ? [[transfer.id, transfer]] : []);
       await updateSavingsGoals((goals) => addSavingsContribution(goals, goalId, item, transfers));
     });
@@ -1601,9 +1687,13 @@ function Home({
                 linkedTransfer={transferForSavings}
                 transfers={
                   new Map(
-                    (connected ? (savingsTransfersQuery.data ?? []) : local.movements).map(
-                      (movement) => [movement.id, movement],
-                    ),
+                    (connected
+                      ? (savingsTransfersQuery.data ?? [])
+                      : local.movements.filter(
+                          (movement) =>
+                            !movement.balanceAdjustment && !isLocalCardPayment(movement),
+                        )
+                    ).map((movement) => [movement.id, movement]),
                   )
                 }
                 linksPending={
@@ -1980,7 +2070,8 @@ function Home({
                   <MovementForm
                     allowSplits
                     commerceRules={commerceRules}
-                    accounts={connected ? accountsQuery.data : undefined}
+                    accounts={movementAccounts}
+                    localAccounts={!connected}
                     categories={categoryCatalog}
                     recent={recent}
                     editing={editor !== 'new'}
@@ -2075,7 +2166,7 @@ function Home({
                     />
                   ))}
                 </FilterRow>
-                {connected && (
+                {(connected || accounts.length > 0) && (
                   <FilterRow label="Filtrar por cuenta">
                     <Choice
                       label="Todas las cuentas"
@@ -2083,7 +2174,7 @@ function Home({
                       selected={!accountFilter}
                       onPress={() => setAccountFilter('')}
                     />
-                    {(accountsQuery.data ?? [])
+                    {accounts
                       .filter((a) => a.currency === currency)
                       .map((a) => (
                         <Choice
@@ -2151,7 +2242,13 @@ function Home({
                             ? countLabel(m.splits.length, 'categoría', 'categorías')
                             : m.category}{' '}
                           · {m.occurredAt.slice(0, 10)} ·{' '}
-                          {m.refundOfId ? 'Devolución' : typeLabels[m.type]}
+                          {m.balanceAdjustment
+                            ? 'Ajuste de saldo'
+                            : m.refundOfId
+                              ? 'Devolución'
+                              : isLocalCardPayment(m)
+                                ? 'Pago de tarjeta'
+                                : typeLabels[m.type]}
                         </Text>
                       </View>
                       <Text
@@ -2163,21 +2260,28 @@ function Home({
                               : s.amount
                         }
                       >
-                        {m.type === 'EXPENSE' ? '−' : m.type === 'INCOME' ? '+' : '↔'}{' '}
+                        {m.balanceAdjustment
+                          ? m.balanceAdjustment.statementMinor > m.balanceAdjustment.expectedMinor
+                            ? '+'
+                            : '−'
+                          : m.type === 'EXPENSE'
+                            ? '−'
+                            : m.type === 'INCOME'
+                              ? '+'
+                              : '↔'}{' '}
                         {money(m.amountMinor, m.currency)}
                       </Text>
                     </View>
                     {!!m.accountId && (
                       <Text style={s.muted}>
-                        Cuenta:{' '}
-                        {accountsQuery.data?.find((a) => a.id === m.accountId)?.name ?? 'Asignada'}
+                        Cuenta: {accounts.find((a) => a.id === m.accountId)?.name ?? 'Asignada'}
                         {m.targetAccountId
-                          ? ` → ${accountsQuery.data?.find((a) => a.id === m.targetAccountId)?.name ?? 'Destino asignado'}`
+                          ? ` → ${accounts.find((a) => a.id === m.targetAccountId)?.name ?? 'Destino asignado'}`
                           : ''}
                       </Text>
                     )}
                     <View style={s.row}>
-                      {!m.refundOfId && (
+                      {!m.refundOfId && !m.balanceAdjustment && (
                         <>
                           <IconButton
                             icon="edit"
@@ -2245,7 +2349,7 @@ function Home({
                           onPress={() => openPending(m, null, 'Movimientos')}
                         />
                       )}
-                      {m.type === 'TRANSFER' && (
+                      {m.type === 'TRANSFER' && !m.balanceAdjustment && !isLocalCardPayment(m) && (
                         <Choice
                           label={`Vincular a meta: ${m.description}`}
                           text={
@@ -2336,6 +2440,27 @@ function Home({
             {screen === 'Configuración' && (
               <SettingsMenu personal={!!personal} connected={connected} onOpen={setScreen} />
             )}
+            {screen === 'Respaldo y restauración' && !connected && (
+              <BackupSettings
+                local={local}
+                busy={busy}
+                onRestore={(backup, expected) =>
+                  saveForm(async () => {
+                    if (localRef.current !== expected)
+                      throw new Error(
+                        'Los datos locales cambiaron. Selecciona el respaldo de nuevo.',
+                      );
+                    await persist(restoreLocalBackup(expected, backup));
+                    setCategoryFilter('');
+                    setAccountFilter('');
+                    setSearch('');
+                    setType('ALL');
+                    setNotice('');
+                    setError('');
+                  })
+                }
+              />
+            )}
             {screen === 'Preguntas frecuentes' && <HelpScreen />}
             {screen === 'Acerca de la aplicación' && <AboutApp />}
             {screen === 'Apariencia' && <ThemeSettings />}
@@ -2363,6 +2488,33 @@ function Home({
                   )}
                 </View>
               ))}
+            {screen === 'Cuentas y saldos' && !connected && (
+              <LocalAccountsScreen
+                accounts={local.accounts}
+                movements={local.movements}
+                currency={currency}
+                money={money}
+                busy={busy}
+                onCreate={(input) =>
+                  saveForm(() =>
+                    saveLocalAccounts([
+                      ...localRef.current.accounts,
+                      { ...input, id: newLocalId(), archived: false },
+                    ]),
+                  )
+                }
+                onReconcile={(preview) => saveForm(() => saveLocalReconciliation(preview))}
+                onUpdate={(id, changes) =>
+                  saveForm(() =>
+                    saveLocalAccounts(
+                      localRef.current.accounts.map((account) =>
+                        account.id === id ? { ...account, ...changes } : account,
+                      ),
+                    ),
+                  )
+                }
+              />
+            )}
             {screen === 'Cuentas y conciliación' &&
               connected &&
               (accountsQuery.isSuccess ? (
@@ -2406,7 +2558,12 @@ function Home({
                   <IconButton icon="logout" label="Cerrar sesión" onPress={() => void onLogout()} />
                 </View>
               ))}
-            {screen === 'Notificaciones' && personal && <NotificationSettings />}
+            {screen === 'Notificaciones' &&
+              (connected ? (
+                personal && <NotificationSettings />
+              ) : (
+                <DueNotificationSettings {...dueNotificationSettings} />
+              ))}
             {screen === 'Correo y Gmail' && personal && <GmailConnection token={personal.token} />}
             {screen === 'Seguridad y privacidad' && personal && (
               <>
@@ -2429,6 +2586,7 @@ function Home({
                   await savePreferences(value);
                   setPreferences(value);
                   setCurrency(value.currency);
+                  setAccountFilter('');
                 }}
               />
             )}
@@ -2552,7 +2710,8 @@ function Home({
                 {!reviewDateError &&
                   (!connected || (imports.isSuccess && accountsQuery.isSuccess)) && (
                     <ReviewInbox
-                      accounts={connected ? accountsQuery.data : undefined}
+                      accounts={movementAccounts}
+                      localAccounts={!connected}
                       onRetry={connected ? retryImport : undefined}
                       money={money}
                       onMovement={async (id) =>

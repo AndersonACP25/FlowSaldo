@@ -3,11 +3,13 @@ import { movementCategories, type MovementSplit } from './movementSplits.ts';
 
 export * from './bank-mail.ts';
 export * from './recurring.ts';
+export * from './dueReminders.ts';
 export * from './dateTime.ts';
 export * from './cashProjection.ts';
 export * from './savings.ts';
 export * from './planning.ts';
 export * from './finance.ts';
+export * from './localAccounts.ts';
 export * from './movementSplits.ts';
 export * from './monthlyClosing.ts';
 export * from './refunds.ts';
@@ -31,6 +33,7 @@ export interface Movement {
   targetAccountId?: string | null;
   requestKey?: string | null;
   refundOfId?: string | null;
+  balanceAdjustment?: { expectedMinor: number; statementMinor: number };
 }
 export interface MailInput {
   externalId: string;
@@ -158,7 +161,7 @@ export function filterMovements(
           movementCategories(m).some((part) => part.categoryId === filter.categoryId)) &&
         (!filter.type ||
           filter.type === 'ALL' ||
-          (m.refundOfId ? 'EXPENSE' : m.type) === filter.type) &&
+          (!m.balanceAdjustment && (m.refundOfId ? 'EXPENSE' : m.type) === filter.type)) &&
         (!search ||
           movementCategories(m).some((part) =>
             `${m.description} ${part.category}`.toLocaleLowerCase('es').includes(search),
@@ -186,7 +189,13 @@ export function movementsCsv(rows: Movement[]): string {
     ...rows.map((m) =>
       [
         m.occurredAt.slice(0, 10),
-        m.refundOfId ? 'REFUND' : m.type,
+        m.balanceAdjustment
+          ? m.balanceAdjustment.statementMinor > m.balanceAdjustment.expectedMinor
+            ? 'ADJUSTMENT_IN'
+            : 'ADJUSTMENT_OUT'
+          : m.refundOfId
+            ? 'REFUND'
+            : m.type,
         m.currency,
         (m.amountMinor / 100).toFixed(2),
         m.description,

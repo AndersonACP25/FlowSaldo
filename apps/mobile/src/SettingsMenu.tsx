@@ -1,5 +1,5 @@
 import React from 'react';
-import { View } from 'react-native';
+import { Platform, View } from 'react-native';
 import { useTheme } from './theme';
 import { Choice } from './ui';
 
@@ -11,10 +11,12 @@ export const settingsSections = [
   'Mis bancos',
   'Administrar categorías',
   'Reglas por comercio',
+  'Cuentas y saldos',
   'Cuentas y conciliación',
   'Notificaciones',
   'Correo y Gmail',
   'Seguridad y privacidad',
+  'Respaldo y restauración',
   'Preguntas frecuentes',
   'Acerca de la aplicación',
 ] as const;
@@ -33,13 +35,11 @@ export function SettingsMenu({
   const { styles: s } = useTheme();
   const visible = settingsSections.filter((section) => {
     if (section === 'Cuentas y conciliación') return connected;
+    if (section === 'Cuentas y saldos') return !connected;
+    if (section === 'Respaldo y restauración') return !connected;
     if (section === 'Mis bancos') return personal || !connected;
-    if (
-      section === 'Notificaciones' ||
-      section === 'Correo y Gmail' ||
-      section === 'Seguridad y privacidad'
-    )
-      return personal;
+    if (section === 'Notificaciones') return personal || (!connected && Platform.OS === 'android');
+    if (section === 'Correo y Gmail' || section === 'Seguridad y privacidad') return personal;
     return true;
   });
 

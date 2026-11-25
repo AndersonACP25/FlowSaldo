@@ -1,8 +1,7 @@
 import React, { useState } from 'react';
 import { Text, View } from 'react-native';
 import { countLabel, type Movement, type Category, type Currency } from '@flowsaldo/domain';
-import type { FinancialAccount } from './FinancePanel';
-import { MovementForm, type Draft } from './MovementForm';
+import { MovementForm, type Draft, type MovementAccount } from './MovementForm';
 import type { ReviewItem } from './reviews';
 import { Button, Choice } from './ui';
 import { useTheme } from './theme';
@@ -20,8 +19,10 @@ export function ReviewInbox({
   money,
   onRetry,
   accounts,
+  localAccounts,
 }: {
-  accounts?: FinancialAccount[];
+  accounts?: MovementAccount[];
+  localAccounts?: boolean;
   onRetry?: (id: string) => Promise<void>;
   onMovement: (id: string) => Promise<Movement | null>;
   money: (minor: number, currency: Currency) => string;
@@ -169,6 +170,7 @@ export function ReviewInbox({
             (editing === item.id ? (
               <MovementForm
                 accounts={accounts}
+                localAccounts={localAccounts}
                 categories={categories}
                 title="Confirmar movimiento"
                 movement={suggestion ?? item.suggestion}

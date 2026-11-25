@@ -244,3 +244,23 @@ Movimientos permite registrar devoluciones parciales o totales con fecha y hora 
 ## Analíticas y reportes (2026-11-25)
 
 El menú lateral incluye Analíticas y reportes con balance del mes, ingresos, gastos netos, presupuesto general y categorías, más la comparación con el mes anterior. Usa el selector de período y moneda y los mismos totales que el resumen. El reporte mensual CSV incluye una fila por indicador o categoría con importes firmados y moneda separada. Está disponible en demo y API y reutiliza los endpoints actuales.
+
+## Respaldo y restauración local (2026-11-25)
+
+Configuración ofrece exportar y restaurar un JSON versionado para el modo local. La copia conserva movimientos, repartos, devoluciones, categorías, presupuestos, bancos, plantillas y confirmaciones, revisiones y herramientas de planificación locales. Omite credenciales, preferencias del dispositivo y datos del modo conectado. Se valida y muestra una vista previa antes de reemplazar los datos locales en una sola escritura. Web descarga el archivo y Android usa el selector y el menú de compartir. El archivo tiene un límite de 2 MB y contiene datos sin cifrar.
+
+## Cuentas y saldos locales (2026-11-25)
+
+Configuración permite crear efectivo, cuentas bancarias y tarjetas en DOP, USD o EUR para la cuenta de prueba. El saldo inicial precede a los movimientos vinculados. Cada ingreso o gasto puede vincularse a una cuenta de la misma moneda. Las devoluciones heredan la cuenta del gasto y se reasignan en la misma escritura cuando se cambia su cuenta. El filtro de historial incluye las cuentas archivadas y conserva sus saldos. El respaldo JSON v2 añade las cuentas y acepta v1 con catálogo vacío. Las transferencias entre cuentas y la conciliación local corresponden a fases posteriores.
+
+## Transferencias y pagos de tarjetas locales (2026-11-25)
+
+La segunda fase vincula transferencias a dos cuentas distintas en la misma moneda o las conserva sin cuentas, como en el historial previo. Se guarda un solo movimiento. El importe se resta en el origen y se suma en el destino, incluso con tarjetas archivadas que conservan su historial. Una tarjeta de destino muestra el movimiento como pago de tarjeta. Los abonos quedan fuera de ingresos, gastos y metas de ahorro. Editar o eliminar recalcula ambos saldos. El historial se filtra por cualquiera de las dos cuentas y el respaldo v2 conserva los dos vínculos.
+
+## Conciliación manual local (2026-11-25)
+
+Cuentas y saldos compara una cuenta activa con el importe del estado de cuenta a una fecha y hora dominicanas. Para tarjetas se ingresa deuda positiva y saldo a favor negativo. Si hay diferencia, confirmar revalida el saldo al corte y agrega un solo ajuste identificado en el historial y CSV. Los ajustes afectan exclusivamente el saldo de esa cuenta. No alteran ingresos, gastos, presupuestos ni metas. El respaldo conserva sus importes. Una comparación que coincide no agrega movimientos.
+
+## Recordatorios de vencimiento locales (2026-11-25)
+
+En Android, Configuración → Notificaciones activa avisos por pagos pendientes y próximos vencimientos de plantillas mensuales de la cuenta de prueba. Los disparos se calculan en hora dominicana con la regla de fechas existente. Un pago vinculado sustituye el aviso de su plantilla. Abonos parciales conservan el aviso y saldar, pausar o confirmar evita que el aviso anterior siga activo. La preferencia pertenece al dispositivo y la programación se actualiza al guardar y al volver en primer plano. No se exponen nombres ni montos en las notificaciones. La app funciona con entrega aproximada y permite habilitar la hora exacta desde Android.

@@ -3,6 +3,13 @@ import assert from 'node:assert/strict';
 import {
   formatMinorAmount,
   ledgerBalance,
+  localAccountBalances,
+  previewLocalReconciliation,
+  dueReminders,
+  dueReminderId,
+  planDueReminderUpdates,
+  validateLocalAccounts,
+  type LocalAccount,
   parseSignedAmount,
   parseAmount,
   summarize,
@@ -91,6 +98,200 @@ test('CORE: totals isolate currencies/months and exclude own transfers', () => {
   assert.equal(ledgerBalance(0, 10029, 0, 0), 10029);
   assert.throws(() => ledgerBalance(Number.MAX_SAFE_INTEGER, 1, 0, 0));
   assert.equal(filterMovements(rows, { month: '2026-09', currency: 'DOP' }).length, 0);
+});
+test('CORE: local transfers preserve balances, card debt and reported expenses', () => {
+  const accounts: LocalAccount[] = [
+    {
+      id: 'bank',
+      name: 'Banco',
+      kind: 'BANK',
+      currency: 'DOP',
+      openingMinor: 100000,
+      archived: false,
+    },
+    {
+      id: 'card',
+      name: 'Tarjeta',
+      kind: 'CREDIT_CARD',
+      currency: 'USD',
+      openingMinor: -2500,
+      archived: true,
+    },
+    {
+      id: 'cash',
+      name: 'Efectivo',
+      kind: 'CASH',
+      currency: 'USD',
+      openingMinor: 70000,
+      archived: false,
+    },
+  ];
+  validateLocalAccounts(accounts);
+  const income = { ...demoMovements[0], accountId: 'bank' };
+  const expense = {
+    ...demoMovements[0],
+    id: 'purchase',
+    accountId: 'card',
+    currency: 'USD',
+    type: 'EXPENSE',
+    amountMinor: 2501,
+  } as const;
+  const refund = {
+    ...expense,
+    id: 'refund',
+    type: 'INCOME',
+    amountMinor: 503,
+    refundOfId: expense.id,
+  } as const;
+  const payment = {
+    ...expense,
+    id: 'payment',
+    type: 'TRANSFER',
+    accountId: 'cash',
+    targetAccountId: 'card',
+    amountMinor: 2047,
+  } as const;
+  assert.deepEqual(
+    [...localAccountBalances(accounts, [income, expense, refund, payment, ...demoMovements])],
+    [
+      ['bank', 4600000],
+      ['card', -2451],
+      ['cash', 67953],
+    ],
+  );
+  assert.throws(
+    () => localAccountBalances(accounts, [{ ...expense, currency: 'EUR' }]),
+    /misma moneda/,
+  );
+  assert.throws(
+    () => localAccountBalances(accounts, [{ ...expense, accountId: 'missing' }]),
+    /no existe/,
+  );
+  assert.deepEqual(
+    summarize([expense, refund, payment], 'USD'),
+    summarize([expense, refund], 'USD'),
+  );
+  for (const invalid of [
+    { ...payment, targetAccountId: null },
+    { ...payment, accountId: null },
+    { ...payment, targetAccountId: payment.accountId },
+  ])
+    assert.throws(() => localAccountBalances(accounts, [invalid]), /dos cuentas distintas/);
+  assert.throws(
+    () => localAccountBalances(accounts, [{ ...payment, targetAccountId: 'bank' }]),
+    /misma moneda/,
+  );
+  assert.throws(
+    () => validateLocalAccounts([...accounts, { ...accounts[0], id: 'duplicate' }]),
+    /nombre y moneda/,
+  );
+});
+test('CORE: reconciliation applies the signed difference once without altering cash-flow totals', () => {
+  const accounts: LocalAccount[] = [
+    {
+      id: 'bank',
+      name: 'Banco',
+      kind: 'BANK',
+      currency: 'DOP',
+      openingMinor: 10000,
+      archived: false,
+    },
+  ];
+  const income = { ...demoMovements[0], accountId: 'bank', amountMinor: 1200 };
+  const cutoff = { accountId: 'bank', occurredAt: '2026-10-20T11:59:00.000Z' };
+  const preview = previewLocalReconciliation(accounts, [income], {
+    ...cutoff,
+    statementMinor: 9750,
+  });
+  assert.equal(preview.expectedMinor, 10000);
+  assert.equal(preview.differenceMinor, -250);
+  const adjustment = {
+    ...income,
+    ...cutoff,
+    id: 'adjustment',
+    type: 'TRANSFER',
+    amountMinor: 250,
+    balanceAdjustment: { expectedMinor: 10000, statementMinor: 9750 },
+  } as const;
+  const movements = [income, adjustment];
+  assert.equal(localAccountBalances(accounts, movements).get('bank'), 10950);
+  assert.equal(previewLocalReconciliation(accounts, movements, preview).differenceMinor, 0);
+  assert.deepEqual(summarize(movements, 'DOP'), summarize([income], 'DOP'));
+  assert.throws(
+    () => localAccountBalances(accounts, [{ ...adjustment, amountMinor: 251 }]),
+    /Ajuste de saldo inválido/,
+  );
+});
+test('CORE: due reminders avoid duplicate notices and remove settled or replaced deadlines', () => {
+  const now = Date.parse('2026-11-25T14:00:00.000Z');
+  const template: RecurringTemplate = {
+    id: 'rent',
+    version: 0,
+    description: 'Alquiler',
+    amountMinor: 8000,
+    currency: 'DOP',
+    type: 'EXPENSE',
+    category: 'Servicios',
+    categoryId: 'services',
+    startDate: '2026-12-01',
+    nextDate: '2026-12-01',
+    timeOfDay: '09:30',
+    anchorDay: 1,
+    active: true,
+  };
+  const [monthly] = dueReminders([], [template], [], []);
+  assert.equal(monthly.dueAt, Date.parse('2026-12-01T13:30:00.000Z'));
+  assert.deepEqual(dueReminders([], [{ ...template, active: false }], [], []), []);
+  assert.deepEqual(
+    dueReminders(
+      [],
+      [template],
+      [{ templateId: 'rent', scheduledFor: '2026-12-01', movementId: null }],
+      [],
+    ),
+    [],
+  );
+  const pending: PendingItem = {
+    id: 'rent-pending',
+    name: 'Alquiler',
+    kind: 'pay',
+    currency: 'DOP',
+    amountMinor: 8000,
+    dueAt: '2026-12-02T10:30',
+    occurrence: { templateId: 'rent', scheduledFor: '2026-12-01' },
+    settlements: [{ id: 'partial', kind: 'manual', amountMinor: 2000 }],
+  };
+  const [payment] = dueReminders([pending], [template], [], []);
+  assert.equal(payment.kind, 'payment');
+  const monthlyId = dueReminderId(monthly, false);
+  const paymentId = dueReminderId(payment, false);
+  assert.deepEqual(planDueReminderUpdates([payment], [monthlyId, 'transaction'], [], now, false), {
+    cancel: [monthlyId],
+    dismiss: [],
+    schedule: [[paymentId, payment]],
+  });
+  assert.deepEqual(planDueReminderUpdates([payment], [paymentId], [], now, false).schedule, []);
+  assert.deepEqual(planDueReminderUpdates([payment], [paymentId], [], now, true).cancel, [
+    paymentId,
+  ]);
+  assert.deepEqual(
+    planDueReminderUpdates([payment], [], [], payment.dueAt + 1, false).schedule,
+    [],
+  );
+  const settled = {
+    ...pending,
+    settlements: [
+      ...pending.settlements,
+      { id: 'linked', kind: 'movement' as const, movementId: 'rent-payment' },
+    ],
+  };
+  const movement = { ...demoMovements[1], id: 'rent-payment', amountMinor: 6000 };
+  const remaining = dueReminders([settled], [template], [], [movement]);
+  assert.deepEqual(planDueReminderUpdates(remaining, [], [paymentId, 'transaction'], now, false), {
+    cancel: [],
+    dismiss: [paymentId],
+    schedule: [],
+  });
 });
 test('CORE: only explicit valid synthetic messages become movements', () => {
   assert.equal(
