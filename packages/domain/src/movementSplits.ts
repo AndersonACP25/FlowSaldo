@@ -30,6 +30,8 @@ export function checkMovementSplits(
   if (total !== amountMinor) throw new Error('Las partes deben sumar el importe total del gasto.');
 }
 
-export function movementCategories(movement: Movement) {
+export function movementCategories(
+  movement: Movement,
+): Pick<Movement, 'categoryId' | 'category' | 'amountMinor'>[] {
   return movement.splits?.length ? movement.splits : [movement];
 }

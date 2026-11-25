@@ -693,12 +693,7 @@ function Home({
         localRef.current.categories,
         draft.categoryId ?? undefined,
         draft.category,
-        existing
-          ? {
-              ...existing,
-              occurredAt: recurringOccurrenceAt(existing.nextDate, existing.timeOfDay),
-            }
-          : undefined,
+        existing,
       );
       const item: RecurringTemplate = {
         ...data,
