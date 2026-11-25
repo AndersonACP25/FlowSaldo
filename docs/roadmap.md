@@ -37,6 +37,8 @@ Las siete fases están implementadas en `feat/finanzas-personales-por-fases` y s
 | 6 | Cierre mensual personal | Implementada. Revisa movimientos sin categorizar, saldos pendientes con vencimiento en el mes y diferencias frente al presupuesto. Guarda un resumen local por mes y moneda y compáralo con el cierre anterior. |
 | 7 | Reglas de categorización por comercio | Implementada. Crea reglas por frase o descripción exacta en Configuración. El formulario manual sugiere la categoría y permite usarla, omitirla o elegir otra. Las reglas se guardan en el dispositivo. |
 
+El simulador de préstamos también está disponible desde el menú de Inicio. Estima la cuota mensual, el costo total y el calendario a partir del monto, el plazo, la tasa anual fija, el primer pago y los cargos opcionales.
+
 ## Historial del roadmap
 
 ## Completado en v0.2

@@ -184,6 +184,26 @@ export async function checkCoreFlows(browser) {
     );
     const beforePlanning = (await stored()).movements;
     await button('Inicio').click();
+    await button('Menú de Inicio').click();
+    await button('Simulador de préstamos').click();
+    await button('DOP').click();
+    const loanFields = {
+      'Monto del préstamo': '100000',
+      'Tasa nominal anual (%)': '18',
+      'Número de cuotas mensuales': '12',
+      'Comisión inicial (opcional)': '1000',
+      'Seguro mensual (opcional)': '250',
+      'Fecha y hora del primer pago': '2028-01-31T17:30',
+    };
+    for (const [label, value] of Object.entries(loanFields))
+      await page.getByLabel(label, { exact: true }).fill(value);
+    await button('Calcular préstamo').click();
+    await page.getByText('DOP 9,418.00', { exact: true }).waitFor();
+    await page.getByText('DOP 114,015.99', { exact: true }).waitFor();
+    await button('Ver amortización').click();
+    await page.getByText('Cuota 2 · 2028-02-29 · 17:30', { exact: true }).waitFor();
+    assert.deepEqual((await stored()).movements, beforePlanning);
+    await button('Volver').click();
     await button('Plan de pago de tarjetas y préstamos').click();
     await button('Nuevo plan de pago').click();
     await button('DOP').click();

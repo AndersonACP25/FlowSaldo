@@ -1,3 +1,4 @@
+import { LoanSimulatorScreen } from './src/LoanSimulatorScreen';
 import { CommerceRulesScreen } from './src/CommerceRulesScreen';
 import { MonthlyClosingScreen } from './src/MonthlyClosingScreen';
 import { DebtPlansScreen } from './src/DebtPlansScreen';
@@ -193,6 +194,7 @@ function Home({
     | 'Metas de ahorro'
     | 'Pagos y cobros pendientes'
     | 'Plan de pago de tarjetas y préstamos'
+    | 'Simulador de préstamos'
     | 'Cierre mensual'
     | 'Tasas'
     | 'Editar movimiento'
@@ -1529,6 +1531,9 @@ function Home({
                 onRetry={() => void pendingLinksQuery.refetch()}
                 onClearLink={() => setMovementForPending(null)}
               />
+            )}
+            {screen === 'Simulador de préstamos' && (
+              <LoanSimulatorScreen defaultCurrency={currency} money={money} />
             )}
             {screen === 'Plan de pago de tarjetas y préstamos' && (
               <DebtPlansScreen

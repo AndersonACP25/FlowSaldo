@@ -27,6 +27,8 @@ import {
   prepareOccurrence,
   projectAvailableCash,
   compareDebtPlan,
+  simulateLoan,
+  type LoanSimulationInput,
   validDebtPlans,
   type DebtPlanDraft,
   addSavingsContribution,
@@ -473,6 +475,56 @@ test('CORE: monthly closings preserve the budget and unpaid amounts by due month
   assert.ok(validMonthlyClosings([snapshot, { ...snapshot, currency: 'EUR' }]));
   assert.ok(!validMonthlyClosings([snapshot, snapshot]));
   assert.ok(!validMonthlyClosings([{ ...snapshot, expenseMinor: -1 }]));
+});
+test('CORE: loan installments reconcile interest, principal and separate fees in cents', () => {
+  const input: LoanSimulationInput = {
+    principalMinor: 10_000_000,
+    currency: 'DOP',
+    annualRateBasisPoints: 1800,
+    installmentCount: 12,
+    firstDueAt: '2028-01-31T17:30',
+    upfrontFeeMinor: 100_000,
+    monthlyInsuranceMinor: 25_000,
+  };
+  const loan = simulateLoan(input);
+  assert.deepEqual(loan.schedule[0], {
+    number: 1,
+    dueAt: '2028-01-31T17:30',
+    principalMinor: 766_800,
+    interestMinor: 150_000,
+    insuranceMinor: 25_000,
+    paymentMinor: 941_800,
+    remainingMinor: 9_233_200,
+  });
+  assert.equal(loan.schedule[1].dueAt, '2028-02-29T17:30');
+  assert.equal(loan.schedule[2].dueAt, '2028-03-31T17:30');
+  assert.equal(loan.schedule.at(-1)?.paymentMinor, 941_799);
+  assert.equal(loan.schedule.at(-1)?.remainingMinor, 0);
+  assert.equal(loan.totalInterestMinor, 1_001_599);
+  assert.equal(loan.totalCostMinor, 1_401_599);
+  assert.equal(loan.totalPaidMinor, 11_401_599);
+  assert.equal(
+    loan.schedule.reduce((total, item) => total + item.paymentMinor, loan.upfrontFeeMinor),
+    loan.totalPaidMinor,
+  );
+  const zeroRate = simulateLoan({
+    ...input,
+    principalMinor: 5,
+    annualRateBasisPoints: 0,
+    installmentCount: 4,
+    upfrontFeeMinor: 0,
+    monthlyInsuranceMinor: 0,
+  });
+  assert.deepEqual(
+    zeroRate.schedule.map((item) => item.paymentMinor),
+    [1, 1, 1, 2],
+  );
+  assert.equal(zeroRate.totalPaidMinor, 5);
+  assert.throws(() => simulateLoan({ ...input, installmentCount: 0 }), /cuotas/);
+  assert.throws(() => simulateLoan({ ...input, principalMinor: 1 }), /centavo/);
+  assert.throws(() => simulateLoan({ ...input, annualRateBasisPoints: -1 }), /tasa/);
+  assert.throws(() => simulateLoan({ ...input, monthlyInsuranceMinor: -1 }), /seguro/);
+  assert.throws(() => simulateLoan({ ...input, firstDueAt: '2026-02-30T12:00' }), /primer pago/);
 });
 test('CORE: debt scenarios preserve cents, first-cycle costs and the monthly due day', () => {
   const plan: DebtPlanDraft = {

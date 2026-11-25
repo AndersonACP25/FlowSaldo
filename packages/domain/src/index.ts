@@ -271,3 +271,10 @@ export {
   type DebtPlan,
   type DebtPlanDraft,
 } from './debtPlan.ts';
+
+export {
+  maxLoanInstallments,
+  maxLoanRateBasisPoints,
+  simulateLoan,
+  type LoanSimulationInput,
+} from './loanSimulation.ts';

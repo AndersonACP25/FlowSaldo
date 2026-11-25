@@ -1,6 +1,7 @@
 import { parseDominicanDateTime } from './dateTime.ts';
 import { isCurrency, type Currency } from './index.ts';
 import { nextMonthlyDate } from './recurring.ts';
+import { monthlyInterestMinor } from './finance.ts';
 
 export type DebtPlanDraft = {
   name: string;
@@ -102,11 +103,10 @@ function projectDebt(plan: DebtPlanDraft, monthlyMinor: number): DebtScenario {
   };
 
   for (let month = 1; month <= maxDebtPlanMonths; month++) {
-    // Annual basis points / 120,000 gives the nominal monthly interest rate.
     const cycleInterest =
       month === 1
         ? plan.statementInterestMinor
-        : Number((BigInt(principal) * BigInt(plan.annualRateBasisPoints) + 60_000n) / 120_000n);
+        : monthlyInterestMinor(principal, plan.annualRateBasisPoints);
     if (month > 1 && monthlyMinor <= cycleInterest) return { status: 'interest-too-high' };
     const capital =
       month === 1 ? firstPrincipal : Math.min(principal, monthlyMinor - cycleInterest);

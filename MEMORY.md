@@ -220,3 +220,7 @@ Fase 6 en el mismo PR. Desde Inicio se consulta por mes y moneda, con acceso al 
 ## Reglas de categorización por comercio (2026-11-25)
 
 Fase 7 y cierre de las siete fases del PR #21. Configuración permite crear, editar y eliminar reglas por frase o descripción exacta. La coincidencia normaliza mayúsculas, acentos y separadores, conserva la letra ñ, prioriza una descripción exacta y luego la frase más larga. Empates entre categorías distintas, categorías archivadas y categorías eliminadas quedan fuera de la sugerencia. El formulario manual de ingresos y gastos permite aplicar, omitir o corregir la sugerencia. Los repartos, las transferencias y la importación conservan sus propios flujos. Las reglas se guardan en el dispositivo por modo y cuenta/URL.
+
+## Simulador de préstamos (2026-11-25)
+
+Disponible en el menú lateral de Inicio como opción independiente en el PR #21. Calcula amortización mensual en DOP, USD y EUR con tasa nominal anual fija, plazo en cuotas y fecha y hora dominicana del primer pago. Suma comisión inicial pagada aparte y seguro fijo mensual opcional. Desglosa capital, interés, seguro, saldo y vencimiento por cuota. Ajusta centavos para cerrar con saldo cero y conserva el día del primer vencimiento entre meses cortos. La simulación vive en la pantalla y funciona en demo y conectado sin registrar movimientos ni guardar un plan.
