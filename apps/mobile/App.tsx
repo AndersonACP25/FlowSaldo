@@ -52,7 +52,6 @@ import {
 } from '@tanstack/react-query';
 import {
   formatMinorAmount,
-  localMovementAccounts,
   previewLocalReconciliation,
   type LocalReconciliation,
   validateLocalAccounts,
@@ -83,9 +82,6 @@ import {
   pendingMailMessage,
   categoryExpenses,
   monthlyReportCsv,
-  prepareRefund,
-  refundBalance,
-  refusesRefundSourceChange,
   movementCategories,
   makeMonthlyClosing,
   setCommerceRule,
@@ -139,8 +135,14 @@ import {
   savePreferences,
   type Preferences,
 } from './src/preferences';
-import { exportCsv, exportCsvText } from './src/exportCsv';
-import { movementParams, type Page, type MonthlySummary } from './src/history';
+import { exportCsvText } from './src/exportCsv';
+import type { Page } from './src/history';
+import { useMovementHistory } from './src/useMovementHistory';
+import {
+  checkLocalMovementAccounts,
+  movementCommands,
+  type RefundDraft,
+} from './src/movementCommands';
 const client = new QueryClient();
 const formatMoney = (minor: number, currency: Currency) =>
   `${currency} ${formatMinorAmount(minor)}`;
@@ -277,9 +279,7 @@ function Home({
   const [reviewTo, setReviewTo] = useState('');
   const [categoryFilter, setCategoryFilter] = useState('');
   const [duplicate, setDuplicate] = useState<Movement | null>(null);
-  const [refundDraft, setRefundDraft] = useState<{ expense: Movement; requestKey: string } | null>(
-    null,
-  );
+  const [refundDraft, setRefundDraft] = useState<RefundDraft | null>(null);
   const [editor, setEditor] = useState<Movement | 'new' | null>(null);
   const [deleteId, setDeleteId] = useState<string | null>(null);
   const [token, setToken] = useState('');
@@ -492,20 +492,6 @@ function Home({
   const recurring = connected ? (recurringQuery.data ?? []) : local.recurring;
   const categoryCatalog = connected ? (catalog.data ?? []) : local.categories;
   const catalogReady = !connected || catalog.isSuccess;
-  const params =
-    movementParams(month, currency, type, search, categoryFilter) +
-    (connected && accountFilter ? `&accountId=${encodeURIComponent(accountFilter)}` : '');
-  const query = useInfiniteQuery({
-    queryKey: ['movements', connected, params],
-    enabled: connected,
-    retry: false,
-    initialPageParam: null as string | null,
-    queryFn: async ({ pageParam }): Promise<Page<Movement>> =>
-      request(
-        `/movements?page=true&${params}${pageParam ? `&cursor=${encodeURIComponent(pageParam)}` : ''}`,
-      ),
-    getNextPageParam: (last) => last.nextCursor ?? undefined,
-  });
   const accounts = connected ? (accountsQuery.data ?? []) : local.accounts;
   const localCardIds = new Set(
     local.accounts.filter((account) => account.kind === 'CREDIT_CARD').map((account) => account.id),
@@ -516,46 +502,31 @@ function Home({
       ? local.accounts
       : undefined;
   const uncategorizedId = categoryCatalog.find((category) => category.system)?.id;
-  const closingUncategorized = useQuery({
-    queryKey: [
-      'movements',
-      'closing-uncategorized',
-      url,
-      planningScope,
-      month,
-      currency,
-      uncategorizedId,
-    ],
-    enabled: connected && closing && !!uncategorizedId,
-    retry: false,
-    queryFn: async () => {
-      const query = movementParams(month, currency, 'ALL', '', uncategorizedId ?? '');
-      const page: Page<Movement> = await request(`/movements?page=true&limit=1&${query}`);
-      return page.total;
-    },
+  const {
+    query,
+    closingUncategorized,
+    refundQuery,
+    refundInfo,
+    totals,
+    visible,
+    recent,
+    refreshMovements,
+    exportAll,
+  } = useMovementHistory({
+    connection: connected ? { url, token: session, ownerId: personal?.owner.id, request } : null,
+    rows: local.movements,
+    month,
+    currency,
+    periodDate,
+    filters: { type, search, categoryId: categoryFilter, accountId: accountFilter },
+    closing: { active: closing, scope: planningScope, categoryId: uncategorizedId },
+    refundSource: screen === 'Registrar devolución' ? (refundDraft?.expense ?? null) : null,
   });
-  const refundQuery = useQuery({
-    queryKey: ['movements', 'refunds', url, personal?.owner.id, refundDraft?.expense.id],
-    enabled: connected && screen === 'Registrar devolución' && !!refundDraft,
-    retry: false,
-    queryFn: async (): Promise<{
-      source: Movement;
-      refundedMinor: number;
-      remainingMinor: number;
-    }> => request(`/movements/${encodeURIComponent(refundDraft!.expense.id)}/refunds`),
-  });
-  const refundInfo =
-    screen === 'Registrar devolución' &&
-    refundDraft &&
-    (connected
-      ? refundQuery.data
-      : { source: refundDraft.expense, ...refundBalance(refundDraft.expense, local.movements) });
-  const totals = useQuery({
-    queryKey: ['summary', connected, month, currency, periodDate],
-    enabled: connected,
-    retry: false,
-    queryFn: async (): Promise<MonthlySummary> =>
-      request(`/summary?month=${month}&currency=${currency}&weekEnd=${periodDate}`),
+  const commands = movementCommands({
+    request: connected ? request : null,
+    getLocal: () => localRef.current,
+    persist,
+    refreshMovements,
   });
   const rangeStart = parseDominicanDateTime(reviewFrom);
   const endMinute = parseDominicanDateTime(reviewTo);
@@ -590,20 +561,6 @@ function Home({
     ? (imports.data?.pages[0]?.pendingTotal ?? 0)
     : local.reviews.filter((i) => i.status === 'REVIEW').length;
   const period = filterMovements(local.movements, { currency, month });
-  const visible = connected
-    ? (query.data?.pages.flatMap((p) => p.items) ?? [])
-    : filterMovements(local.movements, {
-        currency,
-        month,
-        type,
-        search,
-        categoryId: categoryFilter || undefined,
-      }).filter(
-        (movement) =>
-          !accountFilter ||
-          movement.accountId === accountFilter ||
-          movement.targetAccountId === accountFilter,
-      );
   const summary = connected
     ? (totals.data ?? { incomeMinor: 0, expenseMinor: 0, differenceMinor: 0 })
     : summarize(period, currency);
@@ -624,26 +581,6 @@ function Home({
     (sum, value) => sum + Math.max(0, value.amountMinor),
     0,
   );
-  async function refreshMovements() {
-    await Promise.all([
-      client.invalidateQueries({ queryKey: ['movements'] }),
-      client.invalidateQueries({ queryKey: ['savings-transfers'] }),
-      client.invalidateQueries({ queryKey: ['pending-links'] }),
-      client.invalidateQueries({ queryKey: ['summary'] }),
-      client.invalidateQueries({ queryKey: ['accounts'] }),
-    ]);
-  }
-  async function exportAll() {
-    if (!connected) {
-      await exportCsv(visible, month);
-      return;
-    }
-    const response = await fetch(`${url}/movements/export?${params}`, {
-      headers: { Authorization: `Bearer ${session}` },
-    });
-    if (!response.ok) throw new Error('No se pudo exportar. Reintenta la descarga.');
-    await exportCsvText(await response.text(), `FlowSaldo-${month}.csv`);
-  }
   const budgetKey = `${connected ? 'api' : 'demo'}:${month}:${currency}`;
   const budget = connected ? (serverBudget.data?.limitMinor ?? 0) : (local.budgets[budgetKey] ?? 0);
   const monthlyReport = {
@@ -720,16 +657,6 @@ function Home({
       closingCalculationError = true;
     }
   }
-  const recent = [
-    ...new Set(
-      (connected
-        ? (query.data?.pages.flatMap((p) => p.items) ?? [])
-        : [...local.movements].sort((a, b) => b.occurredAt.localeCompare(a.occurredAt))
-      )
-        .map((m) => m.categoryId)
-        .filter((id): id is string => !!id),
-    ),
-  ].slice(0, 5);
   async function saveCategory(name: string, id?: string) {
     name = categoryName(name);
     const normalizedName = categoryKey(name);
@@ -1004,17 +931,6 @@ function Home({
     }
     setNotice(registered ? 'Banco agregado.' : 'Banco quitado.');
   }
-  function checkLocalAccounts(draft: Draft, previous?: Movement | null) {
-    const { source, target } = localMovementAccounts(
-      new Map(localRef.current.accounts.map((item) => [item.id, item])),
-      draft,
-    );
-    if (
-      (source?.archived && source.id !== previous?.accountId) ||
-      (target?.archived && target.id !== previous?.targetAccountId)
-    )
-      throw new Error('Reactiva la cuenta antes de vincular un movimiento.');
-  }
   function isLocalCardPayment(movement: Movement) {
     return (
       !connected && movement.type === 'TRANSFER' && localCardIds.has(movement.targetAccountId ?? '')
@@ -1052,49 +968,7 @@ function Home({
   }
   async function saveMovement(draft: Draft) {
     const edit = editor && editor !== 'new' ? editor : null;
-    let movementId: string;
-    if (connected) {
-      const movement: Movement = await request(edit ? `/movements/${edit.id}` : '/movements', {
-        method: edit ? 'PATCH' : 'POST',
-        body: JSON.stringify(draft),
-      });
-      movementId = movement.id;
-      await refreshMovements();
-    } else {
-      const current = localRef.current;
-      checkLocalAccounts(draft, edit);
-      const item: Movement = {
-        ...draft,
-        ...selectedCategory(
-          current.categories,
-          draft.categoryId ?? undefined,
-          draft.category,
-          edit ?? undefined,
-        ),
-        id: edit?.id ?? `local-${Date.now()}-${Math.random().toString(36).slice(2)}`,
-      };
-      if (
-        edit &&
-        current.movements.some((row) => row.refundOfId === edit.id) &&
-        refusesRefundSourceChange(edit, { ...item, accountId: edit.accountId })
-      )
-        throw new Error(
-          'El gasto tiene devoluciones. Quita las devoluciones antes de cambiar sus datos financieros.',
-        );
-      movementId = item.id;
-      const accountChanged = (edit?.accountId ?? null) !== (item.accountId ?? null);
-      await persist({
-        ...current,
-        movements: edit
-          ? current.movements.map((movement) => {
-              if (movement.id === item.id) return item;
-              if (accountChanged && movement.refundOfId === item.id)
-                return { ...movement, accountId: item.accountId ?? null };
-              return movement;
-            })
-          : [item, ...current.movements],
-      });
-    }
+    const movementId = await commands.save(draft, edit);
     if (personal && !edit && draft.type !== 'EXPENSE') {
       void notifyTransaction(
         movementId,
@@ -1114,25 +988,7 @@ function Home({
   }
   async function recordRefund(amountMinor: number, occurredAt: string) {
     if (!refundDraft) return;
-    const { expense, requestKey } = refundDraft;
-    if (connected) {
-      await request(`/movements/${encodeURIComponent(expense.id)}/refunds`, {
-        method: 'POST',
-        body: JSON.stringify({ amountMinor, occurredAt, requestKey }),
-      });
-      await refreshMovements();
-    } else {
-      const current = localRef.current;
-      const source = current.movements.find((item) => item.id === expense.id);
-      if (!source) throw new Error('Gasto no encontrado.');
-      const refund = {
-        ...prepareRefund(source, current.movements, { amountMinor, occurredAt }),
-        id: requestKey,
-        accountId: source.accountId ?? null,
-        description: ('Devolución: ' + source.description).slice(0, 100),
-      };
-      await persist({ ...current, movements: [refund, ...current.movements] });
-    }
+    await commands.refund(refundDraft, amountMinor, occurredAt);
     setRefundDraft(null);
     setPeriodDate(occurredAt.slice(0, 10));
     setType('ALL');
@@ -1143,22 +999,7 @@ function Home({
     setNotice('Devolución registrada.');
   }
   async function remove(id: string) {
-    if (!connected && localRef.current.movements.some((item) => item.refundOfId === id))
-      throw new Error('Elimina las devoluciones vinculadas antes de quitar el gasto.');
-    if (connected) {
-      await request(`/movements/${id}`, { method: 'DELETE' });
-      await refreshMovements();
-    } else
-      await persist({
-        ...localRef.current,
-        movements: localRef.current.movements.filter((m) => m.id !== id),
-        receipts: localRef.current.receipts.map((r) =>
-          r.movementId === id ? { ...r, movementId: null } : r,
-        ),
-        reviews: localRef.current.reviews.map((r) =>
-          r.movement?.id === id ? { ...r, movement: null } : r,
-        ),
-      });
+    await commands.remove(id);
     setDeleteId(null);
     setNotice('Movimiento eliminado.');
   }
@@ -1173,7 +1014,7 @@ function Home({
     } else {
       const review = localRef.current.reviews.find((i) => i.id === id);
       if (review?.status !== 'REVIEW') throw new Error('Este correo ya fue revisado.');
-      checkLocalAccounts(draft);
+      checkLocalMovementAccounts(localRef.current.accounts, draft);
       await persist({
         ...localRef.current,
         movements: [

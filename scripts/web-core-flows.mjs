@@ -583,14 +583,25 @@ export async function checkCoreFlows(browser) {
         delete movement.accountId;
         delete movement.targetAccountId;
       }
-      await chooseBackup({
+      const legacyFile = {
         name: 'Respaldo-v1.json',
         mimeType: 'application/json',
         buffer: Buffer.from(JSON.stringify(legacyBackup)),
-      });
+      };
+      await chooseBackup(legacyFile);
       await restoredPage.getByText(/· 0 cuentas$/).waitFor();
       await restoredButton('Cancelar').click();
       assert.equal(await restoredStorage(), null);
+      await chooseBackup(legacyFile);
+      await restoredButton('Restaurar y reemplazar datos').click();
+      await restoredPage.getByText('Respaldo restaurado.', { exact: true }).waitFor();
+      const legacyData = await restoredStorage();
+      assert.deepEqual(legacyData.accounts, []);
+      assert.deepEqual(legacyData.movements, legacyBackup.data.movements);
+      assert.equal(
+        legacyData.movements.find((movement) => movement.id === refund.id).refundOfId,
+        original.id,
+      );
       await chooseBackup(backupPath);
       await restoredButton('Restaurar y reemplazar datos').click();
       await restoredPage.getByText('Respaldo restaurado.', { exact: true }).waitFor();

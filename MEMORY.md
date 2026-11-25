@@ -268,3 +268,7 @@ En Android, Configuración → Notificaciones activa avisos por pagos pendientes
 ## Ajustes de navegación, conversión y abonos (2026-11-25)
 
 Los controles de retorno usan iconos y los menús muestran un icono por opción. Las acciones secundarias independientes de cancelar o cerrar se centran. Conversión permite probar tasas USD y EUR a DOP con valores iniciales de Frankfurter y restaurarlos. La edición se limita a la pantalla y consulta activa. Los abonos manuales se pueden editar sin duplicar registros, con validación del saldo y conservando los movimientos vinculados. Cierre mensual apila ingresos y gastos.
+
+## Consultas y operaciones de movimientos (2026-11-25)
+
+El hook de historial centraliza paginación, filtros, totales API, vista previa de devoluciones, CSV e invalidaciones de las consultas dependientes. Los comandos de movimientos manejan alta, edición, devolución y eliminación para el modo local y conectado. App.tsx conserva el estado de navegación, los avisos y la persistencia compartida. El recorrido web restaura respaldos v1 y v2 y comprueba el vínculo de devolución.
