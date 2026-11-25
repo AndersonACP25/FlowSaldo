@@ -19,6 +19,7 @@ import { BankConnections, BankSettings } from './src/BankDirectory';
 import { GmailConnection } from './src/GmailConnection';
 import { ApkUpdateNotice } from './src/ApkUpdateNotice';
 import { NotificationSettings } from './src/NotificationSettings';
+import { DueNotificationSettings, useDueNotifications } from './src/DueNotificationSettings';
 import { notifyTransaction } from './src/transactionNotifications';
 import { RatesScreen } from './src/RatesScreen';
 import { localToday, PeriodPicker } from './src/PeriodPicker';
@@ -194,6 +195,7 @@ function Home({
   const [local, setLocal] = useState<LocalData>(initialData);
   const localRef = useRef(local);
   const [ready, setReady] = useState(false);
+  const dueNotificationSettings = useDueNotifications(ready ? local : null);
   const [loadError, setLoadError] = useState('');
   const [currency, setCurrency] = useState<Currency>('DOP');
   const [periodDate, setPeriodDate] = useState(localToday);
@@ -2556,7 +2558,12 @@ function Home({
                   <IconButton icon="logout" label="Cerrar sesión" onPress={() => void onLogout()} />
                 </View>
               ))}
-            {screen === 'Notificaciones' && personal && <NotificationSettings />}
+            {screen === 'Notificaciones' &&
+              (connected ? (
+                personal && <NotificationSettings />
+              ) : (
+                <DueNotificationSettings {...dueNotificationSettings} />
+              ))}
             {screen === 'Correo y Gmail' && personal && <GmailConnection token={personal.token} />}
             {screen === 'Seguridad y privacidad' && personal && (
               <>

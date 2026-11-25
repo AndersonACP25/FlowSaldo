@@ -260,3 +260,7 @@ La segunda fase vincula transferencias a dos cuentas distintas en la misma moned
 ## Conciliación manual local (2026-11-25)
 
 Cuentas y saldos compara una cuenta activa con el importe del estado de cuenta a una fecha y hora dominicanas. Para tarjetas se ingresa deuda positiva y saldo a favor negativo. Si hay diferencia, confirmar revalida el saldo al corte y agrega un solo ajuste identificado en el historial y CSV. Los ajustes afectan exclusivamente el saldo de esa cuenta. No alteran ingresos, gastos, presupuestos ni metas. El respaldo conserva sus importes. Una comparación que coincide no agrega movimientos.
+
+## Recordatorios de vencimiento locales (2026-11-25)
+
+En Android, Configuración → Notificaciones activa avisos por pagos pendientes y próximos vencimientos de plantillas mensuales de la cuenta de prueba. Los disparos se calculan en hora dominicana con la regla de fechas existente. Un pago vinculado sustituye el aviso de su plantilla. Abonos parciales conservan el aviso y saldar, pausar o confirmar evita que el aviso anterior siga activo. La preferencia pertenece al dispositivo y la programación se actualiza al guardar y al volver en primer plano. No se exponen nombres ni montos en las notificaciones. La app funciona con entrega aproximada y permite habilitar la hora exacta desde Android.

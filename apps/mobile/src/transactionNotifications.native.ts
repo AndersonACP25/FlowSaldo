@@ -1,5 +1,6 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Platform } from 'react-native';
+import { showLocalNotifications } from './notificationHandler';
 
 const channel = 'transacciones';
 const preference = 'flowsaldo.notifications.transactions';
@@ -34,14 +35,7 @@ export async function notifyTransaction(id: string, title: string): Promise<void
       delivered.delete(id);
       return;
     }
-    notifications.setNotificationHandler({
-      handleNotification: async () => ({
-        shouldShowBanner: true,
-        shouldShowList: true,
-        shouldPlaySound: false,
-        shouldSetBadge: false,
-      }),
-    });
+    showLocalNotifications(notifications);
     await notifications.scheduleNotificationAsync({
       identifier: `flowsaldo-${id}`,
       content: { title, body: 'Abre FlowSaldo para ver el movimiento.' },

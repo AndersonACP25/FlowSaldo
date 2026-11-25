@@ -5,6 +5,9 @@ import {
   ledgerBalance,
   localAccountBalances,
   previewLocalReconciliation,
+  dueReminders,
+  dueReminderId,
+  planDueReminderUpdates,
   validateLocalAccounts,
   type LocalAccount,
   parseSignedAmount,
@@ -218,6 +221,77 @@ test('CORE: reconciliation applies the signed difference once without altering c
     () => localAccountBalances(accounts, [{ ...adjustment, amountMinor: 251 }]),
     /Ajuste de saldo inválido/,
   );
+});
+test('CORE: due reminders avoid duplicate notices and remove settled or replaced deadlines', () => {
+  const now = Date.parse('2026-11-25T14:00:00.000Z');
+  const template: RecurringTemplate = {
+    id: 'rent',
+    version: 0,
+    description: 'Alquiler',
+    amountMinor: 8000,
+    currency: 'DOP',
+    type: 'EXPENSE',
+    category: 'Servicios',
+    categoryId: 'services',
+    startDate: '2026-12-01',
+    nextDate: '2026-12-01',
+    timeOfDay: '09:30',
+    anchorDay: 1,
+    active: true,
+  };
+  const [monthly] = dueReminders([], [template], [], []);
+  assert.equal(monthly.dueAt, Date.parse('2026-12-01T13:30:00.000Z'));
+  assert.deepEqual(dueReminders([], [{ ...template, active: false }], [], []), []);
+  assert.deepEqual(
+    dueReminders(
+      [],
+      [template],
+      [{ templateId: 'rent', scheduledFor: '2026-12-01', movementId: null }],
+      [],
+    ),
+    [],
+  );
+  const pending: PendingItem = {
+    id: 'rent-pending',
+    name: 'Alquiler',
+    kind: 'pay',
+    currency: 'DOP',
+    amountMinor: 8000,
+    dueAt: '2026-12-02T10:30',
+    occurrence: { templateId: 'rent', scheduledFor: '2026-12-01' },
+    settlements: [{ id: 'partial', kind: 'manual', amountMinor: 2000 }],
+  };
+  const [payment] = dueReminders([pending], [template], [], []);
+  assert.equal(payment.kind, 'payment');
+  const monthlyId = dueReminderId(monthly, false);
+  const paymentId = dueReminderId(payment, false);
+  assert.deepEqual(planDueReminderUpdates([payment], [monthlyId, 'transaction'], [], now, false), {
+    cancel: [monthlyId],
+    dismiss: [],
+    schedule: [[paymentId, payment]],
+  });
+  assert.deepEqual(planDueReminderUpdates([payment], [paymentId], [], now, false).schedule, []);
+  assert.deepEqual(planDueReminderUpdates([payment], [paymentId], [], now, true).cancel, [
+    paymentId,
+  ]);
+  assert.deepEqual(
+    planDueReminderUpdates([payment], [], [], payment.dueAt + 1, false).schedule,
+    [],
+  );
+  const settled = {
+    ...pending,
+    settlements: [
+      ...pending.settlements,
+      { id: 'linked', kind: 'movement' as const, movementId: 'rent-payment' },
+    ],
+  };
+  const movement = { ...demoMovements[1], id: 'rent-payment', amountMinor: 6000 };
+  const remaining = dueReminders([settled], [template], [], [movement]);
+  assert.deepEqual(planDueReminderUpdates(remaining, [], [paymentId, 'transaction'], now, false), {
+    cancel: [],
+    dismiss: [paymentId],
+    schedule: [],
+  });
 });
 test('CORE: only explicit valid synthetic messages become movements', () => {
   assert.equal(
