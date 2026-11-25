@@ -10,7 +10,14 @@ import {
   maxMovementSplits,
 } from '@flowsaldo/domain';
 import { importMetadata } from './imports';
-import { createMovement, updateMovement, deleteMovement, resolveImport } from '../models/records';
+import {
+  createMovement,
+  updateMovement,
+  deleteMovement,
+  resolveImport,
+  expenseRefundBalance,
+  createRefund,
+} from '../models/records';
 
 export const records = Router();
 const movementSchema = z.object({
@@ -85,6 +92,19 @@ records.patch('/movements/:id', async (req, res) => {
     return;
   }
   res.json(result);
+});
+records.get('/movements/:id/refunds', async (req, res) => {
+  res.json(await expenseRefundBalance(req.params.id));
+});
+records.post('/movements/:id/refunds', async (req, res) => {
+  const input = z
+    .object({
+      amountMinor: z.number().int().positive().max(2147483647),
+      occurredAt: z.iso.datetime().transform((value) => new Date(value).toISOString()),
+      requestKey: z.string().min(10).max(100),
+    })
+    .parse(req.body);
+  res.status(201).json(await createRefund(req.params.id, input));
 });
 records.delete('/movements/:id', async (req, res) => {
   const result = await deleteMovement(req.params.id);

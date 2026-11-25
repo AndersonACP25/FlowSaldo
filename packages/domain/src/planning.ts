@@ -56,7 +56,6 @@ export function selectedCategory(
 export function budgetStatus(spent: number, limit: number) {
   if (
     !Number.isSafeInteger(spent) ||
-    spent < 0 ||
     !Number.isSafeInteger(limit) ||
     limit <= 0 ||
     limit > 2147483647
@@ -66,7 +65,7 @@ export function budgetStatus(spent: number, limit: number) {
     spent >= limit ? 'exceeded' : BigInt(spent) * 5n >= BigInt(limit) * 4n ? 'warning' : 'normal';
   return {
     state,
-    percentage: Math.round((spent / limit) * 100),
+    percentage: Math.max(0, Math.round((spent / limit) * 100)),
     availableMinor: Math.max(0, limit - spent),
     excessMinor: Math.max(0, spent - limit),
   };
@@ -100,7 +99,7 @@ export function upgradeCategories(movements: Movement[], stored?: Category[]) {
     if (!category) throw new Error('Categoría del movimiento no encontrada');
     if (m.splits !== undefined) {
       if (!Array.isArray(m.splits)) throw new Error('División local inválida');
-      checkMovementSplits(m.type, m.amountMinor, m.splits);
+      checkMovementSplits(m.refundOfId ? 'EXPENSE' : m.type, m.amountMinor, m.splits);
       if (
         m.splits.some(
           (part) =>

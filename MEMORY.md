@@ -236,3 +236,7 @@ Apariencia conserva los seis temas y suma nueve, con muestras de color en el sel
 ## Acceso y controles secundarios (2026-11-25)
 
 El acceso agrupa las tres acciones debajo de Entrar como texto centrado sin bordes. Registro y recuperación vuelven al acceso con una flecha junto al título. Resumen mensual usa −7 días y +7 días para navegar semanas. Cancelar aporte manual queda centrado y sin borde.
+
+## Devoluciones vinculadas a gastos (2026-11-25)
+
+Movimientos permite registrar devoluciones parciales o totales con fecha y hora y tope acumulado por gasto. El reparto usa el saldo abierto por categoría y distribuye los centavos restantes de forma determinista. El gasto neto y el presupuesto se ajustan en el mes de la devolución. El historial y el CSV conservan el gasto original y las devoluciones por separado. El modo API añade Movement.refundOfId y reutiliza el bloqueo financiero y la clave idempotente. La cuenta de prueba usa almacenamiento local. Las devoluciones se corrigen eliminando y registrando de nuevo la entrada.

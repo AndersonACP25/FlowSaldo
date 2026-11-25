@@ -176,6 +176,23 @@ export async function checkCoreFlows(browser) {
     const rows = parseCsv(await readFile(await file.path(), 'utf8'));
     assert.equal(rows.length, 2);
     assert.equal(rows[1].at(-1), 'Gasto dividido');
+    const original = (await stored()).movements.find((item) => item.description === 'Compra CORE');
+    await button('Registrar devolución de Compra CORE').click();
+    await page.getByLabel('Importe de la devolución', { exact: true }).fill('50.00');
+    await page
+      .getByLabel('Fecha y hora de la devolución', { exact: true })
+      .fill(original.occurredAt.slice(0, 10) + 'T13:00');
+    await button('Guardar devolución').click();
+    await page.getByText('Devolución registrada.', { exact: true }).waitFor();
+    const refund = (await stored()).movements.find((item) => item.refundOfId === original.id);
+    assert.equal(refund.amountMinor, 5000);
+    assert.equal(
+      refund.splits.reduce((sum, split) => sum + split.amountMinor, 0),
+      5000,
+    );
+    await button('Registrar devolución de Compra CORE').click();
+    await page.getByText('Pendiente de devolver · EUR 51.29', { exact: true }).waitFor();
+    await button('Volver').click();
     await button('Inicio').click();
     await button('Abrir menú').click();
     await button('Metas de ahorro').click();

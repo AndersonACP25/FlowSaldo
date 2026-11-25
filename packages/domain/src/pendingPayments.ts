@@ -53,7 +53,9 @@ export function settlementAmount(
   if (settlement.kind === 'manual') return settlement.amountMinor;
   const movement = movements.get(settlement.movementId);
   const type = item.kind === 'pay' ? 'EXPENSE' : 'INCOME';
-  return movement?.currency === item.currency &&
+  return movement &&
+    !movement.refundOfId &&
+    movement.currency === item.currency &&
     movement.type === type &&
     validAmount(movement.amountMinor)
     ? movement.amountMinor

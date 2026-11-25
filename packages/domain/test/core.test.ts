@@ -6,6 +6,8 @@ import {
   parseSignedAmount,
   parseAmount,
   summarize,
+  prepareRefund,
+  refundBalance,
   categoryExpenses,
   checkMovementSplits,
   makeMonthlyClosing,
@@ -316,6 +318,52 @@ test('CORE: categorized parts sum to one expense and filter by the actual catego
     () => checkMovementSplits('EXPENSE', 140_040, [parts[0], parts[0]]),
     /categoría distinta/,
   );
+});
+test('CORE: repeated refunds conserve cents and reduce expenses in the posting month', () => {
+  const source = {
+    ...demoMovements[1],
+    type: 'EXPENSE' as const,
+    currency: 'DOP' as const,
+    occurredAt: '2026-10-30T12:00:00.000Z',
+    amountMinor: 10_001,
+    splits: [
+      { categoryId: 'food', category: 'Alimentación', amountMinor: 6_000 },
+      { categoryId: 'transport', category: 'Transporte', amountMinor: 4_001 },
+    ],
+  };
+  const occurredAt = '2026-11-02T12:00:00.000Z';
+  const partial = {
+    ...prepareRefund(source, [], { amountMinor: 5_000, occurredAt }),
+    id: 'refund-a',
+    description: 'Devolución parcial',
+  };
+  assert.equal(partial.splits.find((item) => item.categoryId === 'food')?.amountMinor, 3_000);
+  assert.equal(refundBalance(source, [partial]).remainingMinor, 5_001);
+  const last = {
+    ...prepareRefund(source, [partial], { amountMinor: 5_001, occurredAt }),
+    id: 'refund-b',
+    description: 'Devolución restante',
+  };
+  assert.equal(refundBalance(source, [partial, last]).remainingMinor, 0);
+  assert.throws(
+    () => prepareRefund(source, [partial, last], { amountMinor: 1, occurredAt }),
+    /supera/,
+  );
+  assert.throws(
+    () => prepareRefund(source, [], { amountMinor: 1, occurredAt: '2026-10-29T12:00:00Z' }),
+    /fecha/,
+  );
+  assert.deepEqual(summarize([partial], 'DOP'), {
+    incomeMinor: 0,
+    expenseMinor: -5_000,
+    differenceMinor: 5_000,
+  });
+  assert.deepEqual(categoryExpenses([partial]), [
+    { category: 'Transporte', amountMinor: -2_000 },
+    { category: 'Alimentación', amountMinor: -3_000 },
+  ]);
+  assert.equal(budgetStatus(-3_000, 10_000).availableMinor, 13_000);
+  assert.equal(changeSince(5_000, -5_000).percentage, null);
 });
 test('CORE: partial settlements use the live movement exactly once and preserve currency', () => {
   const item: PendingItem = {

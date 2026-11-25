@@ -3,6 +3,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import {
   isCurrency,
   validSavingsGoals,
+  refundBalance,
   validPendingItems,
   validDebtPlans,
   validMonthlyClosings,
@@ -60,6 +61,7 @@ export async function loadLocal(): Promise<LocalData | null> {
       m.amountMinor <= 0 ||
       m.amountMinor > 2147483647 ||
       !isCurrency(m.currency) ||
+      (m.refundOfId != null && (typeof m.refundOfId !== 'string' || !m.refundOfId)) ||
       !['INCOME', 'EXPENSE', 'TRANSFER'].includes(m.type)
     )
       throw new Error('Movimiento local inválido');
@@ -81,6 +83,23 @@ export async function loadLocal(): Promise<LocalData | null> {
   const upgraded = upgradeCategories(value.movements, value.categories);
   value.categories = upgraded.categories;
   value.movements = upgraded.movements;
+  const refundGroups = new Map<string, Movement[]>();
+  for (const movement of value.movements) {
+    if (movement.refundOfId)
+      refundGroups.set(movement.refundOfId, [
+        ...(refundGroups.get(movement.refundOfId) ?? []),
+        movement,
+      ]);
+  }
+  for (const [sourceId, refunds] of refundGroups) {
+    const source = value.movements.find((movement) => movement.id === sourceId);
+    if (
+      !source ||
+      refunds.some((refund) => refund.occurredAt.slice(0, 10) < source.occurredAt.slice(0, 10))
+    )
+      throw new Error('Devolución local inválida.');
+    refundBalance(source, refunds);
+  }
   if (value.categoryBudgets === undefined) value.categoryBudgets = {};
   if (
     !value.categoryBudgets ||

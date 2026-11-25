@@ -84,16 +84,15 @@ export function changeSince(current: number, previous: number) {
   if (
     !Number.isSafeInteger(current) ||
     !Number.isSafeInteger(previous) ||
-    current < 0 ||
-    previous < 0
+    !Number.isSafeInteger(current - previous)
   )
     throw new Error('Total inválido.');
   return {
     previousMinor: previous,
     deltaMinor: current - previous,
     percentage:
-      previous === 0
-        ? current === 0
+      previous <= 0
+        ? current === previous
           ? 0
           : null
         : Math.round(((current - previous) / previous) * 1000) / 10,

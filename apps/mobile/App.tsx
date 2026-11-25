@@ -1,3 +1,4 @@
+import { RefundScreen } from './src/RefundScreen';
 import { HelpScreen } from './src/HelpScreen';
 import { LoanSimulatorScreen } from './src/LoanSimulatorScreen';
 import { CommerceRulesScreen } from './src/CommerceRulesScreen';
@@ -70,6 +71,9 @@ import {
   countLabel,
   pendingMailMessage,
   categoryExpenses,
+  prepareRefund,
+  refundBalance,
+  refusesRefundSourceChange,
   movementCategories,
   makeMonthlyClosing,
   setCommerceRule,
@@ -198,6 +202,7 @@ function Home({
     | 'Cierre mensual'
     | 'Tasas'
     | 'Editar movimiento'
+    | 'Registrar devolución'
     | 'Nueva plantilla mensual'
     | SettingsSection
   >('Inicio');
@@ -226,6 +231,7 @@ function Home({
   const inSettings = settingsSection || screen === 'Configuración';
   const fromMovements =
     screen === 'Editar movimiento' ||
+    screen === 'Registrar devolución' ||
     screen === 'Nueva plantilla mensual' ||
     (screen === 'Metas de ahorro' && !!transferForSavings) ||
     (screen === 'Pagos y cobros pendientes' && pendingOrigin === 'Movimientos');
@@ -253,6 +259,9 @@ function Home({
   const [reviewTo, setReviewTo] = useState('');
   const [categoryFilter, setCategoryFilter] = useState('');
   const [duplicate, setDuplicate] = useState<Movement | null>(null);
+  const [refundDraft, setRefundDraft] = useState<{ expense: Movement; requestKey: string } | null>(
+    null,
+  );
   const [editor, setEditor] = useState<Movement | 'new' | null>(null);
   const [deleteId, setDeleteId] = useState<string | null>(null);
   const [token, setToken] = useState('');
@@ -267,6 +276,7 @@ function Home({
       setEditor(null);
       setDuplicate(null);
       setTransferForSavings(null);
+      setRefundDraft(null);
     }
     setScreen(backTo);
   }, [backTo, busy, fromMovements]);
@@ -497,6 +507,22 @@ function Home({
       return page.total;
     },
   });
+  const refundQuery = useQuery({
+    queryKey: ['movements', 'refunds', url, personal?.owner.id, refundDraft?.expense.id],
+    enabled: connected && screen === 'Registrar devolución' && !!refundDraft,
+    retry: false,
+    queryFn: async (): Promise<{
+      source: Movement;
+      refundedMinor: number;
+      remainingMinor: number;
+    }> => request(`/movements/${encodeURIComponent(refundDraft!.expense.id)}/refunds`),
+  });
+  const refundInfo =
+    screen === 'Registrar devolución' &&
+    refundDraft &&
+    (connected
+      ? refundQuery.data
+      : { source: refundDraft.expense, ...refundBalance(refundDraft.expense, local.movements) });
   const totals = useQuery({
     queryKey: ['summary', connected, month, currency, periodDate],
     enabled: connected,
@@ -562,6 +588,10 @@ function Home({
         expense: changeSince(summary.expenseMinor, priorSummary.expenseMinor),
       };
   const categories = connected ? (totals.data?.categories ?? []) : categoryExpenses(period);
+  const positiveCategorySpend = categories.reduce(
+    (sum, value) => sum + Math.max(0, value.amountMinor),
+    0,
+  );
   async function refreshMovements() {
     await Promise.all([
       client.invalidateQueries({ queryKey: ['movements'] }),
@@ -598,8 +628,12 @@ function Home({
     : categoryCatalog.map((c) => ({
         categoryId: c.id,
         amountMinor: period
-          .filter((m) => m.type === 'EXPENSE')
-          .flatMap(movementCategories)
+          .filter((m) => m.type === 'EXPENSE' || !!m.refundOfId)
+          .flatMap((m) =>
+            movementCategories(m).map((part) =>
+              m.refundOfId ? { ...part, amountMinor: -part.amountMinor } : part,
+            ),
+          )
           .filter((part) => part.categoryId === c.id)
           .reduce((n, part) => n + part.amountMinor, 0),
       }));
@@ -952,6 +986,14 @@ function Home({
         ),
         id: edit?.id ?? `local-${Date.now()}-${Math.random().toString(36).slice(2)}`,
       };
+      if (
+        edit &&
+        localRef.current.movements.some((row) => row.refundOfId === edit.id) &&
+        refusesRefundSourceChange(edit, item)
+      )
+        throw new Error(
+          'El gasto tiene devoluciones. Quita las devoluciones antes de cambiar sus datos financieros.',
+        );
       movementId = item.id;
       await persist({
         ...localRef.current,
@@ -977,7 +1019,38 @@ function Home({
     setScreen('Movimientos');
     setNotice('Movimiento guardado.');
   }
+  async function recordRefund(amountMinor: number, occurredAt: string) {
+    if (!refundDraft) return;
+    const { expense, requestKey } = refundDraft;
+    if (connected) {
+      await request(`/movements/${encodeURIComponent(expense.id)}/refunds`, {
+        method: 'POST',
+        body: JSON.stringify({ amountMinor, occurredAt, requestKey }),
+      });
+      await refreshMovements();
+    } else {
+      const current = localRef.current;
+      const source = current.movements.find((item) => item.id === expense.id);
+      if (!source) throw new Error('Gasto no encontrado.');
+      const refund = {
+        ...prepareRefund(source, current.movements, { amountMinor, occurredAt }),
+        id: requestKey,
+        description: ('Devolución: ' + source.description).slice(0, 100),
+      };
+      await persist({ ...current, movements: [refund, ...current.movements] });
+    }
+    setRefundDraft(null);
+    setPeriodDate(occurredAt.slice(0, 10));
+    setType('ALL');
+    setSearch('');
+    setCategoryFilter('');
+    setAccountFilter('');
+    setScreen('Movimientos');
+    setNotice('Devolución registrada.');
+  }
   async function remove(id: string) {
+    if (!connected && localRef.current.movements.some((item) => item.refundOfId === id))
+      throw new Error('Elimina las devoluciones vinculadas antes de quitar el gasto.');
     if (connected) {
       await request(`/movements/${id}`, { method: 'DELETE' });
       await refreshMovements();
@@ -1271,6 +1344,7 @@ function Home({
     if (busy) return;
     setEditor(null);
     setTransferForSavings(null);
+    setRefundDraft(null);
     setDuplicate(null);
     setDeleteId(null);
     if (destination === 'Configuración') setPreviousTab(activeTab);
@@ -1649,7 +1723,7 @@ function Home({
                     <Text style={s.income}>{money(summary.incomeMinor, currency)}</Text>
                   </View>
                   <View style={s.metric}>
-                    <Text style={s.muted}>Gastos</Text>
+                    <Text style={s.muted}>Gastos netos</Text>
                     <Text style={s.expense}>{money(summary.expenseMinor, currency)}</Text>
                   </View>
                   <View style={s.metric}>
@@ -1708,7 +1782,7 @@ function Home({
                           style={[
                             s.fill,
                             {
-                              width: `${Math.round((c.amountMinor / summary.expenseMinor) * 100)}%`,
+                              width: `${positiveCategorySpend ? Math.round((Math.max(0, c.amountMinor) / positiveCategorySpend) * 100) : 0}%`,
                             },
                           ]}
                         />
@@ -1886,6 +1960,35 @@ function Home({
                 )}
               </>
             )}
+            {screen === 'Registrar devolución' &&
+              refundDraft &&
+              (connected && !refundQuery.isSuccess ? (
+                <View style={s.card}>
+                  <Text style={s.muted}>
+                    {refundQuery.isError ? 'No se pudo consultar el gasto.' : 'Consultando gasto…'}
+                  </Text>
+                  {refundQuery.isError && (
+                    <Button
+                      label="Reintentar consulta del gasto"
+                      onPress={() => void refundQuery.refetch()}
+                    />
+                  )}
+                </View>
+              ) : (
+                refundInfo && (
+                  <RefundScreen
+                    key={refundDraft.requestKey}
+                    source={refundInfo.source}
+                    refundedMinor={refundInfo.refundedMinor}
+                    remainingMinor={refundInfo.remainingMinor}
+                    saving={busy}
+                    money={money}
+                    onSave={(amount, occurredAt) =>
+                      saveForm(() => recordRefund(amount, occurredAt))
+                    }
+                  />
+                )
+              ))}
             {screen === 'Nueva plantilla mensual' && catalogReady && (
               <MovementForm
                 title={null}
@@ -1999,7 +2102,8 @@ function Home({
                           {m.splits?.length
                             ? countLabel(m.splits.length, 'categoría', 'categorías')
                             : m.category}{' '}
-                          · {m.occurredAt.slice(0, 10)} · {typeLabels[m.type]}
+                          · {m.occurredAt.slice(0, 10)} ·{' '}
+                          {m.refundOfId ? 'Devolución' : typeLabels[m.type]}
                         </Text>
                       </View>
                       <Text
@@ -2025,42 +2129,62 @@ function Home({
                       </Text>
                     )}
                     <View style={s.row}>
-                      <IconButton
-                        icon="edit"
-                        label={`Editar ${m.description}`}
-                        onPress={() => {
-                          setDuplicate(null);
-                          setEditor(m);
-                          setDeleteId(null);
-                          setNotice('');
-                          setError('');
-                          setScreen('Editar movimiento');
-                        }}
-                      />
-                      <IconButton
-                        icon="copy"
-                        label={`Duplicar ${m.description}`}
-                        onPress={() => {
-                          const d = new Date();
-                          const today = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
-                          setDuplicate({
-                            ...m,
-                            occurredAt: movementDate(month, today) + 'T12:00:00.000Z',
-                          });
-                          setEditor('new');
-                          setDeleteId(null);
-                          setNotice(
-                            'Borrador duplicado. Revisa los datos y guarda para crear el movimiento.',
-                          );
-                        }}
-                      />
+                      {!m.refundOfId && (
+                        <>
+                          <IconButton
+                            icon="edit"
+                            label={`Editar ${m.description}`}
+                            onPress={() => {
+                              setDuplicate(null);
+                              setEditor(m);
+                              setDeleteId(null);
+                              setNotice('');
+                              setError('');
+                              setScreen('Editar movimiento');
+                            }}
+                          />
+                          <IconButton
+                            icon="copy"
+                            label={`Duplicar ${m.description}`}
+                            onPress={() => {
+                              const d = new Date();
+                              const today = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+                              setDuplicate({
+                                ...m,
+                                occurredAt: movementDate(month, today) + 'T12:00:00.000Z',
+                              });
+                              setEditor('new');
+                              setDeleteId(null);
+                              setNotice(
+                                'Borrador duplicado. Revisa los datos y guarda para crear el movimiento.',
+                              );
+                            }}
+                          />
+                        </>
+                      )}
+                      {m.type === 'EXPENSE' && (
+                        <Choice
+                          label={`Registrar devolución de ${m.description}`}
+                          text="Devolución"
+                          selected={false}
+                          disabled={busy}
+                          onPress={() => {
+                            setRefundDraft({ expense: m, requestKey: 'refund-' + newLocalId() });
+                            setDeleteId(null);
+                            setEditor(null);
+                            setNotice('');
+                            setError('');
+                            setScreen('Registrar devolución');
+                          }}
+                        />
+                      )}
                       <IconButton
                         icon="trash"
                         label="Eliminar"
                         danger
                         onPress={() => setDeleteId(m.id)}
                       />
-                      {m.type !== 'TRANSFER' && (
+                      {m.type !== 'TRANSFER' && !m.refundOfId && (
                         <Choice
                           label={`Vincular a pendiente: ${m.description}`}
                           text={
