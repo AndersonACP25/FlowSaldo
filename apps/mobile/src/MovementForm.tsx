@@ -112,6 +112,7 @@ export function MovementForm({
         ],
   );
   const [type, setType] = useState<MovementType>(movement?.type ?? 'EXPENSE');
+  const editingMovement = editing && !fixedDate;
   const splitting = allowSplits && type === 'EXPENSE' && splitEnabled;
   const [unit, setUnit] = useState<Currency>(movement?.currency ?? currency);
   const [error, setError] = useState('');
@@ -415,7 +416,13 @@ export function MovementForm({
         disabled={busy}
         onPress={() => void save()}
       />
-      <Button label="Cancelar" centered disabled={busy} onPress={onCancel} />
+      <Button
+        label="Cancelar"
+        centered={!editingMovement}
+        variant={editingMovement ? 'secondary' : 'primary'}
+        disabled={busy}
+        onPress={onCancel}
+      />
     </View>
   );
 }

@@ -2347,10 +2347,9 @@ function Home({
                         </>
                       )}
                       {m.type === 'EXPENSE' && (
-                        <Choice
+                        <IconButton
+                          icon="restore"
                           label={`Registrar devolución de ${m.description}`}
-                          text="Devolución"
-                          selected={false}
                           disabled={busy}
                           onPress={() => {
                             setRefundDraft({ expense: m, requestKey: 'refund-' + newLocalId() });
@@ -2369,25 +2368,19 @@ function Home({
                         onPress={() => setDeleteId(m.id)}
                       />
                       {m.type !== 'TRANSFER' && !m.refundOfId && (
-                        <Choice
+                        <IconButton
+                          icon="link"
                           label={`Vincular a pendiente: ${m.description}`}
-                          text={
-                            pendingMovementIds.includes(m.id)
-                              ? 'Ver vínculo'
-                              : 'Vincular a pendiente'
-                          }
-                          selected={false}
+                          selected={pendingMovementIds.includes(m.id)}
                           disabled={busy}
                           onPress={() => openPending(m, null, 'Movimientos')}
                         />
                       )}
                       {m.type === 'TRANSFER' && !m.balanceAdjustment && !isLocalCardPayment(m) && (
-                        <Choice
+                        <IconButton
+                          icon="piggy-bank"
                           label={`Vincular a meta: ${m.description}`}
-                          text={
-                            savingsTransferIds.includes(m.id) ? 'Ver aporte' : 'Vincular a meta'
-                          }
-                          selected={false}
+                          selected={savingsTransferIds.includes(m.id)}
                           disabled={busy}
                           onPress={() => {
                             setEditor(null);

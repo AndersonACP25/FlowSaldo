@@ -12,6 +12,7 @@ import {
   type Movement,
 } from '@flowsaldo/domain';
 import { accountKindLabels } from './FinancePanel';
+import { IconButton } from './IconButton';
 import { LocalReconciliationForm } from './LocalReconciliationForm';
 import { FilterRow } from './ScreenChrome';
 import { useTheme } from './theme';
@@ -102,7 +103,12 @@ export function LocalAccountsScreen({
 
   return (
     <>
-      <Button label="Nueva cuenta" disabled={busy || creating} onPress={() => openForm()} />
+      <IconButton
+        icon="add"
+        label="Nueva cuenta"
+        disabled={busy || creating}
+        onPress={() => openForm()}
+      />
       {accounts.length > 0 && (
         <Text style={s.muted}>Registra transferencias y pagos de tarjeta desde Movimientos.</Text>
       )}
@@ -193,9 +199,9 @@ export function LocalAccountsScreen({
             </Text>
             <View style={s.row}>
               {!account.archived && (
-                <Choice
+                <IconButton
+                  icon="list-checks"
                   label={`Conciliar cuenta ${account.name}`}
-                  text="Conciliar"
                   selected={reconcileId === account.id}
                   disabled={busy}
                   onPress={() => {
@@ -205,17 +211,16 @@ export function LocalAccountsScreen({
                   }}
                 />
               )}
-              <Choice
+              <IconButton
+                icon="edit"
                 label={`Editar cuenta ${account.name}`}
-                text="Editar nombre"
                 selected={editId === account.id}
                 disabled={busy}
                 onPress={() => openForm(account)}
               />
-              <Choice
+              <IconButton
+                icon={account.archived ? 'restore' : 'archive'}
                 label={`${account.archived ? 'Reactivar' : 'Archivar'} cuenta ${account.name}`}
-                text={account.archived ? 'Reactivar' : 'Archivar'}
-                selected={false}
                 disabled={busy}
                 onPress={() =>
                   void run(

@@ -8,23 +8,31 @@ export function Button({
   disabled = false,
   text,
   centered = false,
+  variant = 'primary',
 }: {
   label: string;
   onPress: () => void;
   disabled?: boolean;
   text?: string;
   centered?: boolean;
+  variant?: 'primary' | 'secondary';
 }) {
-  const { styles: s } = useTheme();
+  const { styles: s, palette } = useTheme();
+  const secondary = variant === 'secondary';
   return (
     <Pressable
       accessibilityRole="button"
       accessibilityLabel={label}
       disabled={disabled}
       onPress={onPress}
-      style={[s.button, centered && { alignSelf: 'center' }, disabled && s.disabled]}
+      style={[
+        s.button,
+        secondary && { backgroundColor: palette.raised },
+        centered && { alignSelf: 'center' },
+        disabled && s.disabled,
+      ]}
     >
-      <Text style={s.buttonText}>{text ?? label}</Text>
+      <Text style={[s.buttonText, secondary && { color: palette.ink }]}>{text ?? label}</Text>
     </Pressable>
   );
 }

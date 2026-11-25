@@ -1,6 +1,7 @@
 # FlowSaldo
 
 - Escribir los mensajes de commit en español, incluido el cuerpo cuando se use. Los prefijos convencionales como `fix:` y `docs:` pueden conservarse.
+- Titular los pull requests con un prefijo de Conventional Commits y una descripción en español. Usa el tipo según el cambio, por ejemplo `fix: corregir los controles de navegación` o `feat: agregar recordatorios`.
 
 - Ejecutar desde raíz: pnpm install --frozen-lockfile, pnpm db:generate, pnpm check.
 - Mantener datos de prueba sintéticos. Nunca añadir tokens, correos reales ni credenciales.

@@ -268,3 +268,7 @@ En Android, Configuración → Notificaciones activa avisos por pagos pendientes
 ## Ajustes de navegación, conversión y abonos (2026-11-25)
 
 Los controles de retorno usan iconos y los menús muestran un icono por opción. Las acciones secundarias independientes de cancelar o cerrar se centran. Conversión permite probar tasas USD y EUR a DOP con valores iniciales de Frankfurter y restaurarlos. La edición se limita a la pantalla y consulta activa. Los abonos manuales se pueden editar sin duplicar registros, con validación del saldo y conservando los movimientos vinculados. Cierre mensual apila ingresos y gastos.
+
+## Acciones por icono y acceso a Inicio (2026-11-25)
+
+Los títulos de pull requests usan Conventional Commits en español. Movimientos y Cuentas y saldos usan iconos con nombres accesibles en sus filas de acciones. Volver conserva el marco redondeado en Configuración. En Editar movimiento y Metas de ahorro, Cancelar se alinea con el ancho del botón principal. Inicio aparece primero en el menú lateral y abre el resumen mensual.
