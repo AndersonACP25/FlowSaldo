@@ -61,10 +61,14 @@ model Movement {
  requestKey String? @unique
  requestReceipt MovementRequest?
  recurrenceOccurrence RecurringOccurrence?
+ refundOfId String?
+ refundOf Movement? @relation("ExpenseRefunds", fields: [refundOfId], references: [id], onDelete: Restrict)
+ refunds Movement[] @relation("ExpenseRefunds")
  splits MovementSplit[]
  source MailImport? @relation(fields: [importId], references: [id])
  @@index([currency, occurredAt])
  @@index([categoryId])
+ @@index([refundOfId])
  @@index([accountId, occurredAt])
  @@index([targetAccountId, occurredAt])
 }

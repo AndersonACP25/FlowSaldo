@@ -59,12 +59,12 @@ export function validMonthlyClosings(value: unknown): value is MonthlyClosing[] 
       !Number.isFinite(Date.parse(item.capturedAt)) ||
       ![
         item.incomeMinor,
-        item.expenseMinor,
         item.uncategorizedCount,
         item.pendingCount,
         item.toPayMinor,
         item.toCollectMinor,
       ].every(nonnegative) ||
+      !Number.isSafeInteger(item.expenseMinor) ||
       (item.budgetMinor !== null && !validLimit(item.budgetMinor)) ||
       !Array.isArray(item.categories) ||
       item.categories.some(
@@ -75,7 +75,7 @@ export function validMonthlyClosings(value: unknown): value is MonthlyClosing[] 
           typeof entry.name !== 'string' ||
           !entry.name.trim() ||
           !validLimit(entry.limitMinor) ||
-          !nonnegative(entry.spentMinor),
+          !Number.isSafeInteger(entry.spentMinor),
       ) ||
       new Set(item.categories.map((entry) => entry.categoryId)).size !== item.categories.length
     )

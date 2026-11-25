@@ -31,7 +31,7 @@ export function checkMovementSplits(
 }
 
 export function movementCategories(
-  movement: Movement,
+  movement: Pick<Movement, 'splits' | 'categoryId' | 'category' | 'amountMinor'>,
 ): Pick<Movement, 'categoryId' | 'category' | 'amountMinor'>[] {
   return movement.splits?.length ? movement.splits : [movement];
 }

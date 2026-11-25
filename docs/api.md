@@ -69,6 +69,8 @@ La migración aditiva `20261125090000_movement_splits` agrega `MovementSplit` co
 
 Los filtros consultan las categorías del reparto y el resumen mensual atribuye cada parte a su presupuesto. Los totales generales y el CSV conservan el importe completo en una fila. El CSV usa «Gasto dividido» como categoría de esa fila. Eliminar el movimiento elimina sus partes en la misma operación. Una categoría que participa en un reparto puede archivarse.
 
+`GET /movements/:id/refunds` devuelve el gasto, el acumulado devuelto y el importe que queda por devolver. `POST /movements/:id/refunds` recibe `amountMinor`, `occurredAt` y `requestKey`. La devolución usa la moneda y cuenta del gasto, y distribuye su importe entre las categorías con saldo pendiente. El servidor compara el total acumulado bajo el bloqueo de finanzas y usa la clave para reintentos. Se reduce el gasto neto del mes de la devolución y el CSV identifica el registro como `REFUND`. La migración aditiva `20261125120000_movement_refunds` guarda la relación con el gasto original. Si hay devoluciones vinculadas, se exige quitarlas antes de eliminar el gasto o cambiar su importe, moneda, fecha, cuenta o reparto.
+
 Los presupuestos general y por categoría siguen locales al dispositivo. Cada límite por categoría se identifica por modo demo/API, mes, moneda e ID de categoría. No se sincronizan ni crean usuarios. Avisos de 80 % y 100 % utilizan el gasto real; el porcentaje mostrado se redondea sin adelantar el aviso. Archivar conserva un presupuesto y permite retirarlo, pero no asignar uno nuevo a esa categoría.
 
 

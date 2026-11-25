@@ -31,7 +31,7 @@ export function MonthlyComparison({
         {(['income', 'expense'] as const).map((key) => {
           const value = comparison[key];
           const current = value.previousMinor + value.deltaMinor;
-          const max = Math.max(current, value.previousMinor, 1);
+          const max = Math.max(Math.abs(current), Math.abs(value.previousMinor), 1);
           const favorable = key === 'income' ? value.deltaMinor > 0 : value.deltaMinor < 0;
           const tone =
             value.deltaMinor === 0 ? palette.muted : favorable ? palette.income : palette.expense;
@@ -63,7 +63,7 @@ export function MonthlyComparison({
                       <View
                         style={{
                           height: 5,
-                          width: `${(amount / max) * 100}%`,
+                          width: `${(Math.abs(amount) / max) * 100}%`,
                           backgroundColor: color,
                           borderRadius: 5,
                         }}

@@ -39,6 +39,8 @@ Las siete fases están implementadas en `feat/finanzas-personales-por-fases` y s
 
 El simulador de préstamos también está disponible desde el menú de Inicio. Estima la cuota mensual, el costo total y el calendario a partir del monto, el plazo, la tasa anual fija, el primer pago y los cargos opcionales.
 
+Las devoluciones parciales y totales se vinculan al gasto original. Reducen el gasto neto y el consumo de presupuesto en el mes en que se registran.
+
 ## Historial del roadmap
 
 ## Completado en v0.2

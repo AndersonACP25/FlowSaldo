@@ -1,3 +1,4 @@
+import { csvTextCell } from './csv.ts';
 import { movementCategories, type MovementSplit } from './movementSplits.ts';
 
 export * from './bank-mail.ts';
@@ -9,6 +10,7 @@ export * from './planning.ts';
 export * from './finance.ts';
 export * from './movementSplits.ts';
 export * from './monthlyClosing.ts';
+export * from './refunds.ts';
 export * from './commerceRules.ts';
 export const currencies = ['DOP', 'USD', 'EUR'] as const;
 export type Currency = (typeof currencies)[number];
@@ -28,6 +30,7 @@ export interface Movement {
   accountId?: string | null;
   targetAccountId?: string | null;
   requestKey?: string | null;
+  refundOfId?: string | null;
 }
 export interface MailInput {
   externalId: string;
@@ -72,8 +75,9 @@ export function summarize(movements: Movement[], currency: Currency) {
   for (const m of movements.filter((m) => m.currency === currency)) {
     if (!Number.isSafeInteger(m.amountMinor) || m.amountMinor <= 0)
       throw new Error('Monto inválido');
-    if (m.type === 'INCOME') incomeMinor += m.amountMinor;
-    if (m.type === 'EXPENSE') expenseMinor += m.amountMinor;
+    if (m.refundOfId) expenseMinor -= m.amountMinor;
+    else if (m.type === 'INCOME') incomeMinor += m.amountMinor;
+    else if (m.type === 'EXPENSE') expenseMinor += m.amountMinor;
     if (!Number.isSafeInteger(incomeMinor) || !Number.isSafeInteger(expenseMinor))
       throw new Error('Total fuera de rango');
   }
@@ -152,7 +156,9 @@ export function filterMovements(
         m.occurredAt.startsWith(filter.month) &&
         (!filter.categoryId ||
           movementCategories(m).some((part) => part.categoryId === filter.categoryId)) &&
-        (!filter.type || filter.type === 'ALL' || m.type === filter.type) &&
+        (!filter.type ||
+          filter.type === 'ALL' ||
+          (m.refundOfId ? 'EXPENSE' : m.type) === filter.type) &&
         (!search ||
           movementCategories(m).some((part) =>
             `${m.description} ${part.category}`.toLocaleLowerCase('es').includes(search),
@@ -164,28 +170,29 @@ export function categoryExpenses(
   rows: Movement[],
 ): Array<{ category: string; amountMinor: number }> {
   const totals = new Map<string, number>();
-  for (const m of rows.filter((m) => m.type === 'EXPENSE'))
+  for (const m of rows.filter((m) => m.type === 'EXPENSE' || !!m.refundOfId))
     for (const part of movementCategories(m))
-      totals.set(part.category, (totals.get(part.category) ?? 0) + part.amountMinor);
+      totals.set(
+        part.category,
+        (totals.get(part.category) ?? 0) + (m.refundOfId ? -part.amountMinor : part.amountMinor),
+      );
   return Array.from(totals, ([category, amountMinor]) => ({ category, amountMinor })).sort(
     (a, b) => b.amountMinor - a.amountMinor,
   );
 }
 export function movementsCsv(rows: Movement[]): string {
-  const cell = (value: string) =>
-    '"' + (/^[=+@\-\t\r]/.test(value) ? "'" + value : value).replaceAll('"', '""') + '"';
   return [
     'Fecha,Tipo,Moneda,Monto,Descripción,Categoría',
     ...rows.map((m) =>
       [
         m.occurredAt.slice(0, 10),
-        m.type,
+        m.refundOfId ? 'REFUND' : m.type,
         m.currency,
         (m.amountMinor / 100).toFixed(2),
         m.description,
         m.splits?.length ? 'Gasto dividido' : m.category,
       ]
-        .map(cell)
+        .map(csvTextCell)
         .join(','),
     ),
   ].join('\r\n');
@@ -200,11 +207,13 @@ export function dailyCashFlow(rows: Movement[], endDate: string) {
     const day = d.toISOString().slice(0, 10);
     const selected = rows.filter((m) => m.occurredAt.startsWith(day));
     const incomeMinor = selected
-      .filter((m) => m.type === 'INCOME')
+      .filter((m) => m.type === 'INCOME' && !m.refundOfId)
       .reduce((n, m) => n + m.amountMinor, 0);
-    const expenseMinor = selected
-      .filter((m) => m.type === 'EXPENSE')
-      .reduce((n, m) => n + m.amountMinor, 0);
+    const expenseMinor = selected.reduce(
+      (total, m) =>
+        total + (m.refundOfId ? -m.amountMinor : m.type === 'EXPENSE' ? m.amountMinor : 0),
+      0,
+    );
     return { day, incomeMinor, expenseMinor, netMinor: incomeMinor - expenseMinor };
   });
 }
@@ -279,3 +288,5 @@ export {
   simulateLoan,
   type LoanSimulationInput,
 } from './loanSimulation.ts';
+
+export { monthlyReportCsv, type MonthlyReport } from './monthlyReport.ts';

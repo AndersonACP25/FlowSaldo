@@ -1,6 +1,14 @@
 import { db } from '@flowsaldo/database';
 import type { Prisma } from '@prisma/client';
-import { checkMovementSplits, type Currency, type SplitAmount } from '@flowsaldo/domain';
+import {
+  checkMovementSplits,
+  prepareRefund,
+  refundBalance,
+  refusesRefundSourceChange,
+  type Currency,
+  type Movement,
+  type SplitAmount,
+} from '@flowsaldo/domain';
 import { assignCategory, CategoryError } from './categories';
 import { lockFinance, checkAccountMovement, touchAccounts, checkAccountDelete } from './finance';
 
@@ -107,6 +115,11 @@ export async function updateMovement(id: string, { splits, ...data }: EditableMo
       include: { splits: true },
     });
     if (!existing) return null;
+    if (existing.refundOfId)
+      throw new CategoryError(
+        'Para corregir esta devolución, elimínala y regístrala de nuevo.',
+        409,
+      );
     const linked = {
       ...data,
       accountId: data.accountId === undefined ? existing.accountId : data.accountId,
@@ -116,12 +129,25 @@ export async function updateMovement(id: string, { splits, ...data }: EditableMo
     await checkAccountMovement(tx, linked, existing);
     validateSplits(data, splits ?? existing.splits);
     const replacement = splits ? await assignSplits(tx, splits, existing.splits) : undefined;
+    const category = await assignCategory(tx, data, existing);
+    if (
+      refusesRefundSourceChange(asMovement(existing), {
+        ...linked,
+        ...category,
+        splits: replacement ?? existing.splits,
+      }) &&
+      (await tx.movement.count({ where: { refundOfId: id } }))
+    )
+      throw new CategoryError(
+        'El gasto tiene devoluciones. Quita las devoluciones antes de cambiar sus datos financieros.',
+        409,
+      );
     if (replacement) await tx.movementSplit.deleteMany({ where: { movementId: id } });
     const movement = await tx.movement.update({
       where: { id: existing.id },
       data: {
         ...linked,
-        ...(await assignCategory(tx, data, existing)),
+        ...category,
         ...(replacement ? { splits: { create: replacement } } : {}),
       },
       include: { splits: true },
@@ -136,10 +162,85 @@ export async function deleteMovement(id: string) {
     await lockFinance(tx);
     const existing = await tx.movement.findUnique({ where: { id: id } });
     if (!existing) return false;
+    if (await tx.movement.count({ where: { refundOfId: id } }))
+      throw new CategoryError('Elimina las devoluciones vinculadas antes de quitar el gasto.', 409);
     await checkAccountDelete(tx, existing);
     await tx.movement.delete({ where: { id: existing.id } });
     await touchAccounts(tx, existing);
     return true;
+  });
+}
+
+function asMovement(row: Omit<Movement, 'occurredAt'> & { occurredAt: Date }): Movement {
+  return { ...row, occurredAt: row.occurredAt.toISOString() };
+}
+
+async function refundSource(tx: Prisma.TransactionClient, id: string) {
+  const source = await tx.movement.findUnique({ where: { id }, include: { splits: true } });
+  if (!source) throw new CategoryError('Gasto no encontrado.', 404);
+  const refunds = await tx.movement.findMany({
+    where: { refundOfId: id },
+    include: { splits: true },
+  });
+  return { source: asMovement(source), refunds: refunds.map(asMovement) };
+}
+
+export function expenseRefundBalance(id: string) {
+  return db.$transaction(
+    async (tx) => {
+      const { source, refunds } = await refundSource(tx, id);
+      if (source.type !== 'EXPENSE') throw new CategoryError('Selecciona un gasto.');
+      const { refundedMinor, remainingMinor } = refundBalance(source, refunds);
+      return { source, refundedMinor, remainingMinor };
+    },
+    { isolationLevel: 'RepeatableRead' },
+  );
+}
+
+export function createRefund(
+  id: string,
+  input: { amountMinor: number; occurredAt: string; requestKey: string },
+) {
+  return db.$transaction(async (tx) => {
+    await lockFinance(tx);
+    const receipt = await tx.movementRequest.findUnique({
+      where: { key: input.requestKey },
+      include: { movement: { include: { splits: true } } },
+    });
+    if (receipt) {
+      const previous = receipt.movement;
+      if (
+        previous?.refundOfId === id &&
+        previous.amountMinor === input.amountMinor &&
+        previous.occurredAt.toISOString() === input.occurredAt
+      )
+        return previous;
+      throw new CategoryError('La clave de envío ya fue usada.', 409);
+    }
+    const { source, refunds } = await refundSource(tx, id);
+    let prepared;
+    try {
+      prepared = prepareRefund(source, refunds, {
+        amountMinor: input.amountMinor,
+        occurredAt: input.occurredAt,
+      });
+    } catch (error) {
+      throw new CategoryError((error as Error).message, 409);
+    }
+    const { splits, ...data } = prepared;
+    const linked = { ...data, accountId: source.accountId };
+    await checkAccountMovement(tx, linked);
+    const movement = await tx.movement.create({
+      data: {
+        ...linked,
+        description: ('Devolución: ' + source.description).slice(0, 100),
+        splits: { create: splits },
+      },
+      include: { splits: true },
+    });
+    await tx.movementRequest.create({ data: { key: input.requestKey, movementId: movement.id } });
+    await touchAccounts(tx, linked);
+    return movement;
   });
 }
 

@@ -176,6 +176,40 @@ export async function checkCoreFlows(browser) {
     const rows = parseCsv(await readFile(await file.path(), 'utf8'));
     assert.equal(rows.length, 2);
     assert.equal(rows[1].at(-1), 'Gasto dividido');
+    const original = (await stored()).movements.find((item) => item.description === 'Compra CORE');
+    await button('Registrar devolución de Compra CORE').click();
+    await page.getByLabel('Importe de la devolución', { exact: true }).fill('50.00');
+    await page
+      .getByLabel('Fecha y hora de la devolución', { exact: true })
+      .fill(original.occurredAt.slice(0, 10) + 'T13:00');
+    await button('Guardar devolución').click();
+    await page.getByText('Devolución registrada.', { exact: true }).waitFor();
+    const refund = (await stored()).movements.find((item) => item.refundOfId === original.id);
+    assert.equal(refund.amountMinor, 5000);
+    assert.equal(
+      refund.splits.reduce((sum, split) => sum + split.amountMinor, 0),
+      5000,
+    );
+    await button('Registrar devolución de Compra CORE').click();
+    await page.getByText('Pendiente de devolver · EUR 51.29', { exact: true }).waitFor();
+    await button('Volver').click();
+    await button('Abrir menú').click();
+    await button('Analíticas y reportes').click();
+    await page.getByRole('heading', { name: 'Analíticas y reportes', exact: true }).waitFor();
+    const reportDownload = page.waitForEvent('download');
+    await button('Exportar reporte CSV').click();
+    const report = await reportDownload;
+    assert.equal(report.suggestedFilename(), `FlowSaldo-Reporte-${month}-EUR.csv`);
+    const reportRows = parseCsv(await readFile(await report.path(), 'utf8'));
+    assert.deepEqual(reportRows[0], ['Período', 'Moneda', 'Indicador', 'Categoría', 'Importe']);
+    assert.deepEqual(
+      reportRows.find((row) => row[2] === 'Gastos netos'),
+      [month, 'EUR', 'Gastos netos', '', '71.80'],
+    );
+    assert.deepEqual(
+      reportRows.find((row) => row[3] === 'Alimentación'),
+      [month, 'EUR', 'Gasto neto por categoría', 'Alimentación', '35.55'],
+    );
     await button('Inicio').click();
     await button('Abrir menú').click();
     await button('Metas de ahorro').click();
@@ -604,6 +638,17 @@ export async function checkCoreFlows(browser) {
       assert.equal(parseCsv(await readFile(await file.path(), 'utf8')).length, 206);
       await button('Cargar más movimientos').click();
       await page.getByText('Movimiento 99', { exact: true }).waitFor();
+      await button('Abrir menú').click();
+      await button('Analíticas y reportes').click();
+      await page.getByText('205 movimientos · DOP', { exact: true }).waitFor();
+      const reportDownload = page.waitForEvent('download');
+      await button('Exportar reporte CSV').click();
+      const report = await reportDownload;
+      const reportRows = parseCsv(await readFile(await report.path(), 'utf8'));
+      assert.deepEqual(
+        reportRows.find((row) => row[2] === 'Gastos netos'),
+        [month, 'DOP', 'Gastos netos', '', '502352.50'],
+      );
       await button('Conexiones').click();
       await button('Ver importaciones con error').click();
       await page.getByText('Error CORE', { exact: true }).waitFor();

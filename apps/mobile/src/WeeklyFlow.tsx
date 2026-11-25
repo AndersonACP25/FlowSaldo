@@ -20,7 +20,7 @@ export function WeeklyFlow({
       rows.filter((row) => row.currency === currency),
       end,
     );
-  const max = Math.max(1, ...days.flatMap((d) => [d.incomeMinor, d.expenseMinor]));
+  const max = Math.max(1, ...days.flatMap((d) => [d.incomeMinor, Math.abs(d.expenseMinor)]));
   return (
     <View style={s.card}>
       <Text style={s.title}>Flujo de 7 días</Text>
@@ -46,8 +46,15 @@ export function WeeklyFlow({
               <View
                 style={{
                   width: 10,
-                  height: day.expenseMinor ? Math.max(3, (day.expenseMinor / max) * 110) : 2,
-                  backgroundColor: day.expenseMinor ? palette.cyan : palette.soft,
+                  height: day.expenseMinor
+                    ? Math.max(3, (Math.abs(day.expenseMinor) / max) * 110)
+                    : 2,
+                  backgroundColor:
+                    day.expenseMinor < 0
+                      ? palette.amber
+                      : day.expenseMinor
+                        ? palette.cyan
+                        : palette.soft,
                   borderRadius: 3,
                 }}
               />
@@ -57,7 +64,8 @@ export function WeeklyFlow({
         ))}
       </View>
       <Text style={s.muted}>
-        ● Esmeralda: ingresos · ● Cian: gastos. Transferencias propias excluidas.
+        ● Esmeralda: ingresos · ● Cian: gastos netos
+        {days.some((day) => day.expenseMinor < 0) ? ' · ● Ámbar: devoluciones netas' : ''}.
       </Text>
     </View>
   );

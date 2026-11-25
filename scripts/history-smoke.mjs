@@ -163,6 +163,45 @@ export async function checkHistory(request, connectionString) {
       assert.equal((await get('/movements/' + movement.id)).splits.length, 2);
       const csv = await request('/movements/export?' + base + '&categoryId=' + transport.id);
       assert.equal(parseCsv(await csv.text()).length, 2);
+      const refundPath = '/movements/' + movement.id + '/refunds';
+      const refund = {
+        requestKey: prefix + 'refund',
+        occurredAt: '2044-03-01T13:00:00.000Z',
+        amountMinor: 70_000,
+      };
+      const refundPost = (body) =>
+        request(refundPath, { method: 'POST', body: JSON.stringify(body) });
+      const requests = [refund, { ...refund, requestKey: prefix + 'refund-2' }];
+      const attempts = await Promise.all(requests.map(refundPost));
+      assert.deepEqual(attempts.map((res) => res.status).sort(), [201, 409]);
+      const successful = attempts.findIndex((session) => session.status === 201);
+      const posted = await attempts[successful].json();
+      try {
+        assert.equal(posted.refundOfId, movement.id);
+        const retry = await refundPost(requests[successful]);
+        assert.equal(retry.status, 201);
+        assert.equal((await retry.json()).id, posted.id);
+        assert.equal((await get(refundPath)).remainingMinor, 30_029);
+        const march = await get('/summary?month=2044-03&currency=EUR&weekEnd=2044-03-01');
+        assert.equal(march.incomeMinor, 0);
+        assert.equal(march.expenseMinor, -70_000);
+        assert.equal(march.days.at(-1).expenseMinor, -70_000);
+        assert.equal(
+          march.categoryTotals.reduce((sum, row) => sum + row.amountMinor, 0),
+          -70_000,
+        );
+        assert.equal(
+          (await get('/movements?page=true&month=2044-03&currency=EUR&type=INCOME')).total,
+          0,
+        );
+        assert.equal(
+          (await request('/movements/' + movement.id, { method: 'DELETE' })).status,
+          409,
+        );
+      } finally {
+        assert.equal((await request('/movements/' + posted.id, { method: 'DELETE' })).status, 204);
+      }
+      assert.equal((await get(refundPath)).remainingMinor, 100_029);
       const { splits, ...fields } = data;
       const patch = (body) =>
         request('/movements/' + movement.id, {
