@@ -51,7 +51,7 @@ import {
 } from '@tanstack/react-query';
 import {
   formatMinorAmount,
-  localMovementAccount,
+  localMovementAccounts,
   validateLocalAccounts,
   type LocalAccount,
   addSavingsContribution,
@@ -502,6 +502,9 @@ function Home({
     getNextPageParam: (last) => last.nextCursor ?? undefined,
   });
   const accounts = connected ? (accountsQuery.data ?? []) : local.accounts;
+  const localCardIds = new Set(
+    local.accounts.filter((account) => account.kind === 'CREDIT_CARD').map((account) => account.id),
+  );
   const movementAccounts = connected
     ? accountsQuery.data
     : local.accounts.length
@@ -590,7 +593,12 @@ function Home({
         type,
         search,
         categoryId: categoryFilter || undefined,
-      }).filter((movement) => !accountFilter || movement.accountId === accountFilter);
+      }).filter(
+        (movement) =>
+          !accountFilter ||
+          movement.accountId === accountFilter ||
+          movement.targetAccountId === accountFilter,
+      );
   const summary = connected
     ? (totals.data ?? { incomeMinor: 0, expenseMinor: 0, differenceMinor: 0 })
     : summarize(period, currency);
@@ -991,13 +999,21 @@ function Home({
     }
     setNotice(registered ? 'Banco agregado.' : 'Banco quitado.');
   }
-  function checkLocalAccount(draft: Draft, previousAccountId?: string | null) {
-    const account = localMovementAccount(
+  function checkLocalAccounts(draft: Draft, previous?: Movement | null) {
+    const { source, target } = localMovementAccounts(
       new Map(localRef.current.accounts.map((item) => [item.id, item])),
       draft,
     );
-    if (account?.archived && account.id !== previousAccountId)
+    if (
+      (source?.archived && source.id !== previous?.accountId) ||
+      (target?.archived && target.id !== previous?.targetAccountId)
+    )
       throw new Error('Reactiva la cuenta antes de vincular un movimiento.');
+  }
+  function isLocalCardPayment(movement: Movement) {
+    return (
+      !connected && movement.type === 'TRANSFER' && localCardIds.has(movement.targetAccountId ?? '')
+    );
   }
   async function saveLocalAccounts(accounts: LocalAccount[]) {
     validateLocalAccounts(accounts);
@@ -1015,7 +1031,7 @@ function Home({
       await refreshMovements();
     } else {
       const current = localRef.current;
-      checkLocalAccount(draft, edit?.accountId);
+      checkLocalAccounts(draft, edit);
       const item: Movement = {
         ...draft,
         ...selectedCategory(
@@ -1126,7 +1142,7 @@ function Home({
     } else {
       const review = localRef.current.reviews.find((i) => i.id === id);
       if (review?.status !== 'REVIEW') throw new Error('Este correo ya fue revisado.');
-      checkLocalAccount(draft);
+      checkLocalAccounts(draft);
       await persist({
         ...localRef.current,
         movements: [
@@ -1247,6 +1263,8 @@ function Home({
   function addSavings(goalId: string, item: SavingsContribution) {
     return saveForm(async () => {
       const transfer = item.kind === 'transfer' ? await movementForLink(item.movementId) : null;
+      if (transfer && isLocalCardPayment(transfer))
+        throw new Error('Los pagos de tarjeta no se vinculan a metas de ahorro.');
       const transfers = new Map(transfer ? [[transfer.id, transfer]] : []);
       await updateSavingsGoals((goals) => addSavingsContribution(goals, goalId, item, transfers));
     });
@@ -1637,9 +1655,10 @@ function Home({
                 linkedTransfer={transferForSavings}
                 transfers={
                   new Map(
-                    (connected ? (savingsTransfersQuery.data ?? []) : local.movements).map(
-                      (movement) => [movement.id, movement],
-                    ),
+                    (connected
+                      ? (savingsTransfersQuery.data ?? [])
+                      : local.movements.filter((movement) => !isLocalCardPayment(movement))
+                    ).map((movement) => [movement.id, movement]),
                   )
                 }
                 linksPending={
@@ -2017,7 +2036,7 @@ function Home({
                     allowSplits
                     commerceRules={commerceRules}
                     accounts={movementAccounts}
-                    allowAccountTransfers={connected}
+                    localAccounts={!connected}
                     categories={categoryCatalog}
                     recent={recent}
                     editing={editor !== 'new'}
@@ -2188,7 +2207,11 @@ function Home({
                             ? countLabel(m.splits.length, 'categoría', 'categorías')
                             : m.category}{' '}
                           · {m.occurredAt.slice(0, 10)} ·{' '}
-                          {m.refundOfId ? 'Devolución' : typeLabels[m.type]}
+                          {m.refundOfId
+                            ? 'Devolución'
+                            : isLocalCardPayment(m)
+                              ? 'Pago de tarjeta'
+                              : typeLabels[m.type]}
                         </Text>
                       </View>
                       <Text
@@ -2281,7 +2304,7 @@ function Home({
                           onPress={() => openPending(m, null, 'Movimientos')}
                         />
                       )}
-                      {m.type === 'TRANSFER' && (
+                      {m.type === 'TRANSFER' && !isLocalCardPayment(m) && (
                         <Choice
                           label={`Vincular a meta: ${m.description}`}
                           text={
@@ -2637,7 +2660,7 @@ function Home({
                   (!connected || (imports.isSuccess && accountsQuery.isSuccess)) && (
                     <ReviewInbox
                       accounts={movementAccounts}
-                      allowAccountTransfers={connected}
+                      localAccounts={!connected}
                       onRetry={connected ? retryImport : undefined}
                       money={money}
                       onMovement={async (id) =>

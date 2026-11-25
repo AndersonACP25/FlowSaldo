@@ -252,3 +252,7 @@ Configuración ofrece exportar y restaurar un JSON versionado para el modo local
 ## Cuentas y saldos locales (2026-11-25)
 
 Configuración permite crear efectivo, cuentas bancarias y tarjetas en DOP, USD o EUR para la cuenta de prueba. El saldo inicial precede a los movimientos vinculados. Cada ingreso o gasto puede vincularse a una cuenta de la misma moneda. Las devoluciones heredan la cuenta del gasto y se reasignan en la misma escritura cuando se cambia su cuenta. El filtro de historial incluye las cuentas archivadas y conserva sus saldos. El respaldo JSON v2 añade las cuentas y acepta v1 con catálogo vacío. Las transferencias entre cuentas y la conciliación local corresponden a fases posteriores.
+
+## Transferencias y pagos de tarjetas locales (2026-11-25)
+
+La segunda fase vincula transferencias a dos cuentas distintas en la misma moneda o las conserva sin cuentas, como en el historial previo. Se guarda un solo movimiento. El importe se resta en el origen y se suma en el destino, incluso con tarjetas archivadas que conservan su historial. Una tarjeta de destino muestra el movimiento como pago de tarjeta. Los abonos quedan fuera de ingresos, gastos y metas de ahorro. Editar o eliminar recalcula ambos saldos. El historial se filtra por cualquiera de las dos cuentas y el respaldo v2 conserva los dos vínculos.

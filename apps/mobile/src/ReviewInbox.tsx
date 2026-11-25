@@ -19,10 +19,10 @@ export function ReviewInbox({
   money,
   onRetry,
   accounts,
-  allowAccountTransfers,
+  localAccounts,
 }: {
   accounts?: MovementAccount[];
-  allowAccountTransfers?: boolean;
+  localAccounts?: boolean;
   onRetry?: (id: string) => Promise<void>;
   onMovement: (id: string) => Promise<Movement | null>;
   money: (minor: number, currency: Currency) => string;
@@ -170,7 +170,7 @@ export function ReviewInbox({
             (editing === item.id ? (
               <MovementForm
                 accounts={accounts}
-                allowAccountTransfers={allowAccountTransfers}
+                localAccounts={localAccounts}
                 categories={categories}
                 title="Confirmar movimiento"
                 movement={suggestion ?? item.suggestion}

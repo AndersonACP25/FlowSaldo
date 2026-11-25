@@ -48,37 +48,49 @@ export function validateLocalAccounts(accounts: LocalAccount[]) {
 
 type AccountMovement = Pick<Movement, 'accountId' | 'targetAccountId' | 'type' | 'currency'>;
 
-export function localMovementAccount(
+export function localMovementAccounts(
   accounts: ReadonlyMap<string, LocalAccount>,
   movement: AccountMovement,
 ) {
+  const { accountId, targetAccountId, type, currency } = movement;
+  if (accountId == null && targetAccountId == null) return {};
   if (
-    movement.targetAccountId != null ||
-    (movement.type === 'TRANSFER' && movement.accountId != null)
+    type === 'TRANSFER' &&
+    (accountId == null || targetAccountId == null || accountId === targetAccountId)
   )
-    throw new Error('Las transferencias locales todavía se registran sin cuenta.');
-  if (movement.accountId == null) return undefined;
-  const account = accounts.get(movement.accountId);
-  if (!account) throw new Error('La cuenta del movimiento no existe.');
-  if (account.currency !== movement.currency)
-    throw new Error('La cuenta y el movimiento deben usar la misma moneda.');
-  return account;
+    throw new Error('Elige dos cuentas distintas para la transferencia.');
+  if (type !== 'TRANSFER' && targetAccountId != null)
+    throw new Error('Solo las transferencias tienen una cuenta de destino.');
+
+  function findAccount(id: string | null | undefined) {
+    if (id == null) return undefined;
+    const account = accounts.get(id);
+    if (!account) throw new Error('La cuenta del movimiento no existe.');
+    if (account.currency !== currency)
+      throw new Error('Las cuentas y el movimiento deben usar la misma moneda.');
+    return account;
+  }
+
+  return { source: findAccount(accountId), target: findAccount(targetAccountId) };
 }
 
 export function localAccountBalances(accounts: LocalAccount[], movements: Movement[]) {
   const byId = new Map(accounts.map((account) => [account.id, account]));
-  const totals = new Map(accounts.map(({ id }) => [id, { income: 0, expenses: 0 }]));
+  const totals = new Map(
+    accounts.map(({ id }) => [id, { income: 0, outgoing: 0, incomingTransfers: 0 }]),
+  );
   for (const movement of movements) {
-    const account = localMovementAccount(byId, movement);
-    if (!account) continue;
-    const total = totals.get(account.id)!;
+    const { source, target } = localMovementAccounts(byId, movement);
+    if (!source) continue;
+    const total = totals.get(source.id)!;
     if (movement.type === 'INCOME') total.income += movement.amountMinor;
-    else total.expenses += movement.amountMinor;
+    else total.outgoing += movement.amountMinor;
+    if (target) totals.get(target.id)!.incomingTransfers += movement.amountMinor;
   }
   return new Map(
     accounts.map(({ id, openingMinor }) => {
-      const { income, expenses } = totals.get(id)!;
-      return [id, ledgerBalance(openingMinor, income, expenses, 0)];
+      const { income, outgoing, incomingTransfers } = totals.get(id)!;
+      return [id, ledgerBalance(openingMinor, income, outgoing, incomingTransfers)];
     }),
   );
 }

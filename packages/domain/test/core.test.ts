@@ -95,7 +95,7 @@ test('CORE: totals isolate currencies/months and exclude own transfers', () => {
   assert.throws(() => ledgerBalance(Number.MAX_SAFE_INTEGER, 1, 0, 0));
   assert.equal(filterMovements(rows, { month: '2026-09', currency: 'DOP' }).length, 0);
 });
-test('CORE: local account balances preserve signed debt, linked refunds and currency', () => {
+test('CORE: local transfers preserve balances, card debt and reported expenses', () => {
   const accounts: LocalAccount[] = [
     {
       id: 'bank',
@@ -112,6 +112,14 @@ test('CORE: local account balances preserve signed debt, linked refunds and curr
       currency: 'USD',
       openingMinor: -2500,
       archived: true,
+    },
+    {
+      id: 'cash',
+      name: 'Efectivo',
+      kind: 'CASH',
+      currency: 'USD',
+      openingMinor: 70000,
+      archived: false,
     },
   ];
   validateLocalAccounts(accounts);
@@ -131,11 +139,20 @@ test('CORE: local account balances preserve signed debt, linked refunds and curr
     amountMinor: 503,
     refundOfId: expense.id,
   } as const;
+  const payment = {
+    ...expense,
+    id: 'payment',
+    type: 'TRANSFER',
+    accountId: 'cash',
+    targetAccountId: 'card',
+    amountMinor: 2047,
+  } as const;
   assert.deepEqual(
-    [...localAccountBalances(accounts, [income, expense, refund, ...demoMovements])],
+    [...localAccountBalances(accounts, [income, expense, refund, payment, ...demoMovements])],
     [
       ['bank', 4600000],
-      ['card', -4498],
+      ['card', -2451],
+      ['cash', 67953],
     ],
   );
   assert.throws(
@@ -146,9 +163,19 @@ test('CORE: local account balances preserve signed debt, linked refunds and curr
     () => localAccountBalances(accounts, [{ ...expense, accountId: 'missing' }]),
     /no existe/,
   );
+  assert.deepEqual(
+    summarize([expense, refund, payment], 'USD'),
+    summarize([expense, refund], 'USD'),
+  );
+  for (const invalid of [
+    { ...payment, targetAccountId: null },
+    { ...payment, accountId: null },
+    { ...payment, targetAccountId: payment.accountId },
+  ])
+    assert.throws(() => localAccountBalances(accounts, [invalid]), /dos cuentas distintas/);
   assert.throws(
-    () => localAccountBalances(accounts, [{ ...expense, type: 'TRANSFER' }]),
-    /sin cuenta/,
+    () => localAccountBalances(accounts, [{ ...payment, targetAccountId: 'bank' }]),
+    /misma moneda/,
   );
   assert.throws(
     () => validateLocalAccounts([...accounts, { ...accounts[0], id: 'duplicate' }]),

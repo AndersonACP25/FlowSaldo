@@ -430,9 +430,63 @@ export async function checkCoreFlows(browser) {
     await button('Cuentas y saldos').click();
     await page.getByText('Saldo · EUR 948.71', { exact: true }).waitFor();
     await page.getByText('Deuda · EUR 45.51', { exact: true }).waitFor();
+    await button('Nueva cuenta').click();
+    await page.getByLabel('Nombre de la cuenta', { exact: true }).fill('Banco CORE');
+    await button('Guardar cuenta').click();
+    await page.getByText('Saldo · EUR 0.00', { exact: true }).waitFor();
+
+    await button('Movimientos').click();
+    await button('+ Nuevo movimiento').click();
+    await button('Transferencia').first().click();
+    await page.getByLabel('Descripción', { exact: true }).fill('Depositar efectivo CORE');
+    const transferAmount = page.getByLabel('Monto (sin separadores de miles)', { exact: true });
+    await transferAmount.fill('100');
+    await button('Cuenta: Efectivo CORE').click();
+    await button('Guardar movimiento').click();
+    await page
+      .getByRole('alert')
+      .filter({ hasText: 'Selecciona otra cuenta de destino.' })
+      .waitFor();
+    await button('Destino: Banco CORE').click();
+    await button('Guardar movimiento').click();
+    await page.getByText('Movimiento guardado.', { exact: true }).waitFor();
+
+    await button('+ Nuevo movimiento').click();
+    await button('Transferencia').first().click();
+    await page.getByLabel('Descripción', { exact: true }).fill('Abono CORE');
+    await transferAmount.fill('10');
+    await button('Cuenta: Banco CORE').click();
+    await button('Destino: Tarjeta CORE').click();
+    await button('Guardar pago de tarjeta').click();
+    await page.getByText('Movimiento guardado.', { exact: true }).waitFor();
+    await button('Filtrar cuenta: Tarjeta CORE').click();
+    await page.getByText('2 movimientos', { exact: true }).waitFor();
+    await page.getByText(/· Pago de tarjeta$/).waitFor();
+    assert.equal(await button('Vincular a meta: Abono CORE').count(), 0);
+    await button('Editar Abono CORE').click();
+    await transferAmount.fill('20');
+    await button('Guardar pago de tarjeta').click();
+    await page.getByText('Movimiento guardado.', { exact: true }).waitFor();
+    const afterPayment = await stored();
+    const cardPayment = afterPayment.movements.filter(
+      (movement) => movement.description === 'Abono CORE',
+    );
+    assert.equal(cardPayment.length, 1);
+    assert.equal(cardPayment[0].type, 'TRANSFER');
+    assert.equal(cardPayment[0].amountMinor, 2000);
+    assert.equal(
+      cardPayment[0].targetAccountId,
+      afterPayment.accounts.find((account) => account.name === 'Tarjeta CORE').id,
+    );
+
+    await button('Configuración').click();
+    await button('Cuentas y saldos').click();
+    await page.getByText('Saldo · EUR 848.71', { exact: true }).waitFor();
+    await page.getByText('Saldo · EUR 80.00', { exact: true }).waitFor();
+    await page.getByText('Deuda · EUR 25.51', { exact: true }).waitFor();
     await button('Archivar cuenta Efectivo CORE').click();
     await button('Reactivar cuenta Efectivo CORE').waitFor();
-    await page.getByText('Saldo · EUR 948.71', { exact: true }).waitFor();
+    await page.getByText('Saldo · EUR 848.71', { exact: true }).waitFor();
     await button('Volver').click();
     await button('Respaldo y restauración').click();
     const backupDownload = page.waitForEvent('download');
@@ -476,7 +530,10 @@ export async function checkCoreFlows(browser) {
       const legacyBackup = JSON.parse(backupText);
       legacyBackup.version = 1;
       delete legacyBackup.data.accounts;
-      for (const movement of legacyBackup.data.movements) delete movement.accountId;
+      for (const movement of legacyBackup.data.movements) {
+        delete movement.accountId;
+        delete movement.targetAccountId;
+      }
       await chooseBackup({
         name: 'Respaldo-v1.json',
         mimeType: 'application/json',
@@ -493,8 +550,9 @@ export async function checkCoreFlows(browser) {
       await loginAsTestAccount(restoredPage);
       await restoredButton('Configuración').click();
       await restoredButton('Cuentas y saldos').click();
-      await restoredPage.getByText('Saldo · EUR 948.71', { exact: true }).waitFor();
-      await restoredPage.getByText('Deuda · EUR 45.51', { exact: true }).waitFor();
+      await restoredPage.getByText('Saldo · EUR 848.71', { exact: true }).waitFor();
+      await restoredPage.getByText('Saldo · EUR 80.00', { exact: true }).waitFor();
+      await restoredPage.getByText('Deuda · EUR 25.51', { exact: true }).waitFor();
       await restoredButton('Reactivar cuenta Efectivo CORE').waitFor();
       await restoredButton('Abrir menú').click();
       await restoredButton('Analíticas y reportes').click();

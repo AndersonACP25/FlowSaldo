@@ -97,6 +97,9 @@ export function LocalAccountsScreen({
   return (
     <>
       <Button label="Nueva cuenta" disabled={busy || creating} onPress={() => openForm()} />
+      {accounts.length > 0 && (
+        <Text style={s.muted}>Registra transferencias y pagos de tarjeta desde Movimientos.</Text>
+      )}
       {!!notice && (
         <Text accessibilityLiveRegion="polite" style={s.success}>
           {notice}

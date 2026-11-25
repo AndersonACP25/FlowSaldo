@@ -1,5 +1,5 @@
 import { FilterRow } from './ScreenChrome';
-import React, { useState } from 'react';
+import React, { useRef, useState } from 'react';
 import { Text, View } from 'react-native';
 import {
   movementDate,
@@ -25,7 +25,10 @@ import { MovementSplitsEditor, type SplitDraft } from './MovementSplitsEditor';
 import type { FinancialAccount } from './FinancePanel';
 export const typeLabels = { INCOME: 'Ingreso', EXPENSE: 'Gasto', TRANSFER: 'Transferencia' };
 export type Draft = Omit<Movement, 'id'>;
-export type MovementAccount = Pick<FinancialAccount, 'id' | 'name' | 'currency' | 'archived'>;
+export type MovementAccount = Pick<
+  FinancialAccount,
+  'id' | 'name' | 'currency' | 'archived' | 'kind'
+>;
 export function MovementForm({
   movement,
   currency,
@@ -40,14 +43,14 @@ export function MovementForm({
   recurringDateTime = false,
   saveLabel = 'Guardar movimiento',
   accounts,
-  allowAccountTransfers = true,
+  localAccounts = false,
   allowSplits = false,
   commerceRules,
 }: {
   allowSplits?: boolean;
   commerceRules?: CommerceRule[];
   accounts?: MovementAccount[];
-  allowAccountTransfers?: boolean;
+  localAccounts?: boolean;
   saveLabel?: string;
   fixedDate?: boolean;
   recurringDateTime?: boolean;
@@ -62,15 +65,17 @@ export function MovementForm({
   title?: string | null;
 }) {
   const { styles: s } = useTheme();
-  const [accountId, setAccountId] = useState(() => {
-    const existing = movement?.accountId ?? '';
-    return !allowAccountTransfers &&
-      !editing &&
-      accounts?.some((account) => account.id === existing && account.archived)
-      ? ''
-      : existing;
-  });
-  const [targetAccountId, setTargetAccountId] = useState(movement?.targetAccountId ?? '');
+  const initialAccountId = movement?.accountId ?? '';
+  const initialTargetId = movement?.targetAccountId ?? '';
+  const archivedLink =
+    localAccounts &&
+    !editing &&
+    accounts?.some(
+      (account) =>
+        account.archived && (account.id === initialAccountId || account.id === initialTargetId),
+    );
+  const [accountId, setAccountId] = useState(archivedLink ? '' : initialAccountId);
+  const [targetAccountId, setTargetAccountId] = useState(archivedLink ? '' : initialTargetId);
   const [requestKey] = useState(
     () =>
       `manual-${Date.now()}-${Math.random().toString(36).slice(2)}-${Math.random().toString(36).slice(2)}`,
@@ -108,10 +113,23 @@ export function MovementForm({
   );
   const [type, setType] = useState<MovementType>(movement?.type ?? 'EXPENSE');
   const splitting = allowSplits && type === 'EXPENSE' && splitEnabled;
-  const canLinkAccount = allowAccountTransfers || type !== 'TRANSFER';
   const [unit, setUnit] = useState<Currency>(movement?.currency ?? currency);
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
+  const saving = useRef(false);
+  const isTransfer = type === 'TRANSFER';
+  const destinations = (accounts ?? []).filter(
+    (account) =>
+      account.currency === unit &&
+      account.id !== accountId &&
+      (!account.archived || (localAccounts && editing && account.id === movement?.targetAccountId)),
+  );
+  const isCardPayment =
+    localAccounts &&
+    isTransfer &&
+    destinations.some(
+      (account) => account.id === targetAccountId && account.kind === 'CREDIT_CARD',
+    );
   const [dismissedRule, setDismissedRule] = useState<string>();
   const suggestion =
     commerceRules?.length && !splitting && type !== 'TRANSFER'
@@ -124,6 +142,8 @@ export function MovementForm({
   }
 
   async function save() {
+    if (saving.current) return;
+    saving.current = true;
     setError('');
     try {
       const amountMinor = parseAmount(amount);
@@ -137,7 +157,7 @@ export function MovementForm({
         );
       if (
         accounts &&
-        type === 'TRANSFER' &&
+        isTransfer &&
         accountId &&
         (!targetAccountId || targetAccountId === accountId)
       )
@@ -172,10 +192,10 @@ export function MovementForm({
         ...(allowSplits ? { splits } : {}),
         type,
         currency: unit,
-        ...(accounts && canLinkAccount
+        ...(accounts
           ? {
               accountId: accountId || null,
-              targetAccountId: type === 'TRANSFER' ? targetAccountId || null : null,
+              targetAccountId: isTransfer ? targetAccountId || null : null,
             }
           : {}),
         ...(!editing ? { requestKey } : {}),
@@ -183,6 +203,7 @@ export function MovementForm({
     } catch (e) {
       setError(e instanceof Error ? e.message : 'No se pudo guardar.');
     } finally {
+      saving.current = false;
       setBusy(false);
     }
   }
@@ -200,8 +221,8 @@ export function MovementForm({
             label={typeLabels[t]}
             selected={type === t}
             onPress={() => {
+              if (type === t) return;
               setType(t);
-              if (t === 'TRANSFER' && !allowAccountTransfers) setAccountId('');
               setTargetAccountId('');
             }}
           />
@@ -227,6 +248,7 @@ export function MovementForm({
             label={c}
             selected={unit === c}
             onPress={() => {
+              if (unit === c) return;
               setUnit(c);
               setAccountId('');
               setTargetAccountId('');
@@ -234,12 +256,10 @@ export function MovementForm({
           />
         ))}
       </View>
-      {accounts && canLinkAccount && (
+      {accounts && (
         <>
-          <Text style={s.label}>
-            {type === 'TRANSFER' ? 'Cuenta de origen' : 'Cuenta del movimiento'}
-          </Text>
-          {allowAccountTransfers && (
+          <Text style={s.label}>{isTransfer ? 'Cuenta de origen' : 'Cuenta del movimiento'}</Text>
+          {!localAccounts && (
             <Text style={s.muted}>
               Sin cuenta asignada, el movimiento queda fuera de la conciliación.
             </Text>
@@ -261,29 +281,39 @@ export function MovementForm({
                   label={`Cuenta: ${a.name}`}
                   text={a.name + (a.archived ? ' · Archivada' : '')}
                   selected={accountId === a.id}
-                  onPress={() => setAccountId(a.id)}
+                  onPress={() => {
+                    setAccountId(a.id);
+                    if (targetAccountId === a.id) setTargetAccountId('');
+                  }}
                 />
               ))}
           </FilterRow>
-          {type === 'TRANSFER' && !!accountId && (
+          {isTransfer && !!accountId && (
             <>
               <Text style={s.label}>Cuenta de destino</Text>
-              <FilterRow label="Seleccionar cuenta de destino">
-                {accounts
-                  .filter((a) => a.currency === unit && a.id !== accountId && !a.archived)
-                  .map((a) => (
+              {localAccounts && !destinations.length ? (
+                <Text style={s.muted}>Agrega otra cuenta activa de la misma moneda.</Text>
+              ) : (
+                <FilterRow label="Seleccionar cuenta de destino">
+                  {destinations.map((a) => (
                     <Choice
                       key={a.id}
                       label={`Destino: ${a.name}`}
-                      text={a.name}
+                      text={a.name + (a.archived ? ' · Archivada' : '')}
                       selected={targetAccountId === a.id}
                       onPress={() => setTargetAccountId(a.id)}
                     />
                   ))}
-              </FilterRow>
-              <Text style={s.muted}>
-                Los pagos de deuda reducen el saldo pendiente de la cuenta de destino.
-              </Text>
+                </FilterRow>
+              )}
+              {isCardPayment && (
+                <Text style={s.muted}>El abono reduce la deuda de la tarjeta.</Text>
+              )}
+              {!localAccounts && (
+                <Text style={s.muted}>
+                  Los pagos de deuda reducen el saldo pendiente de la cuenta de destino.
+                </Text>
+              )}
             </>
           )}
         </>
@@ -380,7 +410,11 @@ export function MovementForm({
           {error}
         </Text>
       )}
-      <Button label={busy ? 'Guardando…' : saveLabel} disabled={busy} onPress={() => void save()} />
+      <Button
+        label={busy ? 'Guardando…' : isCardPayment ? 'Guardar pago de tarjeta' : saveLabel}
+        disabled={busy}
+        onPress={() => void save()}
+      />
       <Button label="Cancelar" disabled={busy} onPress={onCancel} />
     </View>
   );
