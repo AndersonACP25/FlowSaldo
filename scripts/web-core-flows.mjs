@@ -166,7 +166,16 @@ export async function checkCoreFlows(browser) {
       0,
     );
     await page.getByLabel('Monto (sin separadores de miles)', { exact: true }).fill('99.00');
+    await button('Configuración').click();
+    await button('Preferencias').click();
     await button('Volver').click();
+    await page.getByRole('heading', { name: 'Configuración', exact: true }).waitFor();
+    await button('Volver').click();
+    await page.getByRole('heading', { name: 'Movimientos', exact: true }).waitFor();
+    assert.equal(
+      await page.getByLabel('Buscar descripción o categoría', { exact: true }).inputValue(),
+      'Compra CORE',
+    );
     await button('Editar Compra CORE').click();
     const amount = page.getByLabel('Monto (sin separadores de miles)', { exact: true });
     assert.equal(await amount.inputValue(), '100.29');

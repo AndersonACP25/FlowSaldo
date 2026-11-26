@@ -313,3 +313,7 @@ Los módulos del dominio importan desde el archivo que define cada símbolo. El 
 ## Transporte HTTP y estado de Movimientos (2026-11-26)
 
 El cliente HTTP móvil comparte la lectura de JSON y CSV, los plazos de respuesta y los errores de la API. El acceso distingue credenciales incorrectas de la expiración de una sesión personal. Las consultas de movimientos, devoluciones y saldos verifican sus respuestas antes de renderizarlas. useMovementFlow concentra filtros, selección de borrado y borradores de creación, duplicado, edición o devolución. Workspace conserva las transiciones entre pantallas.
+
+## Navegación del área de trabajo (2026-11-26)
+
+useWorkspaceNavigation conserva la pantalla activa, el retorno desde Configuración y el origen de los pendientes y metas enlazados. También coordina el botón Atrás de Android y el descarte de borradores al navegar. WorkspaceShell presenta el encabezado, la barra inferior y el área desplazable por pantalla. Workspace compone las pantallas y conecta sus consultas y operaciones.
