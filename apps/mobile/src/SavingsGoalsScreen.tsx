@@ -1,7 +1,6 @@
 import React, { useState } from 'react';
 import { Text, View } from 'react-native';
 import {
-  currencies,
   parseAmount,
   savingsContributionAmount,
   savingsProgress,
@@ -11,6 +10,7 @@ import {
   type SavingsGoal,
 } from '@flowsaldo/domain';
 import { Button, Choice, Field } from './ui';
+import { SavingsGoalEditor } from './SavingsGoalEditor';
 import { useTheme } from './theme';
 
 type GoalFields = Pick<SavingsGoal, 'name' | 'currency' | 'targetMinor'>;
@@ -113,47 +113,26 @@ export function SavingsGoalsScreen({
         </View>
       )}
       {editing ? (
-        <View style={s.card}>
-          <Text style={s.title}>{editing === 'new' ? 'Nueva meta' : 'Editar meta'}</Text>
-          <Field label="Nombre de la meta" value={name} onChangeText={setName} maxLength={60} />
-          <View style={s.row}>
-            {currencies.map((unit) => (
-              <Choice
-                key={unit}
-                label={unit}
-                selected={unit === currency}
-                disabled={saving || editing !== 'new'}
-                onPress={() => setCurrency(unit)}
-              />
-            ))}
-          </View>
-          <Field
-            label="Monto objetivo"
-            value={target}
-            onChangeText={setTarget}
-            keyboardType="decimal-pad"
-          />
-          <Button
-            label="Guardar meta"
-            disabled={saving || !name.trim() || !target.trim()}
-            onPress={() =>
-              void run(async () => {
-                await onSaveGoal(
-                  { name, currency, targetMinor: parseAmount(target) },
-                  editing === 'new' ? undefined : editing.id,
-                );
-                setEditing(null);
-              }, 'Meta guardada.')
-            }
-          />
-          <Button
-            label="Cancelar meta"
-            text="Cancelar"
-            variant="secondary"
-            disabled={saving}
-            onPress={() => setEditing(null)}
-          />
-        </View>
+        <SavingsGoalEditor
+          creating={editing === 'new'}
+          saving={saving}
+          name={name}
+          currency={currency}
+          target={target}
+          setName={setName}
+          setCurrency={setCurrency}
+          setTarget={setTarget}
+          onSave={() =>
+            void run(async () => {
+              await onSaveGoal(
+                { name, currency, targetMinor: parseAmount(target) },
+                editing === 'new' ? undefined : editing.id,
+              );
+              setEditing(null);
+            }, 'Meta guardada.')
+          }
+          onCancel={() => setEditing(null)}
+        />
       ) : (
         <Button label="Nueva meta de ahorro" disabled={saving} onPress={() => openGoal()} />
       )}

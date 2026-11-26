@@ -5,13 +5,8 @@ import {
   movementDate,
   currencies,
   dominicanDateTime,
-  parseDominicanDateTime,
-  selectedCategory,
   suggestCommerceCategory,
   type CommerceRule,
-  checkMovementSplits,
-  parseAmount,
-  validDate,
   type Category,
   type Currency,
   type Movement,
@@ -22,9 +17,11 @@ import { DatePicker } from './DatePicker';
 import { DateTimeField } from './DateTimeField';
 import { useTheme } from './theme';
 import { MovementSplitsEditor, type SplitDraft } from './MovementSplitsEditor';
+import { MovementAccountFields } from './MovementAccountFields';
+import { buildMovementDraft, type Draft } from './movementDraft';
 import type { FinancialAccount } from './FinancePanel';
+export type { Draft } from './movementDraft';
 export const typeLabels = { INCOME: 'Ingreso', EXPENSE: 'Gasto', TRANSFER: 'Transferencia' };
-export type Draft = Omit<Movement, 'id'>;
 export type MovementAccount = Pick<
   FinancialAccount,
   'id' | 'name' | 'currency' | 'archived' | 'kind'
@@ -147,60 +144,23 @@ export function MovementForm({
     saving.current = true;
     setError('');
     try {
-      const amountMinor = parseAmount(amount);
-      if (!description.trim()) throw new Error('Escribe una descripción.');
-      const selectedTime = recurringDateTime ? parseDominicanDateTime(dateTime) : null;
-      if (recurringDateTime ? !selectedTime : !validDate(date))
-        throw new Error(
-          recurringDateTime
-            ? 'Selecciona una fecha y hora válidas.'
-            : 'Escribe una fecha válida: AAAA-MM-DD.',
-        );
-      if (
-        accounts &&
-        isTransfer &&
-        accountId &&
-        (!targetAccountId || targetAccountId === accountId)
-      )
-        throw new Error('Selecciona otra cuenta de destino.');
-      const previous = editing ? movement : undefined;
-      if (splitting && parts.some((part) => !part.categoryId))
-        throw new Error('Elige una categoría para cada parte.');
-      const splits = splitting
-        ? parts.map((part) => ({
-            ...selectedCategory(
-              categories,
-              part.categoryId,
-              'Sin categorizar',
-              previous?.splits?.find((item) => item.categoryId === part.categoryId),
-            ),
-            amountMinor: parseAmount(part.amount),
-          }))
-        : [];
-      checkMovementSplits(type, amountMinor, splits);
-      const category = selectedCategory(
-        categories,
-        splitting ? (previous?.categoryId ?? categories.find((c) => c.system)?.id) : categoryId,
-        'Sin categorizar',
-        previous,
-      );
-      setBusy(true);
-      await onSave({
-        description: description.trim(),
-        amountMinor,
-        occurredAt: selectedTime?.toISOString() ?? date + 'T12:00:00.000Z',
-        ...category,
-        ...(allowSplits ? { splits } : {}),
+      const draft = buildMovementDraft({
+        amount,
+        description,
+        date,
+        time: recurringDateTime ? dateTime : undefined,
         type,
-        currency: unit,
-        ...(accounts
-          ? {
-              accountId: accountId || null,
-              targetAccountId: isTransfer ? targetAccountId || null : null,
-            }
-          : {}),
-        ...(!editing ? { requestKey } : {}),
+        unit,
+        accountLink: accounts ? { accountId, targetAccountId } : undefined,
+        categories,
+        categoryId,
+        parts: splitting ? parts : undefined,
+        allowSplits,
+        previous: editing ? movement : undefined,
+        requestKey: editing ? undefined : requestKey,
       });
+      setBusy(true);
+      await onSave(draft);
     } catch (e) {
       setError(e instanceof Error ? e.message : 'No se pudo guardar.');
     } finally {
@@ -258,66 +218,18 @@ export function MovementForm({
         ))}
       </View>
       {accounts && (
-        <>
-          <Text style={s.label}>{isTransfer ? 'Cuenta de origen' : 'Cuenta del movimiento'}</Text>
-          {!localAccounts && (
-            <Text style={s.muted}>
-              Sin cuenta asignada, el movimiento queda fuera de la conciliación.
-            </Text>
-          )}
-          <FilterRow label="Seleccionar cuenta del movimiento">
-            <Choice
-              label="Sin cuenta asignada"
-              selected={!accountId}
-              onPress={() => {
-                setAccountId('');
-                setTargetAccountId('');
-              }}
-            />
-            {accounts
-              .filter((a) => a.currency === unit && (!a.archived || a.id === accountId))
-              .map((a) => (
-                <Choice
-                  key={a.id}
-                  label={`Cuenta: ${a.name}`}
-                  text={a.name + (a.archived ? ' · Archivada' : '')}
-                  selected={accountId === a.id}
-                  onPress={() => {
-                    setAccountId(a.id);
-                    if (targetAccountId === a.id) setTargetAccountId('');
-                  }}
-                />
-              ))}
-          </FilterRow>
-          {isTransfer && !!accountId && (
-            <>
-              <Text style={s.label}>Cuenta de destino</Text>
-              {localAccounts && !destinations.length ? (
-                <Text style={s.muted}>Agrega otra cuenta activa de la misma moneda.</Text>
-              ) : (
-                <FilterRow label="Seleccionar cuenta de destino">
-                  {destinations.map((a) => (
-                    <Choice
-                      key={a.id}
-                      label={`Destino: ${a.name}`}
-                      text={a.name + (a.archived ? ' · Archivada' : '')}
-                      selected={targetAccountId === a.id}
-                      onPress={() => setTargetAccountId(a.id)}
-                    />
-                  ))}
-                </FilterRow>
-              )}
-              {isCardPayment && (
-                <Text style={s.muted}>El abono reduce la deuda de la tarjeta.</Text>
-              )}
-              {!localAccounts && (
-                <Text style={s.muted}>
-                  Los pagos de deuda reducen el saldo pendiente de la cuenta de destino.
-                </Text>
-              )}
-            </>
-          )}
-        </>
+        <MovementAccountFields
+          accounts={accounts}
+          destinations={destinations}
+          unit={unit}
+          isTransfer={isTransfer}
+          localAccounts={localAccounts}
+          accountId={accountId}
+          targetAccountId={targetAccountId}
+          isCardPayment={isCardPayment}
+          setAccountId={setAccountId}
+          setTargetAccountId={setTargetAccountId}
+        />
       )}
       {fixedDate ? (
         <Text style={s.muted}>

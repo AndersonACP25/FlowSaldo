@@ -1,13 +1,8 @@
+import { AccountReconciliation, useAccountReconciliation } from './AccountReconciliation';
 import { FilterRow } from './ScreenChrome';
 import React, { useState } from 'react';
 import { View, Text } from 'react-native';
-import {
-  parseAmount,
-  currencies,
-  parseSignedAmount,
-  validDate,
-  type Currency,
-} from '@flowsaldo/domain';
+import { parseAmount, currencies, parseSignedAmount, type Currency } from '@flowsaldo/domain';
 import { Button, Choice, Field } from './ui';
 import { useTheme } from './theme';
 export interface FinancialAccount {
@@ -28,14 +23,6 @@ export interface ServerBudget {
   version: number;
   limitMinor: number | null;
   categoryLimits: Array<{ categoryId: string; limitMinor: number }>;
-}
-interface Reconcile {
-  accountId: string;
-  asOf: string;
-  statementMinor: number;
-  expectedMinor: number;
-  differenceMinor: number;
-  expectedRevision: number;
 }
 export const accountKindLabels = {
   BANK: 'Cuenta bancaria',
@@ -62,12 +49,8 @@ export function FinancePanel({
   const [limit, setLimit] = useState('');
   const [selected, setSelected] = useState('');
   const [rename, setRename] = useState('');
-  const [asOf, setAsOf] = useState(new Date().toISOString().slice(0, 10));
-  const [statement, setStatement] = useState('');
-  const [preview, setPreview] = useState<Reconcile | null>(null);
-  const [history, setHistory] = useState<Array<{ id: string; asOf: string; balanceMinor: number }>>(
-    [],
-  );
+  const reconciliation = useAccountReconciliation();
+  const { setPreview } = reconciliation;
   const [error, setError] = useState('');
   const [notice, setNotice] = useState('');
   const [busy, setBusy] = useState(false);
@@ -121,9 +104,7 @@ export function FinancePanel({
             onPress={() => {
               setSelected(a.id);
               setRename(a.name);
-              setStatement('');
-              setPreview(null);
-              setHistory([]);
+              reconciliation.reset();
             }}
           />
         </View>
@@ -175,87 +156,17 @@ export function FinancePanel({
             Archivar conserva el historial. Moneda, tipo y saldo inicial no se modifican después de
             crear la cuenta.
           </Text>
-          <Text style={s.title}>Conciliación manual</Text>
-          <Text style={s.muted}>
-            Compara con el saldo de tu estado de cuenta al cierre del día UTC. Para tarjetas y
-            préstamos, escribe la deuda con signo negativo. Solo se confirma si la diferencia es
-            cero; no se generan ajustes. Confirmar protege todos los movimientos vinculados hasta
-            esa fecha.
-          </Text>
-          <Field
-            label="Fecha de conciliación (AAAA-MM-DD)"
-            value={asOf}
-            onChangeText={(v) => {
-              setAsOf(v);
-              setPreview(null);
-            }}
-            maxLength={10}
+          <AccountReconciliation
+            account={account}
+            reconciliation={reconciliation}
+            busy={busy}
+            run={run}
+            post={post}
+            request={request}
+            onRefresh={onRefresh}
+            setNotice={setNotice}
+            money={money}
           />
-          <Field
-            label="Saldo del estado de cuenta"
-            value={statement}
-            onChangeText={(v) => {
-              setStatement(v);
-              setPreview(null);
-            }}
-            placeholder="Ejemplo: -2500.00"
-          />
-          <Button
-            label="Comparar saldos"
-            disabled={busy || account.archived}
-            onPress={() =>
-              void run(async () => {
-                if (!validDate(asOf)) throw new Error('Escribe una fecha válida.');
-                const result = await post<Reconcile>(
-                  `/accounts/${account.id}/reconciliation/preview`,
-                  { asOf, statementMinor: parseSignedAmount(statement, Number.MAX_SAFE_INTEGER) },
-                );
-                setPreview(result);
-              })
-            }
-          />
-          {preview && (
-            <>
-              <Text style={s.text}>
-                Saldo calculado: {money(preview.expectedMinor, account.currency)} · Diferencia:{' '}
-                {money(preview.differenceMinor, account.currency)}
-              </Text>
-              <Button
-                label="Confirmar conciliación y proteger período"
-                disabled={busy || preview.differenceMinor !== 0}
-                onPress={() =>
-                  void run(async () => {
-                    await post(`/accounts/${account.id}/reconciliation`, {
-                      asOf: preview.asOf,
-                      statementMinor: preview.statementMinor,
-                      expectedRevision: preview.expectedRevision,
-                    });
-                    setPreview(null);
-                    await onRefresh();
-                    setNotice('Conciliación confirmada. El período quedó protegido.');
-                  })
-                }
-              />
-            </>
-          )}
-          <Button
-            label="Ver conciliaciones"
-            disabled={busy}
-            onPress={() =>
-              void run(async () =>
-                setHistory(
-                  await request<Array<{ id: string; asOf: string; balanceMinor: number }>>(
-                    `/accounts/${account.id}/reconciliations`,
-                  ),
-                ),
-              )
-            }
-          />
-          {history.map((h) => (
-            <Text key={h.id} style={s.muted}>
-              {h.asOf} · {money(h.balanceMinor, account.currency)}
-            </Text>
-          ))}
           <Button
             label="Cerrar gestión de cuenta"
             disabled={busy}

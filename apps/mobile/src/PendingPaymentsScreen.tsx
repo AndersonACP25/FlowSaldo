@@ -1,11 +1,9 @@
 import React, { useRef, useState } from 'react';
-import { ScrollView, Text, View } from 'react-native';
+import { Text, View } from 'react-native';
 import {
-  currencies,
   dominicanDateTime,
   parseAmount,
   pendingRemaining,
-  settlementAmount,
   type Currency,
   type Movement,
   type PendingDraft,
@@ -13,7 +11,8 @@ import {
   type PendingSettlement,
 } from '@flowsaldo/domain';
 import { IconButton } from './IconButton';
-import { DateTimeField } from './DateTimeField';
+import { PendingSettlementRow } from './PendingSettlementRow';
+import { PendingPaymentEditor } from './PendingPaymentEditor';
 import { useTheme } from './theme';
 import { Button, Choice, Field } from './ui';
 
@@ -154,83 +153,39 @@ export function PendingPaymentsScreen({
             <Button label="Nuevo pendiente" disabled={saving} onPress={() => setEditor(true)} />
           </View>
           {editor && (
-            <View style={s.card}>
-              <ScrollView
-                horizontal
-                keyboardShouldPersistTaps="handled"
-                showsHorizontalScrollIndicator={false}
-                contentContainerStyle={{ gap: 8 }}
-              >
-                <Choice
-                  label="Por pagar"
-                  selected={kind === 'pay'}
-                  onPress={() => setKind('pay')}
-                  disabled={saving}
-                />
-                <Choice
-                  label="Por cobrar"
-                  selected={kind === 'collect'}
-                  onPress={() => setKind('collect')}
-                  disabled={saving}
-                />
-                {currencies.map((unit) => (
-                  <Choice
-                    key={unit}
-                    label={unit}
-                    selected={unit === currency}
-                    onPress={() => setCurrency(unit)}
-                    disabled={saving}
-                  />
-                ))}
-              </ScrollView>
-              <Field
-                label="Nombre del pendiente"
-                value={name}
-                onChangeText={setName}
-                maxLength={100}
-                editable={!saving}
-              />
-              <Field
-                label="Monto pendiente"
-                value={amount}
-                onChangeText={setAmount}
-                keyboardType="decimal-pad"
-                editable={!saving}
-              />
-              <DateTimeField label="Fecha y hora de vencimiento" value={date} onChange={setDate} />
-              <View style={s.row}>
-                <Button
-                  label="Guardar pendiente"
-                  disabled={saving}
-                  onPress={() =>
-                    void run(async () => {
-                      await onSave({
-                        name,
-                        kind,
-                        currency,
-                        dueAt: date,
-                        amountMinor: parseAmount(amount),
-                      });
-                      setName('');
-                      setAmount('');
-                      setDate('');
-                      setEditor(false);
-                      setFilter('open');
-                    }, 'Pendiente guardado.')
-                  }
-                />
-                <Choice
-                  label="Cancelar pendiente"
-                  text="Cancelar"
-                  selected={false}
-                  disabled={saving}
-                  onPress={() => {
-                    setEditor(false);
-                    setError('');
-                  }}
-                />
-              </View>
-            </View>
+            <PendingPaymentEditor
+              kind={kind}
+              currency={currency}
+              name={name}
+              amount={amount}
+              date={date}
+              saving={saving}
+              setKind={setKind}
+              setCurrency={setCurrency}
+              setName={setName}
+              setAmount={setAmount}
+              setDate={setDate}
+              onSave={() =>
+                void run(async () => {
+                  await onSave({
+                    name,
+                    kind,
+                    currency,
+                    dueAt: date,
+                    amountMinor: parseAmount(amount),
+                  });
+                  setName('');
+                  setAmount('');
+                  setDate('');
+                  setEditor(false);
+                  setFilter('open');
+                }, 'Pendiente guardado.')
+              }
+              onCancel={() => {
+                setEditor(false);
+                setError('');
+              }}
+            />
           )}
         </>
       )}
@@ -313,108 +268,26 @@ export function PendingPaymentsScreen({
                     <Text style={s.text}>
                       Monto original · {money(item.amountMinor, item.currency)}
                     </Text>
-                    {item.settlements.map((entry) => {
-                      const applied = settlementAmount(item, entry, movements);
-                      const movement =
-                        entry.kind === 'movement' ? movements.get(entry.movementId) : undefined;
-                      const label =
-                        entry.kind === 'manual'
-                          ? 'Abono manual'
-                          : (movement?.description ?? 'Movimiento');
-                      return (
-                        <View key={entry.id} style={{ gap: 8 }}>
-                          <View style={s.between}>
-                            <Text style={[s.muted, { flexShrink: 1 }]}>
-                              {label} ·{' '}
-                              {!ready && entry.kind === 'movement'
-                                ? 'Por verificar'
-                                : applied
-                                  ? money(applied, item.currency)
-                                  : 'Ya no coincide o no está disponible'}
-                            </Text>
-                            <View style={s.row}>
-                              {entry.kind === 'manual' && canEdit(item) && (
-                                <IconButton
-                                  icon="edit"
-                                  label="Editar abono manual"
-                                  disabled={blocked}
-                                  onPress={() => {
-                                    setEdited({
-                                      id: entry.id,
-                                      amount: String(entry.amountMinor / 100),
-                                    });
-                                    setRemoving('');
-                                    setError('');
-                                  }}
-                                />
-                              )}
-                              <IconButton
-                                icon={removing === entry.id ? 'check' : 'trash'}
-                                label={
-                                  removing === entry.id
-                                    ? 'Confirmar quitar abono'
-                                    : `Quitar ${label}`
-                                }
-                                danger={removing !== entry.id}
-                                disabled={blocked}
-                                onPress={() => {
-                                  if (removing !== entry.id) {
-                                    setEdited(null);
-                                    setRemoving(entry.id);
-                                    return;
-                                  }
-                                  void run(async () => {
-                                    await onRemove(item.id, entry.id);
-                                    setRemoving('');
-                                  }, 'Abono quitado.');
-                                }}
-                              />
-                              {removing === entry.id && (
-                                <IconButton
-                                  icon="close"
-                                  label="Cancelar retiro de abono"
-                                  disabled={blocked}
-                                  onPress={() => setRemoving('')}
-                                />
-                              )}
-                            </View>
-                          </View>
-                          {edited?.id === entry.id && (
-                            <>
-                              <Field
-                                label="Nuevo monto del abono"
-                                value={edited.amount}
-                                keyboardType="decimal-pad"
-                                editable={!blocked}
-                                onChangeText={(value) => setEdited({ id: entry.id, amount: value })}
-                              />
-                              <View style={[s.row, { justifyContent: 'center' }]}>
-                                <IconButton
-                                  icon="check"
-                                  label="Guardar cambios del abono"
-                                  disabled={blocked || !edited.amount.trim()}
-                                  onPress={() =>
-                                    void run(async () => {
-                                      await onEdit(item.id, entry.id, parseAmount(edited.amount));
-                                      setEdited(null);
-                                    }, 'Abono actualizado.')
-                                  }
-                                />
-                                <IconButton
-                                  icon="close"
-                                  label="Cancelar edición del abono"
-                                  disabled={blocked}
-                                  onPress={() => {
-                                    setEdited(null);
-                                    setError('');
-                                  }}
-                                />
-                              </View>
-                            </>
-                          )}
-                        </View>
-                      );
-                    })}
+                    {item.settlements.map((entry) => (
+                      <PendingSettlementRow
+                        key={entry.id}
+                        item={item}
+                        entry={entry}
+                        movements={movements}
+                        money={money}
+                        ready={ready}
+                        blocked={blocked}
+                        canEdit={entry.kind === 'manual' && canEdit(item)}
+                        edited={edited}
+                        setEdited={setEdited}
+                        removing={removing}
+                        setRemoving={setRemoving}
+                        clearError={() => setError('')}
+                        run={run}
+                        onRemove={onRemove}
+                        onEdit={onEdit}
+                      />
+                    ))}
                     {!item.settlements.length && !alreadyLinked && (
                       <Choice
                         label={

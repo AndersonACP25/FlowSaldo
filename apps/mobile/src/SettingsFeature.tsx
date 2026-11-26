@@ -1,37 +1,22 @@
 import React, { type ComponentProps } from 'react';
 import { Text, View } from 'react-native';
 import type { UseQueryResult } from '@tanstack/react-query';
-import {
-  previewLocalReconciliation,
-  setCommerceRule,
-  validateLocalAccounts,
-  type BankRegistration,
-  type Category,
-  type CommerceRule,
-  type Currency,
-  type LocalAccount,
-  type LocalReconciliation,
-  type Movement,
-} from '@flowsaldo/domain';
+import type { BankRegistration, Category, CommerceRule, Currency } from '@flowsaldo/domain';
 import { AboutApp } from './AboutApp';
 import type { Owner, PersonalSession } from './access';
 import { AccountSettings } from './AccountSettings';
 import type { AuthRoute } from './AuthScreen';
-import { BackupSettings } from './BackupSettings';
 import { BankSettings } from './BankDirectory';
 import { CategoryManager } from './CategoryManager';
-import { CommerceRulesScreen } from './CommerceRulesScreen';
 import { DataRetention } from './DataRetention';
 import { hasUnassignedConnectedData, type LocalScope } from './dataScopes';
+import { DeviceSettingsRoutes } from './DeviceSettingsRoutes';
 import { DueNotificationSettings } from './DueNotificationSettings';
 import { FinancePanel, type FinancialAccount } from './FinancePanel';
 import { GmailConnection } from './GmailConnection';
 import { HelpScreen } from './HelpScreen';
 import type { ApiRequest } from './apiClient';
 import { IconButton } from './IconButton';
-import { LocalAccountsScreen } from './LocalAccountsScreen';
-import { restoreLocalBackup } from './localBackup';
-import { newLocalId } from './localRecords';
 import { NotificationSettings } from './NotificationSettings';
 import { PersonalAccount } from './PersonalAccount';
 import type { Preferences } from './preferences';
@@ -110,72 +95,34 @@ export function SettingsFeature({
   deleteCategory: (id: string) => Promise<void>;
 }) {
   const { styles: s } = useTheme();
-  function saveLocalAccounts(update: (accounts: LocalAccount[]) => LocalAccount[]) {
-    return persist((current) => {
-      const accounts = update(current.accounts);
-      validateLocalAccounts(accounts);
-      return { ...current, accounts };
-    });
-  }
-  async function saveLocalReconciliation(preview: LocalReconciliation) {
-    await persist((current) => {
-      const { accountId, occurredAt, statementMinor } = preview;
-      const verified = previewLocalReconciliation(current.accounts, current.movements, {
-        accountId,
-        occurredAt,
-        statementMinor,
-      });
-      if (verified.expectedMinor !== preview.expectedMinor || verified.differenceMinor === 0)
-        throw new Error('El saldo cambió. Compara los saldos de nuevo.');
-      const account = current.accounts.find((item) => item.id === accountId)!;
-      const category = current.categories.find((item) => item.system)!;
-      const movement: Movement = {
-        id: 'adjustment-' + newLocalId(),
-        description: `Ajuste de conciliación · ${account.name}`,
-        type: 'TRANSFER',
-        currency: account.currency,
-        category: category.name,
-        categoryId: category.id,
-        occurredAt,
-        amountMinor: Math.abs(verified.differenceMinor),
-        accountId,
-        balanceAdjustment: { expectedMinor: verified.expectedMinor, statementMinor },
-      };
-      return { ...current, movements: [movement, ...current.movements] };
-    });
-  }
-  function updateCommerceRules(update: (rules: CommerceRule[]) => CommerceRule[]) {
-    return saveForm(() => {
-      return persist((current) => ({
-        ...current,
-        commerceRules: {
-          ...current.commerceRules,
-          [dataScope]: update(current.commerceRules[dataScope] ?? []),
-        },
-      }));
-    });
+  if (
+    screen === 'Cuentas y saldos' ||
+    screen === 'Respaldo y restauración' ||
+    screen === 'Reglas por comercio'
+  ) {
+    return (
+      <DeviceSettingsRoutes
+        screen={screen}
+        connected={connected}
+        busy={busy}
+        local={local}
+        dataScope={dataScope}
+        currency={currency}
+        money={money}
+        catalogReady={catalogReady}
+        categoryCatalog={categoryCatalog}
+        commerceRules={commerceRules}
+        persist={persist}
+        saveForm={saveForm}
+        onLocalRestored={onLocalRestored}
+      />
+    );
   }
 
   return (
     <>
       {screen === 'Configuración' && (
         <SettingsMenu personal={!!personal} connected={connected} onOpen={onOpen} />
-      )}
-      {screen === 'Respaldo y restauración' && !connected && (
-        <BackupSettings
-          local={local}
-          busy={busy}
-          onRestore={(backup, expected) =>
-            saveForm(async () => {
-              await persist((current) => {
-                if (current !== expected)
-                  throw new Error('Los datos locales cambiaron. Selecciona el respaldo de nuevo.');
-                return restoreLocalBackup(current, backup);
-              });
-              onLocalRestored();
-            })
-          }
-        />
       )}
       {screen === 'Preguntas frecuentes' && <HelpScreen />}
       {screen === 'Acerca de la aplicación' && <AboutApp />}
@@ -198,33 +145,6 @@ export function SettingsFeature({
             )}
           </View>
         ))}
-      {screen === 'Cuentas y saldos' && !connected && (
-        <LocalAccountsScreen
-          accounts={local.accounts}
-          movements={local.movements}
-          currency={currency}
-          money={money}
-          busy={busy}
-          onCreate={(input) =>
-            saveForm(() =>
-              saveLocalAccounts((accounts) => [
-                ...accounts,
-                { ...input, id: newLocalId(), archived: false },
-              ]),
-            )
-          }
-          onReconcile={(preview) => saveForm(() => saveLocalReconciliation(preview))}
-          onUpdate={(id, changes) =>
-            saveForm(() =>
-              saveLocalAccounts((accounts) =>
-                accounts.map((account) =>
-                  account.id === id ? { ...account, ...changes } : account,
-                ),
-              ),
-            )
-          }
-        />
-      )}
       {screen === 'Cuentas y conciliación' &&
         connected &&
         (accountsQuery.isSuccess ? (
@@ -286,26 +206,6 @@ export function SettingsFeature({
       )}
       {screen === 'Preferencias' && (
         <AccountSettings preferences={preferences} onSave={onSavePreferences} />
-      )}
-      {screen === 'Reglas por comercio' && catalogReady && (
-        <CommerceRulesScreen
-          rules={commerceRules}
-          categories={categoryCatalog}
-          saving={busy}
-          onSave={(draft, id) =>
-            updateCommerceRules((rules) => {
-              if (
-                !categoryCatalog.some(
-                  (category) =>
-                    category.id === draft.categoryId && !category.archived && !category.system,
-                )
-              )
-                throw new Error('Selecciona una categoría activa.');
-              return setCommerceRule(rules, { ...draft, id: id ?? newLocalId() });
-            })
-          }
-          onRemove={(id) => updateCommerceRules((rules) => rules.filter((rule) => rule.id !== id))}
-        />
       )}
       {screen === 'Administrar categorías' && catalogReady && (
         <CategoryManager

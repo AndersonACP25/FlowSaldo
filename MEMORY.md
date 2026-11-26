@@ -313,3 +313,19 @@ Los módulos del dominio importan desde el archivo que define cada símbolo. El 
 ## Transporte HTTP y estado de Movimientos (2026-11-26)
 
 El cliente HTTP móvil comparte la lectura de JSON y CSV, los plazos de respuesta y los errores de la API. El acceso distingue credenciales incorrectas de la expiración de una sesión personal. Las consultas de movimientos, devoluciones y saldos verifican sus respuestas antes de renderizarlas. useMovementFlow concentra filtros, selección de borrado y borradores de creación, duplicado, edición o devolución. Workspace conserva las transiciones entre pantallas.
+
+## Navegación del área de trabajo (2026-11-26)
+
+useWorkspaceNavigation conserva la pantalla activa, el retorno desde Configuración y el origen de los pendientes y metas enlazados. También coordina el botón Atrás de Android y el descarte de borradores al navegar. WorkspaceShell presenta el encabezado, la barra inferior y el área desplazable por pantalla. Workspace compone las pantallas y conecta sus consultas y operaciones.
+
+## Coordinación de movimientos fuera de Workspace (2026-11-26)
+
+useWorkspaceMovements coordina las consultas de historial y plantillas, los comandos de movimiento y devolución, y los cambios de período y filtros al completar sus operaciones. MovementRoutes conecta el historial, los editores y las plantillas mensuales. Workspace conserva el estado compartido y conecta ambas capas con cuentas, pendientes, metas y cierre mensual.
+
+## Operaciones locales de Configuración (2026-11-26)
+
+DeviceSettingsRoutes conecta Cuentas y saldos, Respaldo y restauración y Reglas por comercio con sus pantallas. localSettingsCommands concentra los cambios en la cola de escritura, incluidas la validación del saldo de conciliación y la comprobación de que la vista previa del respaldo sigue vigente.
+
+## Separación de formularios, API y verificación (2026-11-26)
+
+Workspace delega la sesión de desarrollo, la conexión y el restablecimiento local. Los editores de pendientes y metas, los campos de cuenta de un movimiento, la conciliación y la comparación de deuda tienen componentes propios. Tema separa paletas y estilos. Los controladores de acceso montan recuperación, sesiones y retención bajo las mismas rutas. Historial separa el resumen y los correos paginados de los movimientos y comparte filtros y cursores. Los recorridos web se agrupan por flujo y ai-core conserva su entrada pública para contratos, planificación y paquetes. Las pruebas unitarias de dominio siguen agrupadas en core.test.ts.
