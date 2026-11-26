@@ -16,13 +16,20 @@ flowchart TD
 ## Decisiones
 
 - Dinero en centavos enteros, moneda obligatoria, sin conversiones implícitas.
-- Transferencias propias no participan en ingresos y gastos. Desde v0.10 se modelan cuentas/deuda y conciliación manual; devoluciones e intereses automáticos siguen pendientes.
+- Transferencias propias no participan en ingresos y gastos. Desde v0.10 se modelan cuentas/deuda y conciliación manual; las devoluciones pueden vincularse al gasto original y los intereses automáticos siguen pendientes.
 - externalId único evita reimportar el mismo mensaje. No deduplica mensajes distintos sobre una misma operación: esa capacidad está pendiente.
 - SELECT FOR UPDATE SKIP LOCKED mantiene un mensaje bloqueado mientras se procesa. Crear movimiento y actualizar importación ocurre en una sola transacción; un fallo revierte ambas acciones. importId único añade protección.
 - Desde v0.7 hay reservas durables, backoff e intentos limitados; FAILED permite reintento manual. Ver el contrato de recuperación al final.
 - API personal: desde v0.8 hay un único propietario y sesiones revocables, sin aislamiento multiusuario. El token inicial solo funciona antes de configurar la cuenta. Health y las rutas acotadas de acceso tienen la política descrita en SECURITY.md.
 - Desde v0.6 el historial remoto es paginado y summary calcula todos los registros por mes/moneda, con comparación mensual. Las rutas legacy conservan sus límites solo para compatibilidad.
 - No se guarda token en AsyncStorage ni EXPO_PUBLIC_*. Desde v0.8 web lo mantiene en memoria y nativo usa SecureStore con validación al restaurar.
+
+## Arquitectura actual del cliente móvil y web
+
+- [App.tsx](../apps/mobile/App.tsx) monta los proveedores de tema y React Query. [AccessGate](../apps/mobile/src/AccessGate.tsx) presenta el arranque, el acceso y la transición al área de trabajo. [usePersonalAccess](../apps/mobile/src/usePersonalAccess.ts) restaura, valida y limpia la sesión junto con su caché. Web conserva credenciales en memoria y Android usa SecureStore asociado a la URL de la API.
+- [Workspace](../apps/mobile/src/Workspace.tsx) coordina la navegación, el período y la moneda, los avisos y los flujos que cruzan pantallas. Los componentes presentan sus flujos y los hooks concentran consultas y operaciones. Por ejemplo, [useMovementHistory](../apps/mobile/src/useMovementHistory.ts) gestiona el historial y [useMonthlyOverview](../apps/mobile/src/useMonthlyOverview.ts) alimenta el resumen, el análisis y el reporte mensual.
+- [useLocalWorkspace](../apps/mobile/src/useLocalWorkspace.ts) carga, guarda y restablece los datos locales. [storage](../apps/mobile/src/storage.ts) conserva la clave histórica `flowsaldo.demo.v2` y serializa las escrituras. [dataScopes](../apps/mobile/src/dataScopes.ts) separa la demo de los datos de planificación conectada por URL base de la API e ID de cuenta. El acceso de desarrollo tiene su propio ámbito por servidor.
+- Los registros conectados antiguos sin servidor verificable se conservan sin asignación. La exportación de respaldo incluye los datos de prueba. La restauración de respaldos v1 y v2 y el restablecimiento de la demo conservan los datos conectados del dispositivo.
 
 ## Próxima arquitectura de correo
 

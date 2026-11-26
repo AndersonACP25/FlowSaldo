@@ -27,3 +27,5 @@ export function movementParams(
 ) {
   return `${categoryId ? `categoryId=${encodeURIComponent(categoryId)}&` : ''}month=${encodeURIComponent(month)}&currency=${currency}${type === 'ALL' ? '' : `&type=${type}`}${search.trim() ? `&search=${encodeURIComponent(search.trim())}` : ''}`;
 }
+
+export type MovementRequest = <T = unknown>(path: string, options?: RequestInit) => Promise<T>;

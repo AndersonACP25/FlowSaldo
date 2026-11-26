@@ -194,7 +194,9 @@ export async function checkCoreFlows(browser) {
     assert.equal(rows.length, 2);
     assert.equal(rows[1].at(-1), 'Gasto dividido');
     const original = (await stored()).movements.find((item) => item.description === 'Compra CORE');
-    await button('Registrar devolución de Compra CORE').click();
+    const refundAction = button('Registrar devolución de Compra CORE');
+    assert.ok(await refundAction.locator('[aria-hidden="true"]').count());
+    await refundAction.click();
     await page.getByLabel('Importe de la devolución', { exact: true }).fill('50.00');
     await page
       .getByLabel('Fecha y hora de la devolución', { exact: true })
@@ -609,14 +611,25 @@ export async function checkCoreFlows(browser) {
         delete movement.accountId;
         delete movement.targetAccountId;
       }
-      await chooseBackup({
+      const legacyFile = {
         name: 'Respaldo-v1.json',
         mimeType: 'application/json',
         buffer: Buffer.from(JSON.stringify(legacyBackup)),
-      });
+      };
+      await chooseBackup(legacyFile);
       await restoredPage.getByText(/· 0 cuentas$/).waitFor();
       await restoredButton('Cancelar').click();
       assert.equal(await restoredStorage(), null);
+      await chooseBackup(legacyFile);
+      await restoredButton('Restaurar y reemplazar datos').click();
+      await restoredPage.getByText('Respaldo restaurado.', { exact: true }).waitFor();
+      const legacyData = await restoredStorage();
+      assert.deepEqual(legacyData.accounts, []);
+      assert.deepEqual(legacyData.movements, legacyBackup.data.movements);
+      assert.equal(
+        legacyData.movements.find((movement) => movement.id === refund.id).refundOfId,
+        original.id,
+      );
       await chooseBackup(backupPath);
       await restoredButton('Restaurar y reemplazar datos').click();
       await restoredPage.getByText('Respaldo restaurado.', { exact: true }).waitFor();
@@ -805,9 +818,12 @@ export async function checkCoreFlows(browser) {
     },
     legacy,
   );
+  const apiScope = JSON.stringify([new URL(apiUrl).toString().replace(/\/$/, ''), 'development']);
+  const otherScope = JSON.stringify(['https://otro-servidor.example.test', 'development']);
+  const legacyProjection = { balanceMinor: 900, nextIncomeAt: '2035-01-01T09:00' };
   await scenario(
-    'API exports complete results and manually retries a failed import',
-    async (page, button) => {
+    'API exports complete results, isolates the local projection and retries a failed import',
+    async (page, button, stored) => {
       const rows = Array.from({ length: 205 }, (_, i) => ({
         ...demoMovements[1],
         id: String(i),
@@ -907,6 +923,18 @@ export async function checkCoreFlows(browser) {
         .getByLabel('Token de desarrollo', { exact: true })
         .fill('synthetic-core-token-123456789');
       await button('Conectar API').click();
+      await button('Abrir menú').click();
+      await button('Disponible hasta el próximo cobro').click();
+      const balance = page.getByLabel('Saldo disponible hoy', { exact: true });
+      await balance.waitFor();
+      assert.equal(await balance.inputValue(), '80.00');
+      await balance.fill('81.00');
+      await button('Guardar proyección').click();
+      await page.getByText('Proyección guardada.', { exact: true }).waitFor();
+      const { cashProjections } = await stored();
+      assert.equal(cashProjections[apiScope + ':DOP'].balanceMinor, 8100);
+      assert.deepEqual(cashProjections[otherScope + ':DOP'], legacyProjection);
+      assert.deepEqual(cashProjections['api:DOP'], legacyProjection);
       await button('Movimientos').click();
       await page.getByText('205 movimientos', { exact: true }).waitFor();
       assert.equal(await page.getByText('Movimiento 50', { exact: true }).count(), 0);
@@ -938,6 +966,16 @@ export async function checkCoreFlows(browser) {
         })
         .waitFor();
       assert.equal(retried, true);
+    },
+    {
+      movements: [],
+      budgets: {},
+      reviews: [],
+      cashProjections: {
+        [apiScope + ':DOP']: { ...legacyProjection, balanceMinor: 8000 },
+        [otherScope + ':DOP']: legacyProjection,
+        'api:DOP': legacyProjection,
+      },
     },
   );
 }

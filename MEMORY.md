@@ -272,3 +272,36 @@ Los controles de retorno usan iconos y los menús muestran un icono por opción.
 ## Acciones por icono y acceso a Inicio (2026-11-25)
 
 Los títulos de pull requests usan Conventional Commits en español. Movimientos y Cuentas y saldos usan iconos con nombres accesibles en sus filas de acciones. Volver conserva el marco redondeado en Configuración. En Editar movimiento y Metas de ahorro, Cancelar se alinea con el ancho del botón principal. Inicio aparece primero en el menú lateral y abre el resumen mensual.
+
+## Consultas y operaciones de movimientos (2026-11-25)
+
+El hook de historial centraliza paginación, filtros, totales API, vista previa de devoluciones, CSV e invalidaciones de las consultas dependientes. Los comandos de movimientos manejan alta, edición, devolución y eliminación para el modo local y conectado. App.tsx conserva el estado de navegación, los avisos y la persistencia compartida. El recorrido web restaura respaldos v1 y v2 y comprueba el vínculo de devolución.
+
+## Escrituras locales en cola (2026-11-25)
+
+El almacenamiento local serializa las transformaciones dentro de la misma instancia de la app. Cada escritura parte de la última versión confirmada y un error de guardado conserva esa versión. La restauración comprueba dentro de la cola que su vista previa siga vigente. Los vínculos locales de abonos, metas y devoluciones se verifican al ejecutar la escritura. El restablecimiento confirmado puede recuperar almacenamiento ilegible. Se mantienen la clave del almacenamiento y los formatos de respaldo v1 y v2.
+
+
+## Aislamiento de datos conectados en el dispositivo (2026-11-25)
+
+Las metas, los pendientes, las proyecciones, los planes de pago, los cierres mensuales, las reglas por comercio y la caché de consultas usan la URL base de la API y el identificador de la cuenta. Desarrollo tiene un ámbito propio por servidor. Los datos ya asociados a ese par conservan su clave. Las antiguas claves compartidas de metas, pendientes y proyecciones se mantienen sin asignación automática porque carecen de servidor verificable. Mi cuenta avisa si el dispositivo conserva estos registros. Restaurar un respaldo v1 o v2 y restablecer la demo mantienen los datos conectados y los registros antiguos. Exportar un respaldo incluye solo el contenido de la cuenta de prueba.
+
+## Separación de las herramientas de planificación (2026-11-26)
+
+Los hooks de metas y pendientes reúnen las consultas de movimientos vinculados y las operaciones de cada función. Los componentes de cierre mensual, proyección de efectivo y planes de pago encapsulan su cálculo, carga y guardado. App.tsx coordina las rutas, el período y los datos compartidos entre pantallas. La escritura conserva la cola local y el mismo ámbito por servidor y cuenta.
+
+## Separación de presupuestos, plantillas e importaciones (2026-11-26)
+
+Presupuestos concentra el límite general, las categorías, los totales y la copia explícita de límites antiguos al servidor. Plantillas mensuales gestiona su consulta, edición, activación y confirmación de vencimientos, incluidos los vinculados a pendientes. Por revisar reúne filtros de recepción, cola, paginación y operaciones de importación. App.tsx comparte el período, la sesión, la navegación y los datos necesarios para conectar las pantallas.
+
+## Pantallas de movimientos, configuración y conexiones (2026-11-26)
+
+Movimientos reúne filtros, historial, acciones y paginación en su componente. Los editores de movimientos y devoluciones gestionan su presentación y estados de carga. Configuración reúne el menú, las subopciones, el respaldo y la conciliación local. Conexiones muestra el estado de la API, los bancos, la cola de correo y los controles de demostración. App.tsx conserva la navegación entre pantallas, la sesión y las operaciones que comparten datos entre módulos.
+
+## Punto de entrada, acceso y resumen mensual (2026-11-26)
+
+App.tsx monta los proveedores de tema y consultas. AccessGate presenta el arranque y el acceso con la gestión de sesión en usePersonalAccess. Workspace.tsx coordina las pantallas autenticadas o de demostración. Los módulos propios de resumen y reportes, almacenamiento local, categorías y bancos reúnen las consultas y las operaciones relacionadas. Se conservan las claves de datos conectados, la cola de escrituras y la limpieza de sesión.
+
+## Contexto por área en paquetes de revisión (2026-11-26)
+
+Los perfiles de solo lectura reciben las instrucciones AGENTS.md de los implementadores de la ruta activa. Sus tareas mantienen el ámbito de escritura vacío. docs/architecture.md describe el punto de entrada, el acceso, Workspace y el aislamiento de la planificación local.

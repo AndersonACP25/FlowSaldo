@@ -115,6 +115,37 @@ test('packets use only declared context, not secrets or arbitrary files', async 
     createPacket(root, manifest, createPlan(manifest, 'Mejora', 'frontend'), 'data'),
   );
 });
+test('read-only packets include the plan area instructions and grant no writes', async () => {
+  const mobile = 'apps/mobile/AGENTS.md';
+  const api = 'apps/api/AGENTS.md';
+  const guidance = {
+    frontend: [mobile],
+    backend: [api],
+    fullstack: [
+      mobile,
+      api,
+      'apps/worker/AGENTS.md',
+      'packages/domain/AGENTS.md',
+      'packages/database/AGENTS.md',
+    ],
+  };
+  for (const [scope, expected] of Object.entries(guidance)) {
+    const packet = await createPacket(
+      root,
+      manifest,
+      createPlan(manifest, 'Mejora', scope),
+      'reviewer',
+    );
+    const areaInstructions = packet.context
+      .map(({ path }) => path)
+      .filter((path) => path.endsWith('/AGENTS.md'));
+    assert.deepEqual(areaInstructions.sort(), expected.sort());
+    assert.deepEqual(
+      packet.tasks.map(({ scope }) => scope),
+      [[]],
+    );
+  }
+});
 test('rejects symlink aliases to secret files inside the repo', async (t) => {
   const { mkdtemp, writeFile, symlink, rm } = await import('node:fs/promises');
   const { tmpdir } = await import('node:os');

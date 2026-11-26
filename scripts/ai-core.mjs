@@ -308,19 +308,24 @@ export async function createPacket(root, m, plan, agent) {
   if (!profile) fail('Agente desconocido');
   const assigned = plan.tasks.filter((t) => t.agent === agent);
   if (!assigned.length) fail('El agente no participa en este plan');
+  if (!Object.hasOwn(m.routes, plan.scope)) fail('Scope desconocido: ' + plan.scope);
+  const areaProfiles = profile.readOnly
+    ? m.agents.filter((area) => m.routes[plan.scope].includes(area.id))
+    : [profile];
+  const required = new Set([...m.context, m.policy, profile.profile]);
   const context = [];
-  const scoped = [];
-  for (const scope of profile.writablePaths.filter((p) => p.endsWith('/'))) {
-    const candidate = scope + 'AGENTS.md';
+  for (const path of required) context.push({ path, content: await readRepo(root, path) });
+  const directories = new Set(areaProfiles.flatMap((area) => area.writablePaths));
+  for (const directory of directories) {
+    if (!directory.endsWith('/')) continue;
+    const path = directory + 'AGENTS.md';
+    if (required.has(path)) continue;
     try {
-      await readRepo(root, candidate);
-      scoped.push(candidate);
+      context.push({ path, content: await readRepo(root, path) });
     } catch (error) {
       if (error.code !== 'ENOENT') throw error;
     }
   }
-  for (const path of [...new Set([...m.context, m.policy, profile.profile, ...scoped])])
-    context.push({ path, content: await readRepo(root, path) });
   return {
     mode: 'context-only',
     notice:

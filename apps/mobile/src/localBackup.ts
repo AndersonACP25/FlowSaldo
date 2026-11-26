@@ -1,5 +1,6 @@
 import { isCurrency, type Movement } from '@flowsaldo/domain';
 import { normalizeLocalData, type LocalData } from './storage';
+import { byDemoScope, replaceDemoData } from './dataScopes';
 
 const format = 'flowsaldo-local-backup';
 const version = 2;
@@ -7,31 +8,23 @@ const version = 2;
 export const maxBackupBytes = 2_000_000;
 export const backupSizeMessage = 'El respaldo supera el límite de 2 MB.';
 
-function byScope<T>(entries: Record<string, T>, local: boolean): Record<string, T> {
-  return Object.fromEntries(
-    Object.entries(entries).filter(
-      ([key]) => (key === 'demo' || key.startsWith('demo:')) === local,
-    ),
-  );
-}
-
 function localSnapshot(data: LocalData): LocalData {
   return {
     movements: data.movements,
     accounts: data.accounts,
     categories: data.categories,
-    budgets: byScope(data.budgets, true),
-    categoryBudgets: byScope(data.categoryBudgets, true),
+    budgets: byDemoScope(data.budgets, true),
+    categoryBudgets: byDemoScope(data.categoryBudgets, true),
     reviews: data.reviews,
     recurring: data.recurring,
     bankIds: data.bankIds,
     receipts: data.receipts,
-    cashProjections: byScope(data.cashProjections, true),
+    cashProjections: byDemoScope(data.cashProjections, true),
     savingsGoals: { demo: data.savingsGoals.demo, api: [] },
-    pendingItems: byScope(data.pendingItems, true),
-    debtPlans: byScope(data.debtPlans, true),
-    monthlyClosings: byScope(data.monthlyClosings, true),
-    commerceRules: byScope(data.commerceRules, true),
+    pendingItems: byDemoScope(data.pendingItems, true),
+    debtPlans: byDemoScope(data.debtPlans, true),
+    monthlyClosings: byDemoScope(data.monthlyClosings, true),
+    commerceRules: byDemoScope(data.commerceRules, true),
   };
 }
 
@@ -92,7 +85,9 @@ export function readLocalBackup(text: string) {
       ) ||
       (file.version === 1 && data.accounts.length > 0) ||
       !(file.data as LocalData).categories ||
-      data.savingsGoals.api.length > 0
+      Object.entries(data.savingsGoals).some(
+        ([scope, goals]) => scope !== 'demo' && (goals?.length ?? 0) > 0,
+      )
     )
       throw new Error();
     const movementIds = new Set(data.movements.map((movement) => movement.id));
@@ -127,17 +122,7 @@ export function readLocalBackup(text: string) {
 }
 
 export function restoreLocalBackup(current: LocalData, backup: LocalData) {
-  const next: LocalData = {
-    ...backup,
-    budgets: { ...byScope(current.budgets, false), ...backup.budgets },
-    categoryBudgets: { ...byScope(current.categoryBudgets, false), ...backup.categoryBudgets },
-    cashProjections: { ...byScope(current.cashProjections, false), ...backup.cashProjections },
-    savingsGoals: { demo: backup.savingsGoals.demo, api: current.savingsGoals.api },
-    pendingItems: { ...byScope(current.pendingItems, false), ...backup.pendingItems },
-    debtPlans: { ...byScope(current.debtPlans, false), ...backup.debtPlans },
-    monthlyClosings: { ...byScope(current.monthlyClosings, false), ...backup.monthlyClosings },
-    commerceRules: { ...byScope(current.commerceRules, false), ...backup.commerceRules },
-  };
+  const next = replaceDemoData(current, backup);
   checkSize(
     JSON.stringify(next),
     'El respaldo supera el espacio disponible para los datos locales.',
