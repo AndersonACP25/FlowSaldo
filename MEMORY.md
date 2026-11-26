@@ -281,3 +281,7 @@ El almacenamiento local serializa las transformaciones dentro de la misma instan
 ## Aislamiento de datos conectados en el dispositivo (2026-11-25)
 
 Las metas, los pendientes, las proyecciones, los planes de pago, los cierres mensuales, las reglas por comercio y la caché de consultas usan la URL base de la API y el identificador de la cuenta. Desarrollo tiene un ámbito propio por servidor. Los datos ya asociados a ese par conservan su clave. Las antiguas claves compartidas de metas, pendientes y proyecciones se mantienen sin asignación automática porque carecen de servidor verificable. Mi cuenta avisa si el dispositivo conserva estos registros. Restaurar un respaldo v1 o v2 y restablecer la demo mantienen los datos conectados y los registros antiguos. Exportar un respaldo incluye solo el contenido de la cuenta de prueba.
+
+## Separación de las herramientas de planificación (2026-11-26)
+
+Los hooks de metas y pendientes reúnen las consultas de movimientos vinculados y las operaciones de cada función. Los componentes de cierre mensual, proyección de efectivo y planes de pago encapsulan su cálculo, carga y guardado. App.tsx coordina las rutas, el período y los datos compartidos entre pantallas. La escritura conserva la cola local y el mismo ámbito por servidor y cuenta.

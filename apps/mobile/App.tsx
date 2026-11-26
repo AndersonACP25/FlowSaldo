@@ -3,21 +3,16 @@ import { RefundScreen } from './src/RefundScreen';
 import { HelpScreen } from './src/HelpScreen';
 import { LoanSimulatorScreen } from './src/LoanSimulatorScreen';
 import { CommerceRulesScreen } from './src/CommerceRulesScreen';
-import { MonthlyClosingScreen } from './src/MonthlyClosingScreen';
-import { DebtPlansScreen } from './src/DebtPlansScreen';
+import { MonthlyClosingFeature } from './src/MonthlyClosingFeature';
+import { DebtPlansFeature } from './src/DebtPlansFeature';
 import { PendingPaymentsScreen } from './src/PendingPaymentsScreen';
 import { SavingsGoalsScreen } from './src/SavingsGoalsScreen';
-import { CashProjectionScreen } from './src/CashProjectionScreen';
+import { CashProjectionFeature } from './src/CashProjectionFeature';
 import { SettingsMenu, settingsSections, type SettingsSection } from './src/SettingsMenu';
 import { BackupSettings } from './src/BackupSettings';
 import { LocalAccountsScreen } from './src/LocalAccountsScreen';
 import { restoreLocalBackup } from './src/localBackup';
-import {
-  cashProjectionKey,
-  hasUnassignedConnectedData,
-  localDataScope,
-  replaceDemoData,
-} from './src/dataScopes';
+import { hasUnassignedConnectedData, localDataScope, replaceDemoData } from './src/dataScopes';
 import { ThemeProvider, ThemeSettings } from './src/ThemeProvider';
 import { DateTimeField } from './src/DateTimeField';
 import { AboutApp } from './src/AboutApp';
@@ -62,19 +57,8 @@ import {
   type LocalReconciliation,
   validateLocalAccounts,
   type LocalAccount,
-  addSavingsContribution,
-  addPendingSettlement,
-  updatePendingManualSettlement,
-  checkPendingDraft,
-  checkDebtPlan,
-  type DebtPlan,
   pendingOccurrence,
   pendingRemaining,
-  type PendingDraft,
-  type PendingItem,
-  checkSavingsGoal,
-  type SavingsGoal,
-  type SavingsContribution,
   currencies,
   prepareOccurrence,
   changeSince,
@@ -89,15 +73,11 @@ import {
   categoryExpenses,
   monthlyReportCsv,
   movementCategories,
-  makeMonthlyClosing,
   setCommerceRule,
   type CommerceRule,
-  pendingForClosing,
-  type MonthlyClosing,
   demoMovements,
   dominicanDateTime,
   parseDominicanDateTime,
-  recurringOccurrenceAt,
   dominicanBanks,
   type BankRegistration,
   filterMovements,
@@ -143,6 +123,9 @@ import {
 } from './src/preferences';
 import { exportCsvText } from './src/exportCsv';
 import type { Page } from './src/history';
+import { usePendingPayments } from './src/usePendingPayments';
+import { useSavingsGoals } from './src/useSavingsGoals';
+import { localMovementIndex, newLocalId } from './src/localRecords';
 import { useMovementHistory } from './src/useMovementHistory';
 import {
   checkLocalMovementAccounts,
@@ -153,8 +136,6 @@ const client = new QueryClient();
 const formatMoney = (minor: number, currency: Currency) =>
   `${currency} ${formatMinorAmount(minor)}`;
 const currentMonth = () => localToday().slice(0, 7);
-const localMovementIndex = (data: LocalData) =>
-  new Map(data.movements.map((movement) => [movement.id, movement]));
 function initialData(): LocalData {
   return {
     ...upgradeCategories(
@@ -327,28 +308,7 @@ function Home({
   }
   const connected = !!session;
   const dataScope = localDataScope(url, connected ? (personal?.owner.id ?? 'development') : null);
-  const savingsGoals = local.savingsGoals[dataScope] ?? [];
-  const pendingItems = local.pendingItems[dataScope] ?? [];
-  const debtPlans = local.debtPlans[dataScope] ?? [];
-  const monthlyClosings = local.monthlyClosings[dataScope] ?? [];
   const commerceRules = local.commerceRules[dataScope] ?? [];
-  const pendingMovementIds = [
-    ...new Set(
-      pendingItems.flatMap((item) =>
-        item.settlements.flatMap((settlement) =>
-          settlement.kind === 'movement' ? [settlement.movementId] : [],
-        ),
-      ),
-    ),
-  ].sort();
-  const savingsTransferIds = [
-    ...new Set(
-      savingsGoals.flatMap((goal) =>
-        goal.contributions.flatMap((item) => (item.kind === 'transfer' ? [item.movementId] : [])),
-      ),
-    ),
-  ].sort();
-  const projectionKey = cashProjectionKey(dataScope, projectionCurrency);
   useEffect(() => {
     let active = true;
     void loadLocal()
@@ -401,52 +361,6 @@ function Home({
       throw error;
     }
   }
-  const savingsTransfersQuery = useQuery({
-    queryKey: ['savings-transfers', dataScope, savingsTransferIds],
-    enabled: connected && screen === 'Metas de ahorro' && savingsTransferIds.length > 0,
-    retry: false,
-    queryFn: async () => {
-      const results = await Promise.all(savingsTransferIds.map(movementForLink));
-      return results.filter((movement): movement is Movement => movement !== null);
-    },
-  });
-
-  async function pendingLinks(ids: string[]) {
-    const results = await Promise.all(ids.map(movementForLink));
-    return new Map(
-      results.flatMap((movement) => (movement ? [[movement.id, movement] as const] : [])),
-    );
-  }
-  const monthPending = closing
-    ? pendingItems.filter(
-        (item) => item.currency === currency && item.dueAt.startsWith(month + '-'),
-      )
-    : [];
-  const relevantPendingIds = closing
-    ? [
-        ...new Set(
-          monthPending.flatMap((item) =>
-            item.settlements.flatMap((part) => (part.kind === 'movement' ? [part.movementId] : [])),
-          ),
-        ),
-      ].sort()
-    : pendingMovementIds;
-  const pendingLinksQuery = useQuery({
-    queryKey: ['pending-links', dataScope, relevantPendingIds],
-    enabled:
-      connected &&
-      relevantPendingIds.length > 0 &&
-      (closing ||
-        screen === 'Pagos y cobros pendientes' ||
-        screen === 'Disponible hasta el próximo cobro'),
-    retry: false,
-    queryFn: () => pendingLinks(relevantPendingIds),
-  });
-  const pendingLinksReady = !connected || !relevantPendingIds.length || pendingLinksQuery.isSuccess;
-  const linkedPendingMovements = connected
-    ? (pendingLinksQuery.data ?? new Map<string, Movement>())
-    : localMovementIndex(local);
-
   const bankDirectory = useQuery({
     queryKey: ['banks', dataScope],
     enabled: !!personal && (screen === 'Mis bancos' || screen === 'Conexiones'),
@@ -495,12 +409,50 @@ function Home({
     queryFn: async (): Promise<RecurringTemplate[]> => request('/recurring'),
   });
   const recurring = connected ? (recurringQuery.data ?? []) : local.recurring;
-  const categoryCatalog = connected ? (catalog.data ?? []) : local.categories;
-  const catalogReady = !connected || catalog.isSuccess;
-  const accounts = connected ? (accountsQuery.data ?? []) : local.accounts;
   const localCardIds = new Set(
     local.accounts.filter((account) => account.kind === 'CREDIT_CARD').map((account) => account.id),
   );
+  const savings = useSavingsGoals({
+    dataScope,
+    active: screen === 'Metas de ahorro',
+    connected,
+    local,
+    isLocalCardPayment,
+    movementForLink,
+    persist,
+    saveForm,
+  });
+  const {
+    screenProps: pendingScreenProps,
+    ensureRecurringPending,
+    movementIds: pendingMovementIds,
+    monthPending,
+    relevantPendingIds,
+    pendingLinksQuery,
+  } = usePendingPayments({
+    dataScope,
+    connected,
+    closing,
+    active:
+      screen === 'Pagos y cobros pendientes' || screen === 'Disponible hasta el próximo cobro',
+    local,
+    localRef,
+    recurring,
+    month,
+    currency,
+    movementForLink,
+    persist,
+    saveForm,
+    confirmRecurring,
+  });
+  const {
+    items: pendingItems,
+    ready: pendingLinksReady,
+    movements: linkedPendingMovements,
+  } = pendingScreenProps;
+  const categoryCatalog = connected ? (catalog.data ?? []) : local.categories;
+  const catalogReady = !connected || catalog.isSuccess;
+  const accounts = connected ? (accountsQuery.data ?? []) : local.accounts;
   const movementAccounts = connected
     ? accountsQuery.data
     : local.accounts.length
@@ -617,50 +569,6 @@ function Home({
           .filter((part) => part.categoryId === c.id)
           .reduce((n, part) => n + part.amountMinor, 0),
       }));
-  const closingPending = closing
-    ? pendingForClosing(monthPending, linkedPendingMovements, month, currency)
-    : [];
-  const closingSources = [totals, serverBudget, catalog, closingUncategorized];
-  const closingReadError =
-    connected &&
-    (closingSources.some((source) => source.isError) ||
-      (!!relevantPendingIds.length && pendingLinksQuery.isError));
-  const closingReady =
-    !connected ||
-    (closingSources.every((source) => source.isSuccess && !source.isFetching) &&
-      pendingLinksReady &&
-      !pendingLinksQuery.isFetching);
-  let currentClosing: MonthlyClosing | undefined;
-  let closingCalculationError = false;
-  if (closing && closingReady) {
-    try {
-      currentClosing = makeMonthlyClosing(
-        {
-          month,
-          currency,
-          capturedAt: new Date().toISOString(),
-          incomeMinor: summary.incomeMinor,
-          expenseMinor: summary.expenseMinor,
-          uncategorizedCount: connected
-            ? (closingUncategorized.data ?? 0)
-            : period.filter((item) =>
-                movementCategories(item).some((part) => part.categoryId === uncategorizedId),
-              ).length,
-          budgetMinor: budget || null,
-          categories: categoryCatalog.flatMap((category) => {
-            const limitMinor = categoryBudgets[category.id];
-            if (!limitMinor) return [];
-            const spentMinor =
-              categoryTotals.find((item) => item.categoryId === category.id)?.amountMinor ?? 0;
-            return [{ categoryId: category.id, name: category.name, limitMinor, spentMinor }];
-          }),
-        },
-        closingPending,
-      );
-    } catch {
-      closingCalculationError = true;
-    }
-  }
   async function saveCategory(name: string, id?: string) {
     name = categoryName(name);
     const normalizedName = categoryKey(name);
@@ -1123,77 +1031,6 @@ function Home({
     }
   }
 
-  function updateSavingsGoals(update: (goals: SavingsGoal[], current: LocalData) => SavingsGoal[]) {
-    return persist((current) => ({
-      ...current,
-      savingsGoals: {
-        ...current.savingsGoals,
-        [dataScope]: update(current.savingsGoals[dataScope] ?? [], current),
-      },
-    }));
-  }
-
-  function newLocalId() {
-    return `${Date.now()}-${Math.random().toString(36).slice(2)}`;
-  }
-
-  function saveSavingsGoal(
-    input: Pick<SavingsGoal, 'name' | 'currency' | 'targetMinor'>,
-    id?: string,
-  ) {
-    return saveForm(() =>
-      updateSavingsGoals((goals) => {
-        const goal = checkSavingsGoal(input);
-        if (!id) return [...goals, { ...goal, id: newLocalId(), contributions: [] }];
-        if (!goals.some((item) => item.id === id))
-          throw new Error('La meta ya no está disponible.');
-        return goals.map((item) =>
-          item.id === id ? { ...item, name: goal.name, targetMinor: goal.targetMinor } : item,
-        );
-      }),
-    );
-  }
-
-  function addSavings(goalId: string, item: SavingsContribution) {
-    return saveForm(async () => {
-      const remote =
-        connected && item.kind === 'transfer' ? await movementForLink(item.movementId) : null;
-      await updateSavingsGoals((goals, current) => {
-        const transfer =
-          !connected && item.kind === 'transfer'
-            ? current.movements.find((movement) => movement.id === item.movementId)
-            : remote;
-        if (transfer?.balanceAdjustment)
-          throw new Error('Los ajustes de conciliación no se vinculan a metas de ahorro.');
-        if (
-          !connected &&
-          transfer?.type === 'TRANSFER' &&
-          current.accounts.some(
-            (account) => account.id === transfer.targetAccountId && account.kind === 'CREDIT_CARD',
-          )
-        )
-          throw new Error('Los pagos de tarjeta no se vinculan a metas de ahorro.');
-        const transfers = new Map(transfer ? [[transfer.id, transfer]] : []);
-        return addSavingsContribution(goals, goalId, item, transfers);
-      });
-    });
-  }
-
-  function removeSavings(goalId: string, contributionId: string) {
-    return saveForm(() =>
-      updateSavingsGoals((goals) =>
-        goals.map((goal) =>
-          goal.id === goalId
-            ? {
-                ...goal,
-                contributions: goal.contributions.filter((item) => item.id !== contributionId),
-              }
-            : goal,
-        ),
-      ),
-    );
-  }
-
   function openPending(
     movement: Movement | null,
     focus: string | null,
@@ -1208,91 +1045,6 @@ function Home({
     setScreen('Pagos y cobros pendientes');
   }
 
-  function updatePending(update: (items: PendingItem[], current: LocalData) => PendingItem[]) {
-    return persist((current) => {
-      const items = current.pendingItems[dataScope] ?? [];
-      const next = update(items, current);
-      if (next === items) return current;
-      return { ...current, pendingItems: { ...current.pendingItems, [dataScope]: next } };
-    });
-  }
-
-  function savePending(input: PendingDraft) {
-    return saveForm(() =>
-      updatePending((items) => [
-        ...items,
-        { ...checkPendingDraft(input), id: newLocalId(), settlements: [] },
-      ]),
-    );
-  }
-
-  async function openRecurringPending(template: RecurringTemplate) {
-    let id = newLocalId();
-    await updatePending((items, current) => {
-      const existing = pendingOccurrence(items, template.id, template.nextDate);
-      if (existing) {
-        id = existing.id;
-        return items;
-      }
-      const latest = connected
-        ? template
-        : current.recurring.find((item) => item.id === template.id);
-      if (
-        !latest ||
-        latest.nextDate !== template.nextDate ||
-        !latest.active ||
-        latest.type === 'TRANSFER'
-      )
-        throw new Error('Esta plantilla no admite pagos ni cobros pendientes.');
-      return [
-        ...items,
-        {
-          ...checkPendingDraft({
-            name: latest.description,
-            kind: latest.type === 'EXPENSE' ? 'pay' : 'collect',
-            currency: latest.currency,
-            dueAt: dominicanDateTime(
-              new Date(recurringOccurrenceAt(latest.nextDate, latest.timeOfDay)),
-            ),
-            amountMinor: latest.amountMinor,
-          }),
-          id,
-          occurrence: { templateId: latest.id, scheduledFor: latest.nextDate },
-          settlements: [],
-        },
-      ];
-    });
-    openPending(null, id, 'Movimientos');
-  }
-
-  function currentPendingTemplate(item: PendingItem) {
-    return recurring.find(
-      (template) =>
-        template.id === item.occurrence?.templateId &&
-        template.nextDate === item.occurrence.scheduledFor &&
-        template.active,
-    );
-  }
-
-  function canEditPending(item: PendingItem, templates = recurring) {
-    return (
-      !item.occurrence ||
-      templates.some(
-        (template) =>
-          template.id === item.occurrence?.templateId &&
-          template.nextDate === item.occurrence.scheduledFor,
-      )
-    );
-  }
-
-  async function verifiedPendingMovements(item: PendingItem, extraId?: string) {
-    const ids = item.settlements.flatMap((entry) =>
-      entry.kind === 'movement' ? [entry.movementId] : [],
-    );
-    if (extraId) ids.push(extraId);
-    return pendingLinks([...new Set(ids)]);
-  }
-
   function updateCommerceRules(update: (rules: CommerceRule[]) => CommerceRule[]) {
     return saveForm(() => {
       return persist((current) => ({
@@ -1304,18 +1056,6 @@ function Home({
       }));
     });
   }
-  function updateDebtPlans(update: (plans: DebtPlan[]) => DebtPlan[]) {
-    return saveForm(() => {
-      return persist((current) => ({
-        ...current,
-        debtPlans: {
-          ...current.debtPlans,
-          [dataScope]: update(current.debtPlans[dataScope] ?? []),
-        },
-      }));
-    });
-  }
-
   const addMovement = (
     <Button
       label="+ Nuevo movimiento"
@@ -1415,159 +1155,33 @@ function Home({
                 <Button label="Reintentar categorías" onPress={() => void catalog.refetch()} />
               </View>
             )}
-            {screen === 'Disponible hasta el próximo cobro' &&
-              ((!connected || recurringQuery.isSuccess) && pendingLinksReady ? (
-                <CashProjectionScreen
-                  key={projectionKey}
-                  currency={projectionCurrency}
-                  onCurrency={setProjectionCurrency}
-                  templates={recurring}
-                  pending={pendingItems.map((item) => ({
-                    ...item,
-                    remainingMinor: pendingRemaining(item, linkedPendingMovements),
-                  }))}
-                  saved={local.cashProjections[projectionKey]}
-                  saving={busy}
-                  onSave={(plan) =>
-                    saveForm(() =>
-                      persist((current) => ({
-                        ...current,
-                        cashProjections: {
-                          ...current.cashProjections,
-                          [projectionKey]: plan,
-                        },
-                      })),
-                    )
-                  }
-                  money={money}
-                />
-              ) : (
-                <View style={s.card}>
-                  <Text style={s.muted}>
-                    {recurringQuery.isError || pendingLinksQuery.isError
-                      ? 'No se pudieron cargar los compromisos.'
-                      : 'Cargando compromisos…'}
-                  </Text>
-                  {(recurringQuery.isError || pendingLinksQuery.isError) && (
-                    <Button
-                      label="Reintentar compromisos"
-                      onPress={() => {
-                        if (recurringQuery.isError) void recurringQuery.refetch();
-                        if (pendingLinksQuery.isError) void pendingLinksQuery.refetch();
-                      }}
-                    />
-                  )}
-                </View>
-              ))}
-            {screen === 'Pagos y cobros pendientes' && (
-              <PendingPaymentsScreen
-                items={pendingItems}
-                defaultCurrency={currency}
+            {screen === 'Disponible hasta el próximo cobro' && (
+              <CashProjectionFeature
+                dataScope={dataScope}
+                currency={projectionCurrency}
+                onCurrency={setProjectionCurrency}
+                connected={connected}
+                recurringQuery={recurringQuery}
+                templates={recurring}
+                pending={pendingItems}
                 movements={linkedPendingMovements}
-                link={movementForPending}
-                focusId={pendingFocus}
-                ready={pendingLinksReady}
-                linksError={pendingLinksQuery.isError}
+                pendingLinksQuery={pendingLinksQuery}
+                pendingLinksReady={pendingLinksReady}
+                projections={local.cashProjections}
                 saving={busy}
                 money={money}
-                canClose={(item) => !!currentPendingTemplate(item)}
-                canEdit={canEditPending}
-                onSave={savePending}
-                onSettle={(id, settlement) =>
-                  saveForm(async () => {
-                    const item = (localRef.current.pendingItems[dataScope] ?? []).find(
-                      (entry) => entry.id === id,
-                    );
-                    if (!item) throw new Error('El pendiente ya no está disponible.');
-                    const remote = connected
-                      ? await verifiedPendingMovements(
-                          item,
-                          settlement.kind === 'movement' ? settlement.movementId : undefined,
-                        )
-                      : null;
-                    await updatePending((items, current) => {
-                      if (connected && items.find((entry) => entry.id === id) !== item)
-                        throw new Error('El pendiente cambió. Vuelve a verificar sus abonos.');
-                      return addPendingSettlement(
-                        items,
-                        id,
-                        { ...settlement, id: newLocalId() },
-                        remote ?? localMovementIndex(current),
-                      );
-                    });
-                  })
-                }
-                onEdit={(id, settlementId, amountMinor) =>
-                  saveForm(async () => {
-                    const item = (localRef.current.pendingItems[dataScope] ?? []).find(
-                      (entry) => entry.id === id,
-                    );
-                    if (!item) throw new Error('El pendiente ya no está disponible para edición.');
-                    const remote = connected ? await verifiedPendingMovements(item) : null;
-                    await updatePending((items, current) => {
-                      const latest = items.find((entry) => entry.id === id);
-                      if (connected && latest !== item)
-                        throw new Error('El pendiente cambió. Vuelve a verificar sus abonos.');
-                      if (
-                        !latest ||
-                        !canEditPending(latest, connected ? recurring : current.recurring)
-                      )
-                        throw new Error('El pendiente ya no está disponible para edición.');
-                      return updatePendingManualSettlement(
-                        items,
-                        id,
-                        settlementId,
-                        amountMinor,
-                        remote ?? localMovementIndex(current),
-                      );
-                    });
-                  })
-                }
-                onRemove={(id, settlementId) =>
-                  saveForm(() =>
-                    updatePending((items) =>
-                      items.map((item) =>
-                        item.id === id
-                          ? {
-                              ...item,
-                              settlements: item.settlements.filter(
-                                (entry) => entry.id !== settlementId,
-                              ),
-                            }
-                          : item,
-                      ),
-                    ),
-                  )
-                }
-                onDelete={(id) =>
-                  saveForm(() =>
-                    updatePending((items, current) => {
-                      const item = items.find((entry) => entry.id === id);
-                      if (item?.settlements.length)
-                        throw new Error('Quita los abonos antes de eliminar el pendiente.');
-                      if (item && !canEditPending(item, connected ? recurring : current.recurring))
-                        throw new Error('El vencimiento ya se cerró.');
-                      return items.filter((entry) => entry.id !== id);
-                    }),
-                  )
-                }
-                onClose={(item) =>
-                  saveForm(async () => {
-                    const template = currentPendingTemplate(item);
-                    const current = (localRef.current.pendingItems[dataScope] ?? []).find(
-                      (entry) => entry.id === item.id,
-                    );
-                    if (
-                      !template ||
-                      !current ||
-                      (connected &&
-                        pendingRemaining(current, await verifiedPendingMovements(current)) !== 0)
-                    )
-                      throw new Error('El vencimiento debe estar saldado y la plantilla activa.');
-                    await confirmRecurring(template, false, current.id);
-                  })
-                }
-                onRetry={() => void pendingLinksQuery.refetch()}
+                persist={persist}
+                saveForm={saveForm}
+              />
+            )}
+            {screen === 'Pagos y cobros pendientes' && (
+              <PendingPaymentsScreen
+                {...pendingScreenProps}
+                defaultCurrency={currency}
+                link={movementForPending}
+                focusId={pendingFocus}
+                saving={busy}
+                money={money}
                 onClearLink={() => setMovementForPending(null)}
               />
             )}
@@ -1575,62 +1189,23 @@ function Home({
               <LoanSimulatorScreen defaultCurrency={currency} money={money} />
             )}
             {screen === 'Plan de pago de tarjetas y préstamos' && (
-              <DebtPlansScreen
+              <DebtPlansFeature
                 key={dataScope}
-                plans={debtPlans}
+                dataScope={dataScope}
+                plans={local.debtPlans[dataScope] ?? []}
                 defaultCurrency={currency}
                 saving={busy}
                 money={money}
-                onSave={async (input, id) => {
-                  const plan = { ...checkDebtPlan(input), id: id ?? newLocalId() };
-                  await updateDebtPlans((items) => {
-                    if (!id) return [...items, plan];
-                    if (!items.some((item) => item.id === id))
-                      throw new Error('El plan de pago ya no está disponible.');
-                    return items.map((item) => (item.id === id ? plan : item));
-                  });
-                  return plan.id;
-                }}
-                onRemove={(id) =>
-                  updateDebtPlans((items) => items.filter((item) => item.id !== id))
-                }
+                persist={persist}
+                saveForm={saveForm}
               />
             )}
             {screen === 'Metas de ahorro' && (
               <SavingsGoalsScreen
-                goals={savingsGoals}
+                {...savings.screenProps}
                 defaultCurrency={currency}
                 linkedTransfer={transferForSavings}
-                transfers={
-                  new Map(
-                    (connected
-                      ? (savingsTransfersQuery.data ?? [])
-                      : local.movements.filter(
-                          (movement) =>
-                            !movement.balanceAdjustment && !isLocalCardPayment(movement),
-                        )
-                    ).map((movement) => [movement.id, movement]),
-                  )
-                }
-                linksPending={
-                  connected &&
-                  savingsTransferIds.length > 0 &&
-                  !savingsTransfersQuery.isError &&
-                  (!savingsTransfersQuery.isSuccess || savingsTransfersQuery.isFetching)
-                }
-                linksError={
-                  connected && savingsTransferIds.length > 0 && savingsTransfersQuery.isError
-                }
-                onRetry={() => void savingsTransfersQuery.refetch()}
                 saving={busy}
-                onSaveGoal={saveSavingsGoal}
-                onAddManual={(goalId, amountMinor) =>
-                  addSavings(goalId, { id: newLocalId(), kind: 'manual', amountMinor })
-                }
-                onLink={(goalId, movementId) =>
-                  addSavings(goalId, { id: newLocalId(), kind: 'transfer', movementId })
-                }
-                onRemove={removeSavings}
                 money={money}
               />
             )}
@@ -1653,30 +1228,35 @@ function Home({
               </>
             )}
             {closing && (
-              <MonthlyClosingScreen
+              <MonthlyClosingFeature
                 key={dataScope + month + currency}
-                current={currentClosing}
-                saved={monthlyClosings.find(
-                  (item) => item.month === month && item.currency === currency,
-                )}
-                previous={monthlyClosings.find(
-                  (item) => item.month === priorMonth && item.currency === currency,
-                )}
-                pending={closingPending}
-                loadingError={closingReadError || closingCalculationError}
+                dataScope={dataScope}
+                month={month}
+                currency={currency}
+                connected={connected}
+                summary={summary}
+                period={period}
+                uncategorizedId={uncategorizedId}
+                closingUncategorized={closingUncategorized}
+                budget={{
+                  limitMinor: budget || null,
+                  catalog: categoryCatalog,
+                  limits: categoryBudgets,
+                  totals: categoryTotals,
+                }}
+                summarySources={[totals, serverBudget, catalog]}
+                pending={{
+                  items: monthPending,
+                  movements: linkedPendingMovements,
+                  links: pendingLinksQuery,
+                  ready: pendingLinksReady,
+                  hasLinks: relevantPendingIds.length > 0,
+                }}
+                monthlyClosings={local.monthlyClosings[dataScope] ?? []}
                 saving={busy}
                 money={money}
-                onRetry={
-                  closingReadError
-                    ? () => {
-                        void totals.refetch();
-                        void serverBudget.refetch();
-                        void catalog.refetch();
-                        if (uncategorizedId) void closingUncategorized.refetch();
-                        if (relevantPendingIds.length) void pendingLinksQuery.refetch();
-                      }
-                    : undefined
-                }
+                persist={persist}
+                saveForm={saveForm}
                 onMovements={() => {
                   if (!uncategorizedId) return;
                   setEditor(null);
@@ -1688,25 +1268,6 @@ function Home({
                   setScreen('Movimientos');
                 }}
                 onPending={(id) => openPending(null, id, 'Cierre mensual')}
-                onSave={(snapshot) =>
-                  saveForm(() =>
-                    persist((current) => {
-                      const previous = current.monthlyClosings[dataScope] ?? [];
-                      return {
-                        ...current,
-                        monthlyClosings: {
-                          ...current.monthlyClosings,
-                          [dataScope]: [
-                            ...previous.filter(
-                              (item) => item.month !== month || item.currency !== currency,
-                            ),
-                            snapshot,
-                          ],
-                        },
-                      };
-                    }),
-                  )
-                }
               />
             )}
             {connected && query.isFetching && <ActivityIndicator color={palette.primary} />}
@@ -2270,7 +1831,7 @@ function Home({
                         <Choice
                           label={`Vincular a meta: ${m.description}`}
                           text={
-                            savingsTransferIds.includes(m.id) ? 'Ver aporte' : 'Vincular a meta'
+                            savings.transferIds.includes(m.id) ? 'Ver aporte' : 'Vincular a meta'
                           }
                           selected={false}
                           disabled={busy}
@@ -2332,7 +1893,11 @@ function Home({
                   hasPending={(template) =>
                     !!pendingOccurrence(pendingItems, template.id, template.nextDate)
                   }
-                  onPending={(template) => saveForm(() => openRecurringPending(template))}
+                  onPending={(template) =>
+                    saveForm(async () =>
+                      openPending(null, await ensureRecurringPending(template), 'Movimientos'),
+                    )
+                  }
                   money={money}
                 />
               )}
