@@ -18,6 +18,7 @@ const icons = {
   restore: require('../assets/icons/restore.png'),
   add: require('../assets/icons/add.png'),
   check: require('../assets/icons/check.png'),
+  house: require('../assets/icons/house.png'),
   user: require('../assets/icons/user.png'),
   'sliders-horizontal': require('../assets/icons/sliders-horizontal.png'),
   'arrow-left-right': require('../assets/icons/arrow-left-right.png'),
@@ -70,12 +71,14 @@ export function IconButton({
   onPress,
   disabled = false,
   danger = false,
+  selected,
 }: {
   icon: IconName;
   label: string;
   onPress: () => void;
   disabled?: boolean;
   danger?: boolean;
+  selected?: boolean;
 }) {
   const { styles: s, palette } = useTheme();
   const plain = useContext(SettingsOptionsContext);
@@ -84,6 +87,7 @@ export function IconButton({
     <Pressable
       accessibilityRole="button"
       accessibilityLabel={label}
+      accessibilityState={{ selected, disabled }}
       disabled={disabled}
       onPress={onPress}
       onFocus={() => setFocused(true)}
@@ -91,7 +95,8 @@ export function IconButton({
       style={({ pressed }) => [
         styles.button,
         { borderColor: palette.border, backgroundColor: palette.raised },
-        plain && { borderWidth: 0, backgroundColor: 'transparent' },
+        plain && icon !== 'back' && { borderWidth: 0, backgroundColor: 'transparent' },
+        selected && s.selected,
         focused && { borderWidth: 1, borderColor: palette.primary },
         pressed && s.selected,
         disabled && s.disabled,

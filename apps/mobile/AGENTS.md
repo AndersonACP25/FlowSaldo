@@ -11,3 +11,5 @@ Usar BEM para HTML/CSS web: bloques, elementos con `__` y modificadores con `--`
 Para campos nuevos de fecha, preferir el selector de fecha y hora compartido. Los controles de solo día deben conservar la semántica del dato. Evitar la entrada manual de fechas.
 
 Diseñar interfaces minimalistas con una grilla adaptable: agrupar contenido relacionado, alinear tarjetas y apilar columnas cuando falte espacio. Usar iconos reconocibles para acciones comunes con nombre accesible y superficie táctil mínima de 44 × 44. Mantener texto visible en acciones ambiguas o cuando el icono necesite contexto.
+
+No combinar iconos con botones de texto dentro de un mismo grupo de acciones. Si el grupo utiliza iconos, asignar un icono y un nombre accesible a cada acción. Los menús pueden acompañar cada opción con icono y texto.

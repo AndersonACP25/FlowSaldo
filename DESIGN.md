@@ -84,7 +84,7 @@
 ### 4. Navegación Global (Shell)
 - **Header**: Menú lateral, marca FlowSaldo y avatar. El encabezado permanece visible al desplazarse por las pantallas de la cuenta.
 - **Bottom Navigation Bar**: 4 accesos fijos (`Inicio`, `Movimientos`, `Por revisar` con badge de conteo pendiente en rojo/rosa, y `Conexiones`).
-- **Inicio** muestra el resumen mensual. Las herramientas se abren desde Explorar FlowSaldo. El menú presenta opciones sin borde y deja Salir al final.
+- **Inicio** muestra el resumen mensual. Explorar FlowSaldo abre sus herramientas y ofrece Inicio como primera opción. El menú presenta opciones sin borde y deja Salir al final.
 - **Configuración** abre una pantalla independiente desde el avatar. Volver restaura la pestaña anterior.
 - **Marca** usa el símbolo de barras y flecha de `apps/mobile/assets/flowsaldo.svg` en la portada, el acceso, el encabezado, el favicon y el icono de Android.
 
@@ -97,3 +97,5 @@ Inicio de sesión y registro conservan la paleta y muestran «Vista previa de ac
 Distribuir tarjetas y filtros en una grilla según el espacio disponible. Apilar módulos en pantallas estrechas y priorizar la información principal. Usar iconos reconocibles para mostrar u ocultar contraseña, editar, duplicar, eliminar y cerrar sesión. Mantener nombres accesibles, foco visible y controles táctiles de al menos 44 × 44.
 
 Los controles de retorno usan una flecha como icono y conservan su nombre accesible. Las opciones de Configuración y del menú lateral muestran el icono a la izquierda del texto. Las acciones secundarias de cancelar o cerrar se centran cuando ocupan una fila propia. En un grupo de confirmación, las acciones pueden compartir una fila con iconos y nombres accesibles.
+
+En las filas de acciones por registro, usar un formato uniforme. Cada acción de una fila de iconos usa un icono con su nombre accesible. Los controles de retorno conservan un marco redondeado incluso dentro de Configuración.

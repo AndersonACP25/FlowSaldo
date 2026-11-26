@@ -33,6 +33,7 @@ export function AppFrame({ children }: { children: React.ReactNode }) {
 }
 
 const destinations = [
+  ['Inicio'],
   ['Presupuestos', 'Ver presupuestos', 'Presupuestos'],
   ['Análisis', 'Ver análisis', 'Análisis'],
   ['Analíticas y reportes'],
@@ -48,6 +49,7 @@ const destinations = [
 export type DrawerDestination = (typeof destinations)[number][0];
 
 const drawerIcons: Record<DrawerDestination, IconName> = {
+  Inicio: 'house',
   Presupuestos: 'wallet',
   Análisis: 'chart-pie',
   'Analíticas y reportes': 'chart-column',
