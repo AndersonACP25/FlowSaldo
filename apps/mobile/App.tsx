@@ -1,25 +1,18 @@
+import { SettingsFeature } from './src/SettingsFeature';
+import { ConnectionsFeature } from './src/ConnectionsFeature';
 import { ReportsScreen } from './src/ReportsScreen';
-import { RefundScreen } from './src/RefundScreen';
-import { HelpScreen } from './src/HelpScreen';
+import { MovementEditor, RefundEditor } from './src/MovementEditors';
 import { LoanSimulatorScreen } from './src/LoanSimulatorScreen';
-import { CommerceRulesScreen } from './src/CommerceRulesScreen';
 import { MonthlyClosingFeature } from './src/MonthlyClosingFeature';
 import { DebtPlansFeature } from './src/DebtPlansFeature';
 import { PendingPaymentsScreen } from './src/PendingPaymentsScreen';
 import { SavingsGoalsScreen } from './src/SavingsGoalsScreen';
 import { CashProjectionFeature } from './src/CashProjectionFeature';
-import { SettingsMenu, settingsSections, type SettingsSection } from './src/SettingsMenu';
-import { BackupSettings } from './src/BackupSettings';
-import { LocalAccountsScreen } from './src/LocalAccountsScreen';
-import { restoreLocalBackup } from './src/localBackup';
-import { hasUnassignedConnectedData, localDataScope, replaceDemoData } from './src/dataScopes';
-import { ThemeProvider, ThemeSettings } from './src/ThemeProvider';
-import { AboutApp } from './src/AboutApp';
-import { BankConnections, BankSettings } from './src/BankDirectory';
-import { GmailConnection } from './src/GmailConnection';
+import { settingsSections, type SettingsSection } from './src/SettingsMenu';
+import { localDataScope, replaceDemoData } from './src/dataScopes';
+import { ThemeProvider } from './src/ThemeProvider';
 import { ApkUpdateNotice } from './src/ApkUpdateNotice';
-import { NotificationSettings } from './src/NotificationSettings';
-import { DueNotificationSettings, useDueNotifications } from './src/DueNotificationSettings';
+import { useDueNotifications } from './src/DueNotificationSettings';
 import { notifyTransaction } from './src/transactionNotifications';
 import { RatesScreen } from './src/RatesScreen';
 import { localToday, PeriodPicker } from './src/PeriodPicker';
@@ -28,7 +21,6 @@ import {
   AppHeader,
   type DrawerDestination,
   AppFrame,
-  FilterChip,
   FilterRow,
   OpeningCover,
 } from './src/ScreenChrome';
@@ -46,10 +38,6 @@ import {
 import { QueryClient, QueryClientProvider, useQuery } from '@tanstack/react-query';
 import {
   formatMinorAmount,
-  previewLocalReconciliation,
-  type LocalReconciliation,
-  validateLocalAccounts,
-  type LocalAccount,
   pendingOccurrence,
   currencies,
   changeSince,
@@ -58,12 +46,9 @@ import {
   categoryName,
   categoryKey,
   movementDate,
-  countLabel,
   pendingMailMessage,
   categoryExpenses,
   monthlyReportCsv,
-  setCommerceRule,
-  type CommerceRule,
   demoMovements,
   dominicanBanks,
   type BankRegistration,
@@ -75,25 +60,21 @@ import {
   type MovementType,
 } from '@flowsaldo/domain';
 import { SettingsOptionsContext, useTheme } from './src/theme';
-import { Button, Choice, Field } from './src/ui';
-import { ImportQueue } from './src/ImportQueue';
+import { Button, Choice } from './src/ui';
 import { MonthlyComparison } from './src/MonthlyComparison';
 import { RecurringPanel } from './src/RecurringPanel';
-import { CategoryManager } from './src/CategoryManager';
 import { BudgetFeature } from './src/BudgetFeature';
 import { useBudgets } from './src/useBudgets';
 import { useRecurringTemplates } from './src/useRecurringTemplates';
-import { MovementForm, type Draft, typeLabels } from './src/MovementForm';
+import { MovementsFeature } from './src/MovementsFeature';
+import { MovementForm, type Draft } from './src/MovementForm';
 import { loadLocal, updateLocal, type LocalData, type LocalUpdate } from './src/storage';
 import { ImportReviewFeature } from './src/ImportReviewFeature';
 import { useImportReviews } from './src/useImportReviews';
 import { demoReviews } from './src/reviews';
 import { WeeklyFlow } from './src/WeeklyFlow';
 import { AuthScreen, type AuthRoute } from './src/AuthScreen';
-import { RecoverySettings } from './src/RecoverySettings';
-import { FinancePanel, type FinancialAccount } from './src/FinancePanel';
-import { DataRetention } from './src/DataRetention';
-import { PersonalAccount } from './src/PersonalAccount';
+import { type FinancialAccount } from './src/FinancePanel';
 import {
   AccessError,
   apiBase,
@@ -102,7 +83,6 @@ import {
   type PersonalSession,
 } from './src/access';
 import { readAccess, writeAccess, clearAccess } from './src/accessVault';
-import { AccountSettings } from './src/AccountSettings';
 import {
   defaultPreferences,
   loadPreferences,
@@ -218,8 +198,9 @@ function Home({
     screen === 'Análisis';
   const showSummary =
     reports || screen === 'Inicio' || screen === 'Presupuestos' || screen === 'Análisis';
-  const settingsSection = settingsSections.some((section) => section === screen);
-  const inSettings = settingsSection || screen === 'Configuración';
+  const settingsSection = settingsSections.find((section) => section === screen);
+  const settingsRoute = screen === 'Configuración' ? screen : settingsSection;
+  const inSettings = !!settingsRoute;
   const fromMovements =
     screen === 'Editar movimiento' ||
     screen === 'Registrar devolución' ||
@@ -606,40 +587,6 @@ function Home({
       !connected && movement.type === 'TRANSFER' && localCardIds.has(movement.targetAccountId ?? '')
     );
   }
-  function saveLocalAccounts(update: (accounts: LocalAccount[]) => LocalAccount[]) {
-    return persist((current) => {
-      const accounts = update(current.accounts);
-      validateLocalAccounts(accounts);
-      return { ...current, accounts };
-    });
-  }
-  async function saveLocalReconciliation(preview: LocalReconciliation) {
-    await persist((current) => {
-      const { accountId, occurredAt, statementMinor } = preview;
-      const verified = previewLocalReconciliation(current.accounts, current.movements, {
-        accountId,
-        occurredAt,
-        statementMinor,
-      });
-      if (verified.expectedMinor !== preview.expectedMinor || verified.differenceMinor === 0)
-        throw new Error('El saldo cambió. Compara los saldos de nuevo.');
-      const account = current.accounts.find((item) => item.id === accountId)!;
-      const category = current.categories.find((item) => item.system)!;
-      const movement: Movement = {
-        id: 'adjustment-' + newLocalId(),
-        description: `Ajuste de conciliación · ${account.name}`,
-        type: 'TRANSFER',
-        currency: account.currency,
-        category: category.name,
-        categoryId: category.id,
-        occurredAt,
-        amountMinor: Math.abs(verified.differenceMinor),
-        accountId,
-        balanceAdjustment: { expectedMinor: verified.expectedMinor, statementMinor },
-      };
-      return { ...current, movements: [movement, ...current.movements] };
-    });
-  }
   async function saveMovement(draft: Draft) {
     const edit = editor && editor !== 'new' ? editor : null;
     const movementId = await commands.save(draft, edit);
@@ -685,6 +632,15 @@ function Home({
     setAccountFilter('');
     setNotice('Demo restablecida.');
   }
+  function connectDevelopment() {
+    client.clear();
+    setCategoryFilter('');
+    setDuplicate(null);
+    setSession(token);
+    setToken('');
+    setScreen('Inicio');
+  }
+
   function disconnect() {
     setAccountFilter('');
     setSession('');
@@ -719,17 +675,64 @@ function Home({
     setScreen('Pagos y cobros pendientes');
   }
 
-  function updateCommerceRules(update: (rules: CommerceRule[]) => CommerceRule[]) {
-    return saveForm(() => {
-      return persist((current) => ({
-        ...current,
-        commerceRules: {
-          ...current.commerceRules,
-          [dataScope]: update(current.commerceRules[dataScope] ?? []),
-        },
-      }));
-    });
+  function clearMovementFilters() {
+    setCategoryFilter('');
+    setAccountFilter('');
+    setSearch('');
+    setType('ALL');
+    setNotice('');
+    setError('');
   }
+
+  async function applyPreferences(value: Preferences) {
+    await savePreferences(value);
+    setPreferences(value);
+    setCurrency(value.currency);
+    setAccountFilter('');
+  }
+
+  function cancelMovementEditor() {
+    setEditor(null);
+    setDuplicate(null);
+  }
+
+  function editMovement(m: Movement) {
+    setDuplicate(null);
+    setEditor(m);
+    setDeleteId(null);
+    setNotice('');
+    setError('');
+    setScreen('Editar movimiento');
+  }
+  function duplicateMovement(m: Movement) {
+    const d = new Date();
+    const today = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+    setDuplicate({
+      ...m,
+      occurredAt: movementDate(month, today) + 'T12:00:00.000Z',
+    });
+    setEditor('new');
+    setDeleteId(null);
+    setNotice('Borrador duplicado. Revisa los datos y guarda para crear el movimiento.');
+  }
+  function openRefund(m: Movement) {
+    setRefundDraft({ expense: m, requestKey: 'refund-' + newLocalId() });
+    setDeleteId(null);
+    setEditor(null);
+    setNotice('');
+    setError('');
+    setScreen('Registrar devolución');
+  }
+  function openSavingsTransfer(m: Movement) {
+    setEditor(null);
+    setDuplicate(null);
+    setDeleteId(null);
+    setNotice('');
+    setError('');
+    setTransferForSavings(m);
+    setScreen('Metas de ahorro');
+  }
+
   const addMovement = (
     <Button
       label="+ Nuevo movimiento"
@@ -996,7 +999,7 @@ function Home({
                 )}
               </>
             )}
-            {(screen === 'Tasas' || screen === 'Tasa del día') && <RatesScreen />}
+            {screen === 'Tasas' && <RatesScreen />}
             {reports &&
               (!connected || (totals.isSuccess && serverBudget.isSuccess) ? (
                 <ReportsScreen
@@ -1098,84 +1101,34 @@ function Home({
               />
             )}
             {editor && (screen === 'Movimientos' || screen === 'Editar movimiento') && (
-              <>
-                {connected && !accountsQuery.isSuccess && (
-                  <View style={s.card}>
-                    <Text style={s.muted}>
-                      {accountsQuery.error
-                        ? 'No se pudieron cargar las cuentas.'
-                        : 'Cargando cuentas…'}
-                    </Text>
-                    {accountsQuery.error && (
-                      <Button
-                        label="Reintentar cuentas"
-                        onPress={() => void accountsQuery.refetch()}
-                      />
-                    )}
-                  </View>
-                )}
-                {catalogReady && (!connected || accountsQuery.isSuccess) && (
-                  <MovementForm
-                    allowSplits
-                    commerceRules={commerceRules}
-                    accounts={movementAccounts}
-                    localAccounts={!connected}
-                    categories={categoryCatalog}
-                    recent={recent}
-                    editing={editor !== 'new'}
-                    title={
-                      screen === 'Editar movimiento'
-                        ? null
-                        : duplicate
-                          ? 'Duplicar movimiento'
-                          : undefined
-                    }
-                    key={editor === 'new' ? 'new-' + (duplicate?.id ?? '') : editor.id}
-                    movement={editor === 'new' ? (duplicate ?? undefined) : editor}
-                    currency={currency}
-                    month={month}
-                    onSave={(draft) => saveForm(() => saveMovement(draft))}
-                    onCancel={
-                      screen === 'Editar movimiento'
-                        ? goBack
-                        : () => {
-                            setEditor(null);
-                            setDuplicate(null);
-                          }
-                    }
-                  />
-                )}
-              </>
+              <MovementEditor
+                editor={editor}
+                duplicate={duplicate}
+                fullScreen={screen === 'Editar movimiento'}
+                connected={connected}
+                accountsQuery={accountsQuery}
+                movementAccounts={movementAccounts}
+                catalogReady={catalogReady}
+                categoryCatalog={categoryCatalog}
+                commerceRules={commerceRules}
+                recent={recent}
+                currency={currency}
+                month={month}
+                onSave={(draft) => saveForm(() => saveMovement(draft))}
+                onCancel={screen === 'Editar movimiento' ? goBack : cancelMovementEditor}
+              />
             )}
-            {screen === 'Registrar devolución' &&
-              refundDraft &&
-              (connected && !refundQuery.isSuccess ? (
-                <View style={s.card}>
-                  <Text style={s.muted}>
-                    {refundQuery.isError ? 'No se pudo consultar el gasto.' : 'Consultando gasto…'}
-                  </Text>
-                  {refundQuery.isError && (
-                    <Button
-                      label="Reintentar consulta del gasto"
-                      onPress={() => void refundQuery.refetch()}
-                    />
-                  )}
-                </View>
-              ) : (
-                refundInfo && (
-                  <RefundScreen
-                    key={refundDraft.requestKey}
-                    source={refundInfo.source}
-                    refundedMinor={refundInfo.refundedMinor}
-                    remainingMinor={refundInfo.remainingMinor}
-                    saving={busy}
-                    money={money}
-                    onSave={(amount, occurredAt) =>
-                      saveForm(() => recordRefund(amount, occurredAt))
-                    }
-                  />
-                )
-              ))}
+            {screen === 'Registrar devolución' && refundDraft && (
+              <RefundEditor
+                requestKey={refundDraft.requestKey}
+                connected={connected}
+                refundQuery={refundQuery}
+                refundInfo={refundInfo}
+                busy={busy}
+                money={money}
+                onSave={(amount, occurredAt) => saveForm(() => recordRefund(amount, occurredAt))}
+              />
+            )}
             {screen === 'Nueva plantilla mensual' && catalogReady && (
               <MovementForm
                 title={null}
@@ -1195,485 +1148,113 @@ function Home({
               />
             )}
             {screen === 'Movimientos' && (
-              <>
-                <Field
-                  label="Buscar descripción o categoría"
-                  value={search}
-                  onChangeText={setSearch}
-                  maxLength={100}
-                  placeholder="Supermercado, transporte…"
-                />
-                <FilterRow label="Filtrar por tipo">
-                  <Choice label="Todos" selected={type === 'ALL'} onPress={() => setType('ALL')} />
-                  {(['INCOME', 'EXPENSE', 'TRANSFER'] as const).map((t) => (
-                    <Choice
-                      key={t}
-                      label={typeLabels[t]}
-                      selected={type === t}
-                      onPress={() => setType(t)}
-                    />
-                  ))}
-                </FilterRow>
-                {(connected || accounts.length > 0) && (
-                  <FilterRow label="Filtrar por cuenta">
-                    <Choice
-                      label="Todas las cuentas"
-                      text="Todas"
-                      selected={!accountFilter}
-                      onPress={() => setAccountFilter('')}
-                    />
-                    {accounts
-                      .filter((a) => a.currency === currency)
-                      .map((a) => (
-                        <Choice
-                          key={a.id}
-                          label={`Filtrar cuenta: ${a.name}`}
-                          text={a.name + (a.archived ? ' · Archivada' : '')}
-                          selected={accountFilter === a.id}
-                          onPress={() => setAccountFilter(a.id)}
-                        />
-                      ))}
-                  </FilterRow>
-                )}
-                <View style={s.card}>
-                  <Text style={s.title}>Categorías</Text>
-                  <FilterRow label="Filtrar por categoría">
-                    <FilterChip
-                      label="Todas las categorías"
-                      text="Todas"
-                      selected={!categoryFilter}
-                      onPress={() => setCategoryFilter('')}
-                    />
-                    {categoryCatalog.map((c) => (
-                      <FilterChip
-                        key={c.id}
-                        label={`Filtrar: ${c.name}`}
-                        text={c.name + (c.archived ? ' · Archivada' : '')}
-                        selected={categoryFilter === c.id}
-                        onPress={() => setCategoryFilter(c.id)}
-                      />
-                    ))}
-                  </FilterRow>
-                </View>
-                <View style={s.between}>
-                  <Text style={s.title}>
-                    {countLabel(
-                      connected ? (query.data?.pages[0]?.total ?? 0) : visible.length,
-                      'movimiento',
-                      'movimientos',
-                    )}
-                  </Text>
-                  <View style={s.row}>
-                    {connected && (
-                      <Button label="Actualizar" onPress={() => void refreshMovements()} />
-                    )}
-                    <Button
-                      label="Exportar CSV"
-                      text="CSV"
-                      disabled={!visible.length || busy}
-                      onPress={() => void action(exportAll)}
-                    />
-                  </View>
-                </View>
-                {!visible.length && (!connected || query.isSuccess) && (
-                  <View style={s.card}>
-                    <Text style={s.title}>No hay movimientos con estos filtros</Text>
-                  </View>
-                )}
-                {visible.map((m) => (
-                  <View key={m.id} style={s.card}>
-                    <View style={s.between}>
-                      <View>
-                        <Text style={s.text}>{m.description}</Text>
-                        <Text style={s.muted}>
-                          {m.splits?.length
-                            ? countLabel(m.splits.length, 'categoría', 'categorías')
-                            : m.category}{' '}
-                          · {m.occurredAt.slice(0, 10)} ·{' '}
-                          {m.balanceAdjustment
-                            ? 'Ajuste de saldo'
-                            : m.refundOfId
-                              ? 'Devolución'
-                              : isLocalCardPayment(m)
-                                ? 'Pago de tarjeta'
-                                : typeLabels[m.type]}
-                        </Text>
-                      </View>
-                      <Text
-                        style={
-                          m.type === 'INCOME'
-                            ? s.income
-                            : m.type === 'EXPENSE'
-                              ? s.expense
-                              : s.amount
-                        }
-                      >
-                        {m.balanceAdjustment
-                          ? m.balanceAdjustment.statementMinor > m.balanceAdjustment.expectedMinor
-                            ? '+'
-                            : '−'
-                          : m.type === 'EXPENSE'
-                            ? '−'
-                            : m.type === 'INCOME'
-                              ? '+'
-                              : '↔'}{' '}
-                        {money(m.amountMinor, m.currency)}
-                      </Text>
-                    </View>
-                    {!!m.accountId && (
-                      <Text style={s.muted}>
-                        Cuenta: {accounts.find((a) => a.id === m.accountId)?.name ?? 'Asignada'}
-                        {m.targetAccountId
-                          ? ` → ${accounts.find((a) => a.id === m.targetAccountId)?.name ?? 'Destino asignado'}`
-                          : ''}
-                      </Text>
-                    )}
-                    <View style={s.row}>
-                      {!m.refundOfId && !m.balanceAdjustment && (
-                        <>
-                          <IconButton
-                            icon="edit"
-                            label={`Editar ${m.description}`}
-                            onPress={() => {
-                              setDuplicate(null);
-                              setEditor(m);
-                              setDeleteId(null);
-                              setNotice('');
-                              setError('');
-                              setScreen('Editar movimiento');
-                            }}
-                          />
-                          <IconButton
-                            icon="copy"
-                            label={`Duplicar ${m.description}`}
-                            onPress={() => {
-                              const d = new Date();
-                              const today = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
-                              setDuplicate({
-                                ...m,
-                                occurredAt: movementDate(month, today) + 'T12:00:00.000Z',
-                              });
-                              setEditor('new');
-                              setDeleteId(null);
-                              setNotice(
-                                'Borrador duplicado. Revisa los datos y guarda para crear el movimiento.',
-                              );
-                            }}
-                          />
-                        </>
-                      )}
-                      {m.type === 'EXPENSE' && (
-                        <Choice
-                          label={`Registrar devolución de ${m.description}`}
-                          text="Devolución"
-                          selected={false}
-                          disabled={busy}
-                          onPress={() => {
-                            setRefundDraft({ expense: m, requestKey: 'refund-' + newLocalId() });
-                            setDeleteId(null);
-                            setEditor(null);
-                            setNotice('');
-                            setError('');
-                            setScreen('Registrar devolución');
-                          }}
-                        />
-                      )}
-                      <IconButton
-                        icon="trash"
-                        label="Eliminar"
-                        danger
-                        onPress={() => setDeleteId(m.id)}
-                      />
-                      {m.type !== 'TRANSFER' && !m.refundOfId && (
-                        <Choice
-                          label={`Vincular a pendiente: ${m.description}`}
-                          text={
-                            pendingMovementIds.includes(m.id)
-                              ? 'Ver vínculo'
-                              : 'Vincular a pendiente'
-                          }
-                          selected={false}
-                          disabled={busy}
-                          onPress={() => openPending(m, null, 'Movimientos')}
-                        />
-                      )}
-                      {m.type === 'TRANSFER' && !m.balanceAdjustment && !isLocalCardPayment(m) && (
-                        <Choice
-                          label={`Vincular a meta: ${m.description}`}
-                          text={
-                            savings.transferIds.includes(m.id) ? 'Ver aporte' : 'Vincular a meta'
-                          }
-                          selected={false}
-                          disabled={busy}
-                          onPress={() => {
-                            setEditor(null);
-                            setDuplicate(null);
-                            setDeleteId(null);
-                            setNotice('');
-                            setError('');
-                            setTransferForSavings(m);
-                            setScreen('Metas de ahorro');
-                          }}
-                        />
-                      )}
-                    </View>
-                    {deleteId === m.id && (
-                      <>
-                        <Text style={s.error}>
-                          ¿Eliminar este movimiento? Esta acción no se puede deshacer.
-                        </Text>
-                        <View style={s.row}>
-                          <Button
-                            label="Confirmar eliminación"
-                            disabled={busy}
-                            onPress={() => void action(() => remove(m.id))}
-                          />
-                          <Button
-                            label="Cancelar eliminación"
-                            disabled={busy}
-                            onPress={() => setDeleteId(null)}
-                          />
-                        </View>
-                      </>
-                    )}
-                  </View>
-                ))}
-              </>
-            )}
-            {screen === 'Movimientos' &&
-              catalogReady &&
-              (!connected || recurringQuery.isSuccess) && (
-                <RecurringPanel
-                  key={currency}
-                  items={recurring.filter((t) => t.currency === currency)}
-                  categories={categoryCatalog}
-                  currency={currency}
-                  month={month}
-                  onSave={(draft, id) => saveForm(() => saveRecurring(draft, id))}
-                  onCreate={() => {
-                    setEditor(null);
-                    setDuplicate(null);
-                    setDeleteId(null);
-                    setNotice('');
-                    setError('');
-                    setScreen('Nueva plantilla mensual');
-                  }}
-                  onToggle={(id, active) => saveForm(() => toggleRecurring(id, active))}
-                  onConfirm={(template) => saveForm(() => confirmRecurring(template))}
-                  hasPending={(template) =>
-                    !!pendingOccurrence(pendingItems, template.id, template.nextDate)
-                  }
-                  onPending={(template) =>
-                    saveForm(async () =>
-                      openPending(null, await ensureRecurringPending(template), 'Movimientos'),
-                    )
-                  }
-                  money={money}
-                />
-              )}
-            {screen === 'Movimientos' && connected && recurringQuery.error && (
-              <View style={s.card}>
-                <Text style={s.error}>No se pudieron cargar las plantillas.</Text>
-                <Button
-                  label="Reintentar plantillas"
-                  onPress={() => void recurringQuery.refetch()}
-                />
-              </View>
-            )}
-            {screen === 'Movimientos' && connected && query.hasNextPage && (
-              <Button
-                label={
-                  query.isFetchingNextPage ? 'Cargando movimientos…' : 'Cargar más movimientos'
-                }
-                disabled={query.isFetching}
-                onPress={() => void query.fetchNextPage()}
-              />
-            )}
-            {screen === 'Configuración' && (
-              <SettingsMenu personal={!!personal} connected={connected} onOpen={setScreen} />
-            )}
-            {screen === 'Respaldo y restauración' && !connected && (
-              <BackupSettings
-                local={local}
+              <MovementsFeature
+                connected={connected}
                 busy={busy}
-                onRestore={(backup, expected) =>
-                  saveForm(async () => {
-                    await persist((current) => {
-                      if (current !== expected)
-                        throw new Error(
-                          'Los datos locales cambiaron. Selecciona el respaldo de nuevo.',
-                        );
-                      return restoreLocalBackup(current, backup);
-                    });
-                    setCategoryFilter('');
-                    setAccountFilter('');
-                    setSearch('');
-                    setType('ALL');
-                    setNotice('');
-                    setError('');
-                  })
-                }
-              />
-            )}
-            {screen === 'Preguntas frecuentes' && <HelpScreen />}
-            {screen === 'Acerca de la aplicación' && <AboutApp />}
-            {screen === 'Apariencia' && <ThemeSettings />}
-            {screen === 'Mis bancos' &&
-              (!connected || bankDirectory.isSuccess ? (
-                <BankSettings
-                  banks={banks}
-                  busy={busy}
-                  local={!connected}
-                  onChange={(id, registered) => void action(() => changeBank(id, registered))}
-                />
-              ) : (
-                <View style={s.card}>
-                  <Text style={s.muted}>
-                    {bankDirectory.isError
-                      ? 'No se pudieron cargar los bancos.'
-                      : 'Cargando bancos…'}
-                  </Text>
-                  {bankDirectory.isError && (
-                    <Choice
-                      label="Reintentar bancos"
-                      selected={false}
-                      onPress={() => void bankDirectory.refetch()}
+                currency={currency}
+                accounts={accounts}
+                categoryCatalog={categoryCatalog}
+                filters={{
+                  search,
+                  type,
+                  accountFilter,
+                  categoryFilter,
+                  setSearch,
+                  setType,
+                  setAccountFilter,
+                  setCategoryFilter,
+                }}
+                visible={visible}
+                query={query}
+                refreshMovements={refreshMovements}
+                onExport={() => void action(exportAll)}
+                isLocalCardPayment={isLocalCardPayment}
+                money={money}
+                pendingMovementIds={pendingMovementIds}
+                savingsTransferIds={savings.transferIds}
+                deleteId={deleteId}
+                onSelectDelete={setDeleteId}
+                onRemove={(id) => void action(() => remove(id))}
+                onEdit={editMovement}
+                onDuplicate={duplicateMovement}
+                onRefund={openRefund}
+                onPending={(movement) => openPending(movement, null, 'Movimientos')}
+                onSavings={openSavingsTransfer}
+              >
+                {catalogReady && (!connected || recurringQuery.isSuccess) && (
+                  <RecurringPanel
+                    key={currency}
+                    items={recurring.filter((t) => t.currency === currency)}
+                    categories={categoryCatalog}
+                    currency={currency}
+                    month={month}
+                    onSave={(draft, id) => saveForm(() => saveRecurring(draft, id))}
+                    onCreate={() => {
+                      setEditor(null);
+                      setDuplicate(null);
+                      setDeleteId(null);
+                      setNotice('');
+                      setError('');
+                      setScreen('Nueva plantilla mensual');
+                    }}
+                    onToggle={(id, active) => saveForm(() => toggleRecurring(id, active))}
+                    onConfirm={(template) => saveForm(() => confirmRecurring(template))}
+                    hasPending={(template) =>
+                      !!pendingOccurrence(pendingItems, template.id, template.nextDate)
+                    }
+                    onPending={(template) =>
+                      saveForm(async () =>
+                        openPending(null, await ensureRecurringPending(template), 'Movimientos'),
+                      )
+                    }
+                    money={money}
+                  />
+                )}
+                {connected && recurringQuery.error && (
+                  <View style={s.card}>
+                    <Text style={s.error}>No se pudieron cargar las plantillas.</Text>
+                    <Button
+                      label="Reintentar plantillas"
+                      onPress={() => void recurringQuery.refetch()}
                     />
-                  )}
-                </View>
-              ))}
-            {screen === 'Cuentas y saldos' && !connected && (
-              <LocalAccountsScreen
-                accounts={local.accounts}
-                movements={local.movements}
+                  </View>
+                )}
+              </MovementsFeature>
+            )}
+
+            {settingsRoute && (
+              <SettingsFeature
+                screen={settingsRoute}
+                onOpen={setScreen}
+                personal={personal}
+                onAuth={onAuth}
+                onLogout={onLogout}
+                onExpired={onExpired}
+                onProfileChanged={onProfileChanged}
+                connected={connected}
+                busy={busy}
+                local={local}
+                dataScope={dataScope}
+                persist={persist}
+                saveForm={saveForm}
+                onLocalRestored={clearMovementFilters}
                 currency={currency}
                 money={money}
-                busy={busy}
-                onCreate={(input) =>
-                  saveForm(() =>
-                    saveLocalAccounts((accounts) => [
-                      ...accounts,
-                      { ...input, id: newLocalId(), archived: false },
-                    ]),
-                  )
-                }
-                onReconcile={(preview) => saveForm(() => saveLocalReconciliation(preview))}
-                onUpdate={(id, changes) =>
-                  saveForm(() =>
-                    saveLocalAccounts((accounts) =>
-                      accounts.map((account) =>
-                        account.id === id ? { ...account, ...changes } : account,
-                      ),
-                    ),
-                  )
-                }
-              />
-            )}
-            {screen === 'Cuentas y conciliación' &&
-              connected &&
-              (accountsQuery.isSuccess ? (
-                <FinancePanel
-                  items={accountsQuery.data}
-                  request={request}
-                  money={money}
-                  onRefresh={async () => {
-                    await accountsQuery.refetch();
-                  }}
-                />
-              ) : (
-                <View style={s.card}>
-                  <Text style={s.muted}>
-                    {accountsQuery.error
-                      ? 'No se pudieron cargar las cuentas.'
-                      : 'Cargando cuentas…'}
-                  </Text>
-                  {accountsQuery.error && (
-                    <Button
-                      label="Reintentar cuentas"
-                      onPress={() => void accountsQuery.refetch()}
-                    />
-                  )}
-                </View>
-              ))}
-            {screen === 'Mi cuenta' &&
-              (personal ? (
-                <>
-                  <PersonalAccount
-                    session={personal}
-                    onLogout={onLogout}
-                    onPasswordChanged={onExpired}
-                    onProfileChanged={onProfileChanged}
-                  />
-                  {hasUnassignedConnectedData(local) && (
-                    <Text style={s.muted}>
-                      Este dispositivo conserva datos conectados antiguos sin servidor identificado.
-                      Permanecen fuera de la cuenta actual.
-                    </Text>
-                  )}
-                </>
-              ) : (
-                <View style={s.card}>
-                  <Text style={s.title}>{testAccount.name}</Text>
-                  <Text style={s.muted}>{testAccount.email}</Text>
-                  <Button label="Ver inicio de sesión" onPress={() => onAuth('login')} />
-                  <Choice label="Registrarse" selected={false} onPress={() => onAuth('register')} />
-                  <IconButton icon="logout" label="Cerrar sesión" onPress={() => void onLogout()} />
-                </View>
-              ))}
-            {screen === 'Notificaciones' &&
-              (connected ? (
-                personal && <NotificationSettings />
-              ) : (
-                <DueNotificationSettings {...dueNotificationSettings} />
-              ))}
-            {screen === 'Correo y Gmail' && personal && <GmailConnection token={personal.token} />}
-            {screen === 'Seguridad y privacidad' && personal && (
-              <>
-                <RecoverySettings token={personal.token} />
-                <DataRetention token={personal.token} onApplied={importReviews.refreshImports} />
-              </>
-            )}
-            {screen === 'Preferencias' && (
-              <AccountSettings
+                bankDirectory={bankDirectory}
+                banks={banks}
+                onBankChange={(id, registered) => void action(() => changeBank(id, registered))}
+                accountsQuery={accountsQuery}
+                request={request}
+                dueNotificationSettings={dueNotificationSettings}
+                onRetentionApplied={importReviews.refreshImports}
                 preferences={preferences}
-                onSave={async (value) => {
-                  await savePreferences(value);
-                  setPreferences(value);
-                  setCurrency(value.currency);
-                  setAccountFilter('');
-                }}
-              />
-            )}
-            {screen === 'Reglas por comercio' && catalogReady && (
-              <CommerceRulesScreen
-                rules={commerceRules}
-                categories={categoryCatalog}
-                saving={busy}
-                onSave={(draft, id) =>
-                  updateCommerceRules((rules) => {
-                    if (
-                      !categoryCatalog.some(
-                        (category) =>
-                          category.id === draft.categoryId &&
-                          !category.archived &&
-                          !category.system,
-                      )
-                    )
-                      throw new Error('Selecciona una categoría activa.');
-                    return setCommerceRule(rules, { ...draft, id: id ?? newLocalId() });
-                  })
-                }
-                onRemove={(id) =>
-                  updateCommerceRules((rules) => rules.filter((rule) => rule.id !== id))
-                }
-              />
-            )}
-            {screen === 'Administrar categorías' && catalogReady && (
-              <CategoryManager
-                items={categoryCatalog}
-                onSave={saveCategory}
-                onArchive={archiveCategory}
-                onDelete={deleteCategory}
+                onSavePreferences={applyPreferences}
+                commerceRules={commerceRules}
+                categoryCatalog={categoryCatalog}
+                catalogReady={catalogReady}
+                saveCategory={saveCategory}
+                archiveCategory={archiveCategory}
+                deleteCategory={deleteCategory}
               />
             )}
             {screen === 'Por revisar' && (
@@ -1689,136 +1270,36 @@ function Home({
               />
             )}
             {screen === 'Conexiones' && (
-              <>
-                <BankConnections
-                  banks={banks}
-                  loading={!!personal && bankDirectory.isPending}
-                  failed={bankDirectory.isError}
-                  onSettings={() => {
-                    setPreviousTab('Conexiones');
-                    setScreen(connected && !personal ? 'Mi cuenta' : 'Mis bancos');
-                  }}
-                />
-                <Text style={s.title}>Centro de conexiones</Text>
-                {connected && (
-                  <ImportQueue
-                    data={queue.data}
-                    loading={queue.isFetching}
-                    error={!!queue.error}
-                    onRefresh={() => void queue.refetch()}
-                    onErrors={() => {
-                      importReviews.resetFilters('FAILED');
-                      setScreen('Por revisar');
-                    }}
-                  />
-                )}
-                <View style={s.card}>
-                  <Text style={s.title}>Correo</Text>
-                  <View style={s.between}>
-                    <Text style={s.text}>Gmail</Text>
-                    <Text style={s.muted}>
-                      {personal ? 'Gestionar en Configuración' : 'Requiere cuenta personal'}
-                    </Text>
-                  </View>
-                  <View style={s.between}>
-                    <Text style={s.text}>Outlook</Text>
-                    <Text style={s.muted}>Próximamente</Text>
-                  </View>
-                </View>
-
-                <View style={s.card}>
-                  <Text style={s.title}>Conexión personal</Text>
-                  <Text style={s.text}>
-                    {url || 'Configura EXPO_PUBLIC_API_URL para conectar la API.'}
-                  </Text>
-                  {connected ? (
-                    personal ? (
-                      <IconButton
-                        icon="logout"
-                        label="Cerrar sesión y volver al acceso"
-                        onPress={() => void onLogout()}
-                      />
-                    ) : (
-                      <IconButton
-                        icon="logout"
-                        label="Desconectar y volver a demo"
-                        onPress={disconnect}
-                      />
-                    )
-                  ) : (
-                    <>
-                      <Field
-                        label="Token de desarrollo"
-                        value={token}
-                        onChangeText={setToken}
-                        secureTextEntry
-                        autoCapitalize="none"
-                      />
-                      <Button
-                        label="Conectar API"
-                        disabled={!url || token.length < 24}
-                        onPress={() => {
-                          client.clear();
-                          setCategoryFilter('');
-                          setDuplicate(null);
-                          setSession(token);
-                          setToken('');
-                          setScreen('Inicio');
-                        }}
-                      />
-                    </>
-                  )}
-                  <Text style={s.muted}>
-                    {personal
-                      ? 'Usa datos ficticios.'
-                      : 'El token de desarrollo funciona antes de crear la cuenta personal.'}
-                  </Text>
-                </View>
-                {connected && (
-                  <View style={s.card}>
-                    <Text style={s.title}>Laboratorio de correo sintético</Text>
-                    <Text style={s.muted}>
-                      Usa avisos ficticios. Los retiros admitidos de BHD y Popular aparecen en Por
-                      revisar.
-                    </Text>
-                    <Field
-                      label="Identificador del correo de prueba"
-                      value={sampleId}
-                      onChangeText={setSampleId}
-                      maxLength={200}
-                    />
-                    <Field
-                      label="Contenido sintético"
-                      value={sampleBody}
-                      onChangeText={setSampleBody}
-                      maxLength={10000}
-                      multiline
-                    />
-                    <Button
-                      label="Encolar correo de prueba"
-                      disabled={busy || !sampleId.trim() || !sampleBody.trim()}
-                      onPress={() => void action(importReviews.enqueueSample)}
-                    />
-                  </View>
-                )}
-                <View style={s.card}>
-                  <Text style={s.title}>Datos de demostración</Text>
-                  <Text style={s.muted}>
-                    El restablecimiento borra los datos de demostración de este dispositivo.
-                  </Text>
-                  <Button
-                    label={resetConfirm ? 'Confirmar restablecimiento local' : 'Restablecer demo'}
-                    disabled={busy || connected}
-                    onPress={() => (resetConfirm ? void action(reset) : setResetConfirm(true))}
-                  />
-                  {resetConfirm && (
-                    <Button
-                      label="Cancelar restablecimiento"
-                      onPress={() => setResetConfirm(false)}
-                    />
-                  )}
-                </View>
-              </>
+              <ConnectionsFeature
+                connected={connected}
+                personal={!!personal}
+                busy={busy}
+                url={url}
+                token={token}
+                setToken={setToken}
+                banks={banks}
+                bankDirectory={bankDirectory}
+                queue={queue}
+                sampleId={sampleId}
+                sampleBody={sampleBody}
+                setSampleId={setSampleId}
+                setSampleBody={setSampleBody}
+                resetConfirm={resetConfirm}
+                onBankSettings={() => {
+                  setPreviousTab('Conexiones');
+                  setScreen(connected && !personal ? 'Mi cuenta' : 'Mis bancos');
+                }}
+                onImportErrors={() => {
+                  importReviews.resetFilters('FAILED');
+                  setScreen('Por revisar');
+                }}
+                onConnect={connectDevelopment}
+                onDisconnect={disconnect}
+                onLogout={onLogout}
+                onEnqueueSample={() => void action(importReviews.enqueueSample)}
+                onReset={() => (resetConfirm ? void action(reset) : setResetConfirm(true))}
+                onCancelReset={() => setResetConfirm(false)}
+              />
             )}
           </>
         )}

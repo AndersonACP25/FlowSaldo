@@ -289,3 +289,7 @@ Los hooks de metas y pendientes reúnen las consultas de movimientos vinculados 
 ## Separación de presupuestos, plantillas e importaciones (2026-11-26)
 
 Presupuestos concentra el límite general, las categorías, los totales y la copia explícita de límites antiguos al servidor. Plantillas mensuales gestiona su consulta, edición, activación y confirmación de vencimientos, incluidos los vinculados a pendientes. Por revisar reúne filtros de recepción, cola, paginación y operaciones de importación. App.tsx comparte el período, la sesión, la navegación y los datos necesarios para conectar las pantallas.
+
+## Pantallas de movimientos, configuración y conexiones (2026-11-26)
+
+Movimientos reúne filtros, historial, acciones y paginación en su componente. Los editores de movimientos y devoluciones gestionan su presentación y estados de carga. Configuración reúne el menú, las subopciones, el respaldo y la conciliación local. Conexiones muestra el estado de la API, los bancos, la cola de correo y los controles de demostración. App.tsx conserva la navegación entre pantallas, la sesión y las operaciones que comparten datos entre módulos.
