@@ -1,10 +1,11 @@
+import { MovementRoutes } from './MovementRoutes';
+import { useWorkspaceMovements } from './useWorkspaceMovements';
 import { ApiError, createApiClient } from './apiClient';
 import { readFinancialAccounts, readMovement } from './apiContracts';
 import { MonthlyOverview } from './MonthlyOverview';
 import { useMonthlyOverview } from './useMonthlyOverview';
 import { SettingsFeature } from './SettingsFeature';
 import { ConnectionsFeature } from './ConnectionsFeature';
-import { MovementEditor, RefundEditor } from './MovementEditors';
 import { LoanSimulatorScreen } from './LoanSimulatorScreen';
 import { MonthlyClosingFeature } from './MonthlyClosingFeature';
 import { DebtPlansFeature } from './DebtPlansFeature';
@@ -13,7 +14,6 @@ import { SavingsGoalsScreen } from './SavingsGoalsScreen';
 import { CashProjectionFeature } from './CashProjectionFeature';
 import { localDataScope } from './dataScopes';
 import { useDueNotifications } from './DueNotificationSettings';
-import { notifyTransaction } from './transactionNotifications';
 import { RatesScreen } from './RatesScreen';
 import { localToday, PeriodPicker } from './PeriodPicker';
 import { FilterRow } from './ScreenChrome';
@@ -21,23 +21,13 @@ import { testAccount } from './testAccount';
 import React, { useEffect, useState } from 'react';
 import { View, Text, ActivityIndicator } from 'react-native';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import {
-  formatMinorAmount,
-  pendingOccurrence,
-  currencies,
-  type Movement,
-  type Currency,
-} from '@flowsaldo/domain';
+import { formatMinorAmount, currencies, type Movement, type Currency } from '@flowsaldo/domain';
 import { useTheme } from './theme';
 import { Button, Choice } from './ui';
-import { RecurringPanel } from './RecurringPanel';
 import { BudgetFeature } from './BudgetFeature';
 import { useBankDirectory } from './useBankDirectory';
 import { useCategoryCatalog } from './useCategoryCatalog';
 import { useBudgets } from './useBudgets';
-import { useRecurringTemplates } from './useRecurringTemplates';
-import { MovementsFeature } from './MovementsFeature';
-import { MovementForm, type Draft } from './MovementForm';
 import { ImportReviewFeature } from './ImportReviewFeature';
 import { useImportReviews } from './useImportReviews';
 import type { AuthRoute } from './AuthScreen';
@@ -52,10 +42,8 @@ import { useLocalWorkspace } from './useLocalWorkspace';
 import { usePendingPayments } from './usePendingPayments';
 import { useSavingsGoals } from './useSavingsGoals';
 import { useMovementFlow } from './useMovementFlow';
-import { useMovementHistory } from './useMovementHistory';
 import { useWorkspaceNavigation } from './useWorkspaceNavigation';
 import { WorkspaceShell } from './WorkspaceShell';
-import { movementCommands } from './movementCommands';
 const formatMoney = (minor: number, currency: Currency) =>
   `${currency} ${formatMinorAmount(minor)}`;
 export function Workspace({
@@ -92,10 +80,8 @@ export function Workspace({
   const [periodDate, setPeriodDate] = useState(localToday);
   const month = periodDate.slice(0, 7);
   const movementFlow = useMovementFlow(month);
-  const { editor, refundDraft, deleteId, setDeleteId, resetFilters, closeDraft, filters } =
-    movementFlow;
-  const { search, type, categoryFilter, accountFilter, setAccountFilter, setCategoryFilter } =
-    filters;
+  const { editor, setDeleteId, resetFilters, closeDraft, filters } = movementFlow;
+  const { setAccountFilter, setCategoryFilter } = filters;
   const [token, setToken] = useState('');
   const [developmentSession, setSession] = useState('');
   const session = personal?.token ?? developmentSession;
@@ -183,56 +169,44 @@ export function Workspace({
       request,
       persist,
     });
-  const localCardIds = new Set(
-    local.accounts.filter((account) => account.kind === 'CREDIT_CARD').map((account) => account.id),
-  );
-  const savings = useSavingsGoals({
-    dataScope,
-    active: screen === 'Metas de ahorro',
-    connected,
-    local,
-    isLocalCardPayment,
-    movementForLink,
-    persist,
-    saveForm,
-  });
   const accounts = connected ? (accountsQuery.data ?? []) : local.accounts;
   const movementAccounts = connected
     ? accountsQuery.data
     : local.accounts.length
       ? local.accounts
       : undefined;
-  const uncategorizedId = categoryCatalog.find((category) => category.system)?.id;
-  const {
-    query,
-    closingUncategorized,
-    refundQuery,
-    refundInfo,
-    visible,
-    recent,
-    refreshMovements,
-    exportAll,
-  } = useMovementHistory({
-    connection: connected ? { scope: dataScope, request, requestText: api.text } : null,
-    rows: local.movements,
+  const movements = useWorkspaceMovements({
+    movementFlow,
+    api,
+    connected,
+    dataScope,
+    notify: !!personal,
+    local,
+    localRef,
+    persist,
+    categoryCatalog,
+    screen,
+    closing,
+    openScreen,
     month,
     currency,
-    filters: { type, search, categoryId: categoryFilter, accountId: accountFilter },
-    closing: { active: closing, categoryId: uncategorizedId },
-    refundSource: screen === 'Registrar devolución' ? (refundDraft?.expense ?? null) : null,
+    setPeriodDate,
+    setCurrency,
+    setNotice,
+    clearFeedback,
   });
-  const { recurringQuery, recurring, saveRecurring, toggleRecurring, confirmRecurring } =
-    useRecurringTemplates({
-      dataScope,
-      connected,
-      notify: !!personal,
-      local,
-      localRef,
-      request,
-      persist,
-      refreshMovements,
-      setCurrency,
-    });
+  const { query, closingUncategorized, refreshMovements } = movements.history;
+  const { recurringQuery, recurring, confirmRecurring } = movements.templates;
+  const savings = useSavingsGoals({
+    dataScope,
+    active: screen === 'Metas de ahorro',
+    connected,
+    local,
+    isLocalCardPayment: movements.isLocalCardPayment,
+    movementForLink,
+    persist,
+    saveForm,
+  });
   const {
     screenProps: pendingScreenProps,
     ensureRecurringPending,
@@ -261,11 +235,6 @@ export function Workspace({
     ready: pendingLinksReady,
     movements: linkedPendingMovements,
   } = pendingScreenProps;
-  const commands = movementCommands({
-    request: connected ? request : null,
-    persist,
-    refreshMovements,
-  });
   const importReviews = useImportReviews({
     connected,
     dataScope,
@@ -311,41 +280,6 @@ export function Workspace({
     } catch (e) {
       setError(e instanceof Error ? e.message : 'No se pudo completar la acción.');
     }
-  }
-  function isLocalCardPayment(movement: Movement) {
-    return (
-      !connected && movement.type === 'TRANSFER' && localCardIds.has(movement.targetAccountId ?? '')
-    );
-  }
-  async function saveMovement(draft: Draft) {
-    const edit = editor?.kind === 'edit' ? editor.movement : null;
-    const movementId = await commands.save(draft, edit);
-    if (personal && !edit && draft.type !== 'EXPENSE') {
-      void notifyTransaction(
-        movementId,
-        draft.type === 'INCOME' ? 'Ingreso registrado' : 'Transferencia o pago registrado',
-      );
-    }
-    resetFilters();
-    setPeriodDate(draft.occurredAt.slice(0, 10));
-    setCurrency(draft.currency);
-    closeDraft();
-    openScreen('Movimientos');
-    setNotice('Movimiento guardado.');
-  }
-  async function recordRefund(amountMinor: number, occurredAt: string) {
-    if (!refundDraft) return;
-    await commands.refund(refundDraft, amountMinor, occurredAt);
-    closeDraft();
-    setPeriodDate(occurredAt.slice(0, 10));
-    resetFilters();
-    openScreen('Movimientos');
-    setNotice('Devolución registrada.');
-  }
-  async function remove(id: string) {
-    await commands.remove(id);
-    setDeleteId(null);
-    setNotice('Movimiento eliminado.');
   }
   async function reset() {
     await resetDemo();
@@ -398,33 +332,12 @@ export function Workspace({
     setAccountFilter('');
   }
 
-  function editMovement(movement: Movement) {
-    movementFlow.startEdit(movement);
-    setNotice('');
-    setError('');
-    openScreen('Editar movimiento');
-  }
-  function duplicateMovement(movement: Movement) {
-    movementFlow.startDuplicate(movement);
-    setNotice('Borrador duplicado. Revisa los datos y guarda para crear el movimiento.');
-  }
-  function openRefund(movement: Movement) {
-    movementFlow.startRefund(movement);
-    setNotice('');
-    setError('');
-    openScreen('Registrar devolución');
-  }
   const addMovement = (
     <Button
       label="+ Nuevo movimiento"
       text="+ Añadir"
       disabled={!ready || busy || !!editor || !catalogReady}
-      onPress={() => {
-        movementFlow.startNew();
-        openScreen('Movimientos');
-        setError('');
-        setNotice('');
-      }}
+      onPress={movements.newMovement}
     />
   );
   return (
@@ -560,7 +473,7 @@ export function Workspace({
               connected={connected}
               summary={summary}
               period={period}
-              uncategorizedId={uncategorizedId}
+              uncategorizedId={movements.uncategorizedId}
               closingUncategorized={closingUncategorized}
               budget={{
                 limitMinor: budget || null,
@@ -581,12 +494,7 @@ export function Workspace({
               money={money}
               persist={persist}
               saveForm={saveForm}
-              onMovements={() => {
-                if (!uncategorizedId) return;
-                closeDraft();
-                resetFilters(uncategorizedId);
-                openScreen('Movimientos');
-              }}
+              onMovements={movements.openUncategorized}
               onPending={(id) =>
                 openPending({ movement: null, focusId: id, origin: 'Cierre mensual' })
               }
@@ -635,122 +543,32 @@ export function Workspace({
               setNotice={setNotice}
             />
           )}
-          {editor && (screen === 'Movimientos' || screen === 'Editar movimiento') && (
-            <MovementEditor
-              editor={editor}
-              fullScreen={screen === 'Editar movimiento'}
-              connected={connected}
-              accountsQuery={accountsQuery}
-              movementAccounts={movementAccounts}
-              catalogReady={catalogReady}
-              categoryCatalog={categoryCatalog}
-              commerceRules={commerceRules}
-              recent={recent}
-              currency={currency}
-              month={month}
-              onSave={(draft) => saveForm(() => saveMovement(draft))}
-              onCancel={screen === 'Editar movimiento' ? goBack : closeDraft}
-            />
-          )}
-          {screen === 'Registrar devolución' && refundDraft && (
-            <RefundEditor
-              requestKey={refundDraft.requestKey}
-              connected={connected}
-              refundQuery={refundQuery}
-              refundInfo={refundInfo}
-              busy={busy}
-              money={money}
-              onSave={(amount, occurredAt) => saveForm(() => recordRefund(amount, occurredAt))}
-            />
-          )}
-          {screen === 'Nueva plantilla mensual' && catalogReady && (
-            <MovementForm
-              title={null}
-              categories={categoryCatalog}
-              currency={currency}
-              month={month}
-              recurringDateTime
-              saveLabel="Guardar plantilla mensual"
-              onSave={(draft) =>
-                saveForm(async () => {
-                  await saveRecurring(draft);
-                  openScreen('Movimientos');
-                  setNotice('Plantilla mensual guardada.');
-                })
-              }
-              onCancel={goBack}
-            />
-          )}
-          {screen === 'Movimientos' && (
-            <MovementsFeature
-              connected={connected}
-              busy={busy}
-              currency={currency}
-              accounts={accounts}
-              categoryCatalog={categoryCatalog}
-              filters={filters}
-              visible={visible}
-              query={query}
-              refreshMovements={refreshMovements}
-              onExport={() => void action(exportAll)}
-              isLocalCardPayment={isLocalCardPayment}
-              money={money}
-              pendingMovementIds={pendingMovementIds}
-              savingsTransferIds={savings.transferIds}
-              deleteId={deleteId}
-              onSelectDelete={setDeleteId}
-              onRemove={(id) => void action(() => remove(id))}
-              onEdit={editMovement}
-              onDuplicate={duplicateMovement}
-              onRefund={openRefund}
-              onPending={(movement) =>
-                openPending({ movement, focusId: null, origin: 'Movimientos' })
-              }
-              onSavings={openSavingsTransfer}
-            >
-              {catalogReady && (!connected || recurringQuery.isSuccess) && (
-                <RecurringPanel
-                  key={currency}
-                  items={recurring.filter((t) => t.currency === currency)}
-                  categories={categoryCatalog}
-                  currency={currency}
-                  month={month}
-                  onSave={(draft, id) => saveForm(() => saveRecurring(draft, id))}
-                  onCreate={() => {
-                    closeDraft();
-                    setDeleteId(null);
-                    setNotice('');
-                    setError('');
-                    openScreen('Nueva plantilla mensual');
-                  }}
-                  onToggle={(id, active) => saveForm(() => toggleRecurring(id, active))}
-                  onConfirm={(template) => saveForm(() => confirmRecurring(template))}
-                  hasPending={(template) =>
-                    !!pendingOccurrence(pendingItems, template.id, template.nextDate)
-                  }
-                  onPending={(template) =>
-                    saveForm(async () =>
-                      openPending({
-                        movement: null,
-                        focusId: await ensureRecurringPending(template),
-                        origin: 'Movimientos',
-                      }),
-                    )
-                  }
-                  money={money}
-                />
-              )}
-              {connected && recurringQuery.error && (
-                <View style={s.card}>
-                  <Text style={s.error}>No se pudieron cargar las plantillas.</Text>
-                  <Button
-                    label="Reintentar plantillas"
-                    onPress={() => void recurringQuery.refetch()}
-                  />
-                </View>
-              )}
-            </MovementsFeature>
-          )}
+          <MovementRoutes
+            screen={screen}
+            model={movements}
+            connected={connected}
+            busy={busy}
+            month={month}
+            currency={currency}
+            accounts={accounts}
+            accountsQuery={accountsQuery}
+            movementAccounts={movementAccounts}
+            catalogReady={catalogReady}
+            categoryCatalog={categoryCatalog}
+            commerceRules={commerceRules}
+            money={money}
+            links={{
+              pendingItems,
+              pendingMovementIds,
+              savingsTransferIds: savings.transferIds,
+              ensureRecurringPending,
+              openPending,
+              openSavingsTransfer,
+            }}
+            goBack={goBack}
+            action={action}
+            saveForm={saveForm}
+          />
 
           {settingsRoute && (
             <SettingsFeature

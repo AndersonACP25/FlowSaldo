@@ -317,3 +317,7 @@ El cliente HTTP móvil comparte la lectura de JSON y CSV, los plazos de respuest
 ## Navegación del área de trabajo (2026-11-26)
 
 useWorkspaceNavigation conserva la pantalla activa, el retorno desde Configuración y el origen de los pendientes y metas enlazados. También coordina el botón Atrás de Android y el descarte de borradores al navegar. WorkspaceShell presenta el encabezado, la barra inferior y el área desplazable por pantalla. Workspace compone las pantallas y conecta sus consultas y operaciones.
+
+## Coordinación de movimientos fuera de Workspace (2026-11-26)
+
+useWorkspaceMovements coordina las consultas de historial y plantillas, los comandos de movimiento y devolución, y los cambios de período y filtros al completar sus operaciones. MovementRoutes conecta el historial, los editores y las plantillas mensuales. Workspace conserva el estado compartido y conecta ambas capas con cuentas, pendientes, metas y cierre mensual.
