@@ -14,7 +14,6 @@ import { LocalAccountsScreen } from './src/LocalAccountsScreen';
 import { restoreLocalBackup } from './src/localBackup';
 import { hasUnassignedConnectedData, localDataScope, replaceDemoData } from './src/dataScopes';
 import { ThemeProvider, ThemeSettings } from './src/ThemeProvider';
-import { DateTimeField } from './src/DateTimeField';
 import { AboutApp } from './src/AboutApp';
 import { BankConnections, BankSettings } from './src/BankDirectory';
 import { GmailConnection } from './src/GmailConnection';
@@ -31,7 +30,6 @@ import {
   AppFrame,
   FilterChip,
   FilterRow,
-  filterStyles,
   OpeningCover,
 } from './src/ScreenChrome';
 import { testAccount } from './src/testAccount';
@@ -45,12 +43,7 @@ import {
   BackHandler,
   Platform,
 } from 'react-native';
-import {
-  QueryClient,
-  QueryClientProvider,
-  useQuery,
-  useInfiniteQuery,
-} from '@tanstack/react-query';
+import { QueryClient, QueryClientProvider, useQuery } from '@tanstack/react-query';
 import {
   formatMinorAmount,
   previewLocalReconciliation,
@@ -58,13 +51,10 @@ import {
   validateLocalAccounts,
   type LocalAccount,
   pendingOccurrence,
-  pendingRemaining,
   currencies,
-  prepareOccurrence,
   changeSince,
   previousMonth,
   upgradeCategories,
-  selectedCategory,
   categoryName,
   categoryKey,
   movementDate,
@@ -72,18 +62,13 @@ import {
   pendingMailMessage,
   categoryExpenses,
   monthlyReportCsv,
-  movementCategories,
   setCommerceRule,
   type CommerceRule,
   demoMovements,
-  dominicanDateTime,
-  parseDominicanDateTime,
   dominicanBanks,
   type BankRegistration,
   filterMovements,
-  parseAmount,
   summarize,
-  type RecurringTemplate,
   type Category,
   type Movement,
   type Currency,
@@ -91,19 +76,22 @@ import {
 } from '@flowsaldo/domain';
 import { SettingsOptionsContext, useTheme } from './src/theme';
 import { Button, Choice, Field } from './src/ui';
-import { ImportQueue, type ImportStats } from './src/ImportQueue';
+import { ImportQueue } from './src/ImportQueue';
 import { MonthlyComparison } from './src/MonthlyComparison';
 import { RecurringPanel } from './src/RecurringPanel';
 import { CategoryManager } from './src/CategoryManager';
-import { CategoryBudgets, BudgetProgress } from './src/CategoryBudgets';
+import { BudgetFeature } from './src/BudgetFeature';
+import { useBudgets } from './src/useBudgets';
+import { useRecurringTemplates } from './src/useRecurringTemplates';
 import { MovementForm, type Draft, typeLabels } from './src/MovementForm';
 import { loadLocal, updateLocal, type LocalData, type LocalUpdate } from './src/storage';
-import { ReviewInbox } from './src/ReviewInbox';
-import { demoReviews, type ReviewItem } from './src/reviews';
+import { ImportReviewFeature } from './src/ImportReviewFeature';
+import { useImportReviews } from './src/useImportReviews';
+import { demoReviews } from './src/reviews';
 import { WeeklyFlow } from './src/WeeklyFlow';
 import { AuthScreen, type AuthRoute } from './src/AuthScreen';
 import { RecoverySettings } from './src/RecoverySettings';
-import { FinancePanel, type FinancialAccount, type ServerBudget } from './src/FinancePanel';
+import { FinancePanel, type FinancialAccount } from './src/FinancePanel';
 import { DataRetention } from './src/DataRetention';
 import { PersonalAccount } from './src/PersonalAccount';
 import {
@@ -122,16 +110,11 @@ import {
   type Preferences,
 } from './src/preferences';
 import { exportCsvText } from './src/exportCsv';
-import type { Page } from './src/history';
 import { usePendingPayments } from './src/usePendingPayments';
 import { useSavingsGoals } from './src/useSavingsGoals';
-import { localMovementIndex, newLocalId } from './src/localRecords';
+import { newLocalId } from './src/localRecords';
 import { useMovementHistory } from './src/useMovementHistory';
-import {
-  checkLocalMovementAccounts,
-  movementCommands,
-  type RefundDraft,
-} from './src/movementCommands';
+import { movementCommands, type RefundDraft } from './src/movementCommands';
 const client = new QueryClient();
 const formatMoney = (minor: number, currency: Currency) =>
   `${currency} ${formatMinorAmount(minor)}`;
@@ -172,7 +155,6 @@ function Home({
   accessNotice?: string;
 }) {
   const { styles: s, palette } = useTheme();
-  const confirming = useRef(new Set<string>());
   const [preferences, setPreferences] = useState<Preferences>(defaultPreferences);
   useEffect(() => {
     void loadPreferences()
@@ -263,9 +245,6 @@ function Home({
   const [accountFilter, setAccountFilter] = useState('');
   const [search, setSearch] = useState('');
   const [type, setType] = useState<MovementType | 'ALL'>('ALL');
-  const [reviewStatus, setReviewStatus] = useState<ReviewItem['status'] | 'ALL'>('REVIEW');
-  const [reviewFrom, setReviewFrom] = useState('');
-  const [reviewTo, setReviewTo] = useState('');
   const [categoryFilter, setCategoryFilter] = useState('');
   const [duplicate, setDuplicate] = useState<Movement | null>(null);
   const [refundDraft, setRefundDraft] = useState<RefundDraft | null>(null);
@@ -296,10 +275,7 @@ function Home({
     });
     return () => subscription.remove();
   }, [goBack, secondary]);
-  const [budgetInput, setBudgetInput] = useState('');
   const [resetConfirm, setResetConfirm] = useState(false);
-  const [sampleId, setSampleId] = useState('');
-  const [sampleBody, setSampleBody] = useState('Aviso de prueba sin formato reconocido');
   let url = '';
   try {
     url = apiBase();
@@ -382,33 +358,12 @@ function Home({
     retry: false,
     queryFn: async (): Promise<FinancialAccount[]> => request('/accounts'),
   });
-  const serverBudget = useQuery({
-    queryKey: ['budgets', dataScope, month, currency],
-    enabled: connected,
-    retry: false,
-    queryFn: async (): Promise<ServerBudget> =>
-      request(`/budgets?month=${month}&currency=${currency}`),
-  });
   const catalog = useQuery({
     queryKey: ['categories', dataScope],
     enabled: connected,
     retry: false,
     queryFn: async (): Promise<Category[]> => request('/categories'),
   });
-  const queue = useQuery({
-    queryKey: ['import-stats', dataScope],
-    enabled: connected,
-    retry: false,
-    refetchInterval: connected && screen === 'Conexiones' ? 5000 : false,
-    queryFn: async (): Promise<ImportStats> => request('/imports/stats'),
-  });
-  const recurringQuery = useQuery({
-    queryKey: ['recurring', dataScope],
-    enabled: connected,
-    retry: false,
-    queryFn: async (): Promise<RecurringTemplate[]> => request('/recurring'),
-  });
-  const recurring = connected ? (recurringQuery.data ?? []) : local.recurring;
   const localCardIds = new Set(
     local.accounts.filter((account) => account.kind === 'CREDIT_CARD').map((account) => account.id),
   );
@@ -422,34 +377,6 @@ function Home({
     persist,
     saveForm,
   });
-  const {
-    screenProps: pendingScreenProps,
-    ensureRecurringPending,
-    movementIds: pendingMovementIds,
-    monthPending,
-    relevantPendingIds,
-    pendingLinksQuery,
-  } = usePendingPayments({
-    dataScope,
-    connected,
-    closing,
-    active:
-      screen === 'Pagos y cobros pendientes' || screen === 'Disponible hasta el próximo cobro',
-    local,
-    localRef,
-    recurring,
-    month,
-    currency,
-    movementForLink,
-    persist,
-    saveForm,
-    confirmRecurring,
-  });
-  const {
-    items: pendingItems,
-    ready: pendingLinksReady,
-    movements: linkedPendingMovements,
-  } = pendingScreenProps;
   const categoryCatalog = connected ? (catalog.data ?? []) : local.categories;
   const catalogReady = !connected || catalog.isSuccess;
   const accounts = connected ? (accountsQuery.data ?? []) : local.accounts;
@@ -479,43 +406,65 @@ function Home({
     closing: { active: closing, categoryId: uncategorizedId },
     refundSource: screen === 'Registrar devolución' ? (refundDraft?.expense ?? null) : null,
   });
+  const { recurringQuery, recurring, saveRecurring, toggleRecurring, confirmRecurring } =
+    useRecurringTemplates({
+      dataScope,
+      connected,
+      notify: !!personal,
+      local,
+      localRef,
+      request,
+      persist,
+      refreshMovements,
+      setCurrency,
+    });
+  const {
+    screenProps: pendingScreenProps,
+    ensureRecurringPending,
+    movementIds: pendingMovementIds,
+    monthPending,
+    relevantPendingIds,
+    pendingLinksQuery,
+  } = usePendingPayments({
+    dataScope,
+    connected,
+    closing,
+    active:
+      screen === 'Pagos y cobros pendientes' || screen === 'Disponible hasta el próximo cobro',
+    local,
+    localRef,
+    recurring,
+    month,
+    currency,
+    movementForLink,
+    persist,
+    saveForm,
+    confirmRecurring,
+  });
+  const {
+    items: pendingItems,
+    ready: pendingLinksReady,
+    movements: linkedPendingMovements,
+  } = pendingScreenProps;
   const commands = movementCommands({
     request: connected ? request : null,
     persist,
     refreshMovements,
   });
-  const rangeStart = parseDominicanDateTime(reviewFrom);
-  const endMinute = parseDominicanDateTime(reviewTo);
-  const rangeEnd = endMinute ? new Date(endMinute.getTime() + 60_000) : null;
-  const reviewParams = `${reviewStatus === 'ALL' ? '' : `&status=${reviewStatus}`}${rangeStart ? `&from=${encodeURIComponent(rangeStart.toISOString())}` : ''}${rangeEnd ? `&to=${encodeURIComponent(rangeEnd.toISOString())}` : ''}`;
-  const reviewDateError =
-    (reviewFrom && !rangeStart) ||
-    (reviewTo && !rangeEnd) ||
-    (rangeStart && rangeEnd && rangeStart >= rangeEnd);
-  const imports = useInfiniteQuery({
-    queryKey: ['imports', dataScope, reviewParams],
-    enabled: connected && !reviewDateError,
-    retry: false,
-    refetchInterval:
-      connected && (screen === 'Por revisar' || screen === 'Conexiones') ? 5000 : false,
-    initialPageParam: null as string | null,
-    queryFn: async ({ pageParam }): Promise<Page<ReviewItem>> =>
-      request(
-        `/imports?page=true${reviewParams}${pageParam ? `&cursor=${encodeURIComponent(pageParam)}` : ''}`,
-      ),
-    getNextPageParam: (last) => last.nextCursor ?? undefined,
+  const importReviews = useImportReviews({
+    connected,
+    dataScope,
+    notify: !!personal,
+    connectionsOpen: screen === 'Conexiones',
+    reviewsOpen: screen === 'Por revisar',
+    local,
+    localRef,
+    request,
+    persist,
+    refreshMovements,
+    setNotice,
   });
-  const reviews = connected
-    ? (imports.data?.pages.flatMap((p) => p.items) ?? [])
-    : local.reviews.filter(
-        (i) =>
-          (reviewStatus === 'ALL' || i.status === reviewStatus) &&
-          (!rangeStart || (!!i.createdAt && Date.parse(i.createdAt) >= rangeStart.getTime())) &&
-          (!rangeEnd || (!!i.createdAt && Date.parse(i.createdAt) < rangeEnd.getTime())),
-      );
-  const pending = connected
-    ? (imports.data?.pages[0]?.pendingTotal ?? 0)
-    : local.reviews.filter((i) => i.status === 'REVIEW').length;
+  const { pending, queue, sampleId, setSampleId, sampleBody, setSampleBody } = importReviews;
   const period = filterMovements(local.movements, { currency, month });
   const summary = connected
     ? (totals.data ?? { incomeMinor: 0, expenseMinor: 0, differenceMinor: 0 })
@@ -537,8 +486,19 @@ function Home({
     (sum, value) => sum + Math.max(0, value.amountMinor),
     0,
   );
-  const budgetKey = `${connected ? 'api' : 'demo'}:${month}:${currency}`;
-  const budget = connected ? (serverBudget.data?.limitMinor ?? 0) : (local.budgets[budgetKey] ?? 0);
+  const budgetModel = useBudgets({
+    dataScope,
+    connected,
+    month,
+    currency,
+    local,
+    categoryCatalog,
+    period,
+    remoteCategoryTotals: totals.data?.categoryTotals,
+    persist,
+    request,
+  });
+  const { serverBudget, budget, categoryBudgets, categoryTotals } = budgetModel;
   const monthlyReport = {
     ...summary,
     month,
@@ -546,29 +506,6 @@ function Home({
     budgetMinor: budget || null,
     categories,
   };
-  const categoryBudgets = connected
-    ? Object.fromEntries(
-        (serverBudget.data?.categoryLimits ?? []).map((c) => [c.categoryId, c.limitMinor]),
-      )
-    : Object.fromEntries(
-        categoryCatalog
-          .filter((c) => local.categoryBudgets[`${budgetKey}:${c.id}`])
-          .map((c) => [c.id, local.categoryBudgets[`${budgetKey}:${c.id}`]]),
-      );
-  const categoryTotals = connected
-    ? (totals.data?.categoryTotals ?? [])
-    : categoryCatalog.map((c) => ({
-        categoryId: c.id,
-        amountMinor: period
-          .filter((m) => m.type === 'EXPENSE' || !!m.refundOfId)
-          .flatMap((m) =>
-            movementCategories(m).map((part) =>
-              m.refundOfId ? { ...part, amountMinor: -part.amountMinor } : part,
-            ),
-          )
-          .filter((part) => part.categoryId === c.id)
-          .reduce((n, part) => n + part.amountMinor, 0),
-      }));
   async function saveCategory(name: string, id?: string) {
     name = categoryName(name);
     const normalizedName = categoryKey(name);
@@ -637,211 +574,6 @@ function Home({
       });
     }
     setCategoryFilter((current) => (current === id ? '' : current));
-  }
-  async function saveServerBudget(
-    limitMinor: number | null,
-    categoryLimits: Array<{ categoryId: string; limitMinor: number }>,
-  ) {
-    if (!serverBudget.isSuccess || serverBudget.isFetching)
-      throw new Error('Actualiza el presupuesto del servidor antes de guardar.');
-    try {
-      await request('/budgets', {
-        method: 'POST',
-        body: JSON.stringify({
-          month,
-          currency,
-          expectedVersion: serverBudget.data.version,
-          limitMinor,
-          categoryLimits,
-        }),
-      });
-    } catch (error) {
-      await serverBudget.refetch();
-      throw error;
-    }
-    await serverBudget.refetch();
-  }
-  async function saveGeneralBudget(value: number | null) {
-    if (connected) {
-      await saveServerBudget(value, serverBudget.data?.categoryLimits ?? []);
-      return;
-    }
-    await persist((current) => {
-      const budgets = { ...current.budgets };
-      if (value === null) delete budgets[budgetKey];
-      else budgets[budgetKey] = value;
-      return { ...current, budgets };
-    });
-  }
-  async function saveCategoryBudget(id: string, value: number | null) {
-    if (connected) {
-      if (value !== null && categoryCatalog.find((c) => c.id === id)?.archived)
-        throw new Error('Selecciona una categoría activa.');
-      const limits = (serverBudget.data?.categoryLimits ?? []).filter((c) => c.categoryId !== id);
-      if (value !== null) limits.push({ categoryId: id, limitMinor: value });
-      await saveServerBudget(serverBudget.data?.limitMinor ?? null, limits);
-      return;
-    }
-    await persist((current) => {
-      if (value !== null && !current.categories.some((c) => c.id === id && !c.archived))
-        throw new Error('Selecciona una categoría activa.');
-      const budgets = { ...current.categoryBudgets };
-      const key = `${budgetKey}:${id}`;
-      if (value === null) delete budgets[key];
-      else budgets[key] = value;
-      return { ...current, categoryBudgets: budgets };
-    });
-  }
-  async function saveRecurring(draft: Draft, id?: string) {
-    const data = {
-      description: draft.description,
-      amountMinor: draft.amountMinor,
-      currency: draft.currency,
-      type: draft.type,
-      categoryId: draft.categoryId,
-      category: draft.category,
-    };
-    const [startDate, timeOfDay] = dominicanDateTime(new Date(draft.occurredAt)).split('T');
-    if (connected) {
-      await request(id ? `/recurring/${id}` : '/recurring', {
-        method: id ? 'PATCH' : 'POST',
-        body: JSON.stringify({
-          ...data,
-          ...(id ? {} : { startDate, timeOfDay }),
-        }),
-      });
-      await recurringQuery.refetch();
-    } else {
-      await persist((current) => {
-        const existing = current.recurring.find((t) => t.id === id);
-        const category = selectedCategory(
-          current.categories,
-          draft.categoryId ?? undefined,
-          draft.category,
-          existing,
-        );
-        const item: RecurringTemplate = {
-          ...data,
-          ...category,
-          version: existing ? existing.version + 1 : 0,
-          id: id ?? `recurring-${Date.now()}-${Math.random().toString(36).slice(2)}`,
-          startDate: existing?.startDate ?? startDate,
-          timeOfDay: existing ? existing.timeOfDay : timeOfDay,
-          nextDate: existing?.nextDate ?? startDate,
-          anchorDay: existing?.anchorDay ?? Number(startDate.slice(8)),
-          active: existing?.active ?? true,
-        };
-        return {
-          ...current,
-          recurring: id
-            ? current.recurring.map((t) => (t.id === id ? item : t))
-            : [...current.recurring, item],
-        };
-      });
-    }
-    setCurrency(draft.currency);
-  }
-  async function toggleRecurring(id: string, active: boolean) {
-    if (connected) {
-      await request(`/recurring/${id}`, { method: 'PATCH', body: JSON.stringify({ active }) });
-      await recurringQuery.refetch();
-    } else
-      await persist((current) => ({
-        ...current,
-        recurring: current.recurring.map((t) =>
-          t.id === id ? { ...t, active, version: t.version + 1 } : t,
-        ),
-      }));
-  }
-  async function confirmRecurring(
-    template: RecurringTemplate,
-    recordMovement = true,
-    pendingId?: string,
-  ) {
-    if (
-      connected &&
-      recordMovement &&
-      pendingOccurrence(
-        localRef.current.pendingItems[dataScope] ?? [],
-        template.id,
-        template.nextDate,
-      )
-    )
-      throw new Error('Este vencimiento se gestiona en Pagos y cobros pendientes.');
-    const key = JSON.stringify([template.id, template.nextDate]);
-    if (confirming.current.has(key)) throw new Error('Este vencimiento ya se está procesando.');
-    confirming.current.add(key);
-    try {
-      if (connected) {
-        const result: { movement: Movement | null } = await request(
-          `/recurring/${template.id}/${recordMovement ? 'confirm' : 'close'}`,
-          {
-            method: 'POST',
-            body: JSON.stringify({
-              scheduledFor: template.nextDate,
-              expectedVersion: template.version,
-            }),
-          },
-        );
-        await Promise.all([recurringQuery.refetch(), refreshMovements()]);
-        if (personal && result.movement)
-          void notifyTransaction(result.movement.id, 'Movimiento recurrente confirmado');
-      } else {
-        await persist((current) => {
-          const linked = pendingOccurrence(
-            current.pendingItems[dataScope] ?? [],
-            template.id,
-            template.nextDate,
-          );
-          if (recordMovement && linked)
-            throw new Error('Este vencimiento se gestiona en Pagos y cobros pendientes.');
-          if (
-            !recordMovement &&
-            (!linked ||
-              linked.id !== pendingId ||
-              pendingRemaining(linked, localMovementIndex(current)) !== 0)
-          )
-            throw new Error('El vencimiento debe estar saldado y la plantilla activa.');
-          const existing = current.recurring.find((t) => t.id === template.id);
-          if (!existing) throw new Error('Plantilla no encontrada.');
-          if (existing.version !== template.version)
-            throw new Error('La plantilla cambió. Revisa sus datos antes de confirmar.');
-          const occurrence = prepareOccurrence(
-            existing,
-            template.nextDate,
-            new Date().toISOString(),
-            current.receipts,
-            recordMovement,
-          );
-          const movement: Movement | null = recordMovement
-            ? {
-                ...occurrence.movement,
-                ...selectedCategory(current.categories, existing.categoryId, existing.category),
-                id: `occurrence-${Date.now()}-${Math.random().toString(36).slice(2)}`,
-              }
-            : null;
-          return {
-            ...current,
-            movements: movement ? [movement, ...current.movements] : current.movements,
-            recurring: current.recurring.map((t) =>
-              t.id === existing.id
-                ? { ...t, nextDate: occurrence.nextDate, version: t.version + 1 }
-                : t,
-            ),
-            receipts: [
-              ...current.receipts,
-              {
-                templateId: existing.id,
-                scheduledFor: template.nextDate,
-                movementId: movement?.id ?? null,
-              },
-            ],
-          };
-        });
-      }
-    } finally {
-      confirming.current.delete(key);
-    }
   }
   async function action(work: () => Promise<void>) {
     setError('');
@@ -944,64 +676,6 @@ function Home({
     await commands.remove(id);
     setDeleteId(null);
     setNotice('Movimiento eliminado.');
-  }
-  async function resolveReview(id: string, draft: Draft) {
-    if (connected) {
-      const movement: Movement = await request(`/imports/${id}/resolve`, {
-        method: 'POST',
-        body: JSON.stringify(draft),
-      });
-      await Promise.all([client.invalidateQueries({ queryKey: ['imports'] }), refreshMovements()]);
-      if (personal) void notifyTransaction(movement.id, 'Transacción de aviso confirmada');
-    } else {
-      await persist((current) => {
-        const review = current.reviews.find((i) => i.id === id);
-        if (review?.status !== 'REVIEW') throw new Error('Este correo ya fue revisado.');
-        checkLocalMovementAccounts(current.accounts, draft);
-        return {
-          ...current,
-          movements: [
-            {
-              ...draft,
-              ...selectedCategory(
-                current.categories,
-                draft.categoryId ?? undefined,
-                draft.category,
-              ),
-              id: `reviewed-${id}`,
-            },
-            ...current.movements,
-          ],
-          reviews: current.reviews.map((i) =>
-            i.id === id
-              ? { ...i, status: 'PARSED' as const, body: '', movement: { id: `reviewed-${id}` } }
-              : i,
-          ),
-        };
-      });
-    }
-    setNotice('Revisión confirmada. Movimiento registrado.');
-  }
-  async function retryImport(id: string) {
-    await request(`/imports/${id}/retry`, { method: 'POST' });
-    await Promise.all([
-      client.invalidateQueries({ queryKey: ['imports'] }),
-      client.invalidateQueries({ queryKey: ['import-stats'] }),
-    ]);
-    setNotice('Importación reencolada. Se iniciará otro ciclo limitado de intentos.');
-  }
-  async function discardReview(id: string) {
-    if (connected) {
-      await request(`/imports/${id}/dismiss`, { method: 'POST' });
-      await client.invalidateQueries({ queryKey: ['imports'] });
-    } else
-      await persist((current) => ({
-        ...current,
-        reviews: current.reviews.map((i) =>
-          i.id === id ? { ...i, status: 'DISMISSED' as const, body: '' } : i,
-        ),
-      }));
-    setNotice('Correo descartado sin contabilizar.');
   }
   async function reset() {
     await persist((current) => replaceDemoData(current, initialData()), !!loadError);
@@ -1409,123 +1083,19 @@ function Home({
               </>
             )}
             {screen === 'Presupuestos' && (!connected || totals.isSuccess) && (
-              <>
-                <View style={s.card}>
-                  <Text style={s.title}>Tu presupuesto mensual</Text>
-                  <Text style={s.muted}>
-                    Límite de gastos para {month} en {currency}.{' '}
-                    {connected
-                      ? 'Guardado en el servidor de esta cuenta personal.'
-                      : 'Guardado en este dispositivo para la demo.'}
-                  </Text>
-                  {budget > 0 && (
-                    <BudgetProgress
-                      spent={summary.expenseMinor}
-                      limit={budget}
-                      money={money}
-                      currency={currency}
-                    />
-                  )}
-                  <Field
-                    label="Nuevo límite mensual"
-                    value={budgetInput}
-                    onChangeText={setBudgetInput}
-                    keyboardType="decimal-pad"
-                    placeholder="Ejemplo: 20000"
-                  />
-                  <View style={s.row}>
-                    <Button
-                      label="Guardar presupuesto"
-                      disabled={
-                        busy || (connected && (!serverBudget.isSuccess || serverBudget.isFetching))
-                      }
-                      onPress={() =>
-                        void action(async () => {
-                          const value = parseAmount(budgetInput);
-                          await saveGeneralBudget(value);
-                          setBudgetInput('');
-                          setNotice('Presupuesto guardado.');
-                        })
-                      }
-                    />
-                    {budget > 0 && (
-                      <Button
-                        label="Quitar límite"
-                        disabled={busy}
-                        onPress={() =>
-                          void action(async () => {
-                            await saveGeneralBudget(null);
-                            setNotice('Límite mensual eliminado.');
-                          })
-                        }
-                      />
-                    )}
-                  </View>
-                </View>
-                {connected && (
-                  <View style={s.card}>
-                    <Text style={s.muted}>
-                      {serverBudget.isFetching
-                        ? 'Actualizando presupuestos…'
-                        : serverBudget.error
-                          ? 'No se pudo cargar el presupuesto.'
-                          : 'Presupuestos sincronizados con el servidor. Los cambios de otro dispositivo se consultan al actualizar.'}
-                    </Text>
-                    <Button
-                      label="Actualizar presupuestos"
-                      onPress={() => void serverBudget.refetch()}
-                    />
-                    {serverBudget.data?.version === 0 &&
-                      (!!local.budgets[budgetKey] ||
-                        categoryCatalog.some(
-                          (c) => !!local.categoryBudgets[`${budgetKey}:${c.id}`],
-                        )) && (
-                        <>
-                          <Text style={s.muted}>
-                            Hay límites antiguos guardados en este dispositivo. Puedes copiar el
-                            límite general y los límites de categorías activas al período vacío del
-                            servidor; los locales se conservan como respaldo.
-                          </Text>
-                          <Button
-                            label="Copiar presupuestos locales al servidor"
-                            disabled={busy || serverBudget.isFetching}
-                            onPress={() =>
-                              void action(async () => {
-                                await saveServerBudget(
-                                  local.budgets[budgetKey] ?? null,
-                                  categoryCatalog
-                                    .filter(
-                                      (c) =>
-                                        !c.archived &&
-                                        local.categoryBudgets[`${budgetKey}:${c.id}`],
-                                    )
-                                    .map((c) => ({
-                                      categoryId: c.id,
-                                      limitMinor: local.categoryBudgets[`${budgetKey}:${c.id}`],
-                                    })),
-                                );
-                                setNotice('Presupuestos locales copiados al servidor.');
-                              })
-                            }
-                          />
-                        </>
-                      )}
-                  </View>
-                )}
-                {catalogReady && (!connected || serverBudget.isSuccess) && (
-                  <CategoryBudgets
-                    synced={connected}
-                    disabled={connected && serverBudget.isFetching}
-                    key={budgetKey}
-                    items={categoryCatalog}
-                    budgets={categoryBudgets}
-                    expenses={categoryTotals}
-                    onSave={saveCategoryBudget}
-                    money={money}
-                    currency={currency}
-                  />
-                )}
-              </>
+              <BudgetFeature
+                model={budgetModel}
+                connected={connected}
+                busy={busy}
+                month={month}
+                currency={currency}
+                categoryCatalog={categoryCatalog}
+                catalogReady={catalogReady}
+                expenseMinor={summary.expenseMinor}
+                money={money}
+                action={action}
+                setNotice={setNotice}
+              />
             )}
             {editor && (screen === 'Movimientos' || screen === 'Editar movimiento') && (
               <>
@@ -2060,15 +1630,7 @@ function Home({
             {screen === 'Seguridad y privacidad' && personal && (
               <>
                 <RecoverySettings token={personal.token} />
-                <DataRetention
-                  token={personal.token}
-                  onApplied={async () => {
-                    await Promise.all([
-                      client.invalidateQueries({ queryKey: ['imports'] }),
-                      client.invalidateQueries({ queryKey: ['import-stats'] }),
-                    ]);
-                  }}
-                />
+                <DataRetention token={personal.token} onApplied={importReviews.refreshImports} />
               </>
             )}
             {screen === 'Preferencias' && (
@@ -2115,127 +1677,15 @@ function Home({
               />
             )}
             {screen === 'Por revisar' && (
-              <>
-                <View style={s.card}>
-                  <Text style={s.title}>Filtros de revisiones</Text>
-                  <FilterRow label="Filtrar por estado">
-                    {(
-                      [
-                        'REVIEW',
-                        'PENDING',
-                        'PROCESSING',
-                        'FAILED',
-                        'PARSED',
-                        'DISMISSED',
-                        'ALL',
-                      ] as const
-                    ).map((status) => (
-                      <FilterChip
-                        key={status}
-                        label={
-                          {
-                            REVIEW: 'Por confirmar',
-                            PENDING: 'En cola',
-                            PROCESSING: 'Procesando',
-                            FAILED: 'Con error',
-                            PARSED: 'Confirmados',
-                            DISMISSED: 'Descartados',
-                            ALL: 'Todos los estados',
-                          }[status]
-                        }
-                        selected={reviewStatus === status}
-                        onPress={() => setReviewStatus(status)}
-                      />
-                    ))}
-                  </FilterRow>
-                  <Text style={s.label}>Fecha de recepción · hora dominicana</Text>
-                  <View style={filterStyles.dates}>
-                    <View style={filterStyles.date}>
-                      <DateTimeField
-                        label="Recibido desde"
-                        value={reviewFrom}
-                        onChange={setReviewFrom}
-                        clearable
-                      />
-                    </View>
-                    <View style={filterStyles.date}>
-                      <DateTimeField
-                        label="Recibido hasta"
-                        value={reviewTo}
-                        onChange={setReviewTo}
-                        clearable
-                      />
-                    </View>
-                  </View>
-                  {!!reviewDateError && (
-                    <Text accessibilityRole="alert" style={s.error}>
-                      Selecciona fechas y horas válidas. El inicio debe ser anterior o igual al fin.
-                    </Text>
-                  )}
-                  <Button
-                    label="Limpiar filtros de revisiones"
-                    onPress={() => {
-                      setReviewStatus('REVIEW');
-                      setReviewFrom('');
-                      setReviewTo('');
-                    }}
-                  />
-                </View>
-                {connected && imports.isFetching && <ActivityIndicator color={palette.primary} />}
-                {connected && imports.error && <Text style={s.error}>{imports.error.message}</Text>}
-                {connected && (
-                  <Button label="Actualizar revisiones" onPress={() => void imports.refetch()} />
-                )}
-                {connected && !accountsQuery.isSuccess && (
-                  <View style={s.card}>
-                    <Text style={s.muted}>
-                      {accountsQuery.error
-                        ? 'No se pudieron cargar las cuentas para revisar.'
-                        : 'Cargando cuentas para revisar…'}
-                    </Text>
-                    <Button
-                      label="Reintentar cuentas de revisión"
-                      onPress={() => void accountsQuery.refetch()}
-                    />
-                  </View>
-                )}
-                {!reviewDateError &&
-                  (!connected || (imports.isSuccess && accountsQuery.isSuccess)) && (
-                    <ReviewInbox
-                      accounts={movementAccounts}
-                      localAccounts={!connected}
-                      onRetry={connected ? retryImport : undefined}
-                      money={money}
-                      onMovement={async (id) =>
-                        connected
-                          ? request(`/movements/${id}`)
-                          : (localRef.current.movements.find((m) => m.id === id) ?? null)
-                      }
-                      categories={categoryCatalog}
-                      key={reviewParams}
-                      total={connected ? imports.data?.pages[0]?.total : reviews.length}
-                      showHistory={reviewStatus !== 'REVIEW'}
-                      items={reviews}
-                      month={month}
-                      currency={currency}
-                      onResolve={resolveReview}
-                      onDiscard={discardReview}
-                      onSuggestion={
-                        connected
-                          ? async (id) => (await request(`/imports/${id}`)).suggestion
-                          : undefined
-                      }
-                    />
-                  )}
-              </>
-            )}
-            {screen === 'Por revisar' && connected && imports.hasNextPage && (
-              <Button
-                label={
-                  imports.isFetchingNextPage ? 'Cargando revisiones…' : 'Cargar más revisiones'
-                }
-                disabled={imports.isFetching}
-                onPress={() => void imports.fetchNextPage()}
+              <ImportReviewFeature
+                model={importReviews}
+                connected={connected}
+                accountsQuery={accountsQuery}
+                movementAccounts={movementAccounts}
+                categoryCatalog={categoryCatalog}
+                month={month}
+                currency={currency}
+                money={money}
               />
             )}
             {screen === 'Conexiones' && (
@@ -2257,9 +1707,7 @@ function Home({
                     error={!!queue.error}
                     onRefresh={() => void queue.refetch()}
                     onErrors={() => {
-                      setReviewStatus('FAILED');
-                      setReviewFrom('');
-                      setReviewTo('');
+                      importReviews.resetFilters('FAILED');
                       setScreen('Por revisar');
                     }}
                   />
@@ -2349,19 +1797,7 @@ function Home({
                     <Button
                       label="Encolar correo de prueba"
                       disabled={busy || !sampleId.trim() || !sampleBody.trim()}
-                      onPress={() =>
-                        void action(async () => {
-                          await request('/imports', {
-                            method: 'POST',
-                            body: JSON.stringify({ externalId: sampleId.trim(), body: sampleBody }),
-                          });
-                          await Promise.all([
-                            client.invalidateQueries({ queryKey: ['imports'] }),
-                            queue.refetch(),
-                          ]);
-                          setNotice('Correo encolado. Espera al worker y actualiza revisiones.');
-                        })
-                      }
+                      onPress={() => void action(importReviews.enqueueSample)}
                     />
                   </View>
                 )}

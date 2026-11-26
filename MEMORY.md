@@ -285,3 +285,7 @@ Las metas, los pendientes, las proyecciones, los planes de pago, los cierres men
 ## Separación de las herramientas de planificación (2026-11-26)
 
 Los hooks de metas y pendientes reúnen las consultas de movimientos vinculados y las operaciones de cada función. Los componentes de cierre mensual, proyección de efectivo y planes de pago encapsulan su cálculo, carga y guardado. App.tsx coordina las rutas, el período y los datos compartidos entre pantallas. La escritura conserva la cola local y el mismo ámbito por servidor y cuenta.
+
+## Separación de presupuestos, plantillas e importaciones (2026-11-26)
+
+Presupuestos concentra el límite general, las categorías, los totales y la copia explícita de límites antiguos al servidor. Plantillas mensuales gestiona su consulta, edición, activación y confirmación de vencimientos, incluidos los vinculados a pendientes. Por revisar reúne filtros de recepción, cola, paginación y operaciones de importación. App.tsx comparte el período, la sesión, la navegación y los datos necesarios para conectar las pantallas.
