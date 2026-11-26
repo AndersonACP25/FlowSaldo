@@ -321,3 +321,7 @@ useWorkspaceNavigation conserva la pantalla activa, el retorno desde Configuraci
 ## Coordinación de movimientos fuera de Workspace (2026-11-26)
 
 useWorkspaceMovements coordina las consultas de historial y plantillas, los comandos de movimiento y devolución, y los cambios de período y filtros al completar sus operaciones. MovementRoutes conecta el historial, los editores y las plantillas mensuales. Workspace conserva el estado compartido y conecta ambas capas con cuentas, pendientes, metas y cierre mensual.
+
+## Operaciones locales de Configuración (2026-11-26)
+
+DeviceSettingsRoutes conecta Cuentas y saldos, Respaldo y restauración y Reglas por comercio con sus pantallas. localSettingsCommands concentra los cambios en la cola de escritura, incluidas la validación del saldo de conciliación y la comprobación de que la vista previa del respaldo sigue vigente.
