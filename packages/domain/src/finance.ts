@@ -1,3 +1,20 @@
+export const currencies = ['DOP', 'USD', 'EUR'] as const;
+export type Currency = (typeof currencies)[number];
+export const isCurrency = (value: unknown): value is Currency =>
+  currencies.some((currency) => currency === value);
+
+export function parseAmount(value: string): number {
+  // One decimal separator, never guess thousands separators.
+  const normalized = value.trim().replace(',', '.');
+  if (!/^\d+(\.\d{1,2})?$/.test(normalized))
+    throw new Error('Usa un monto positivo sin separadores de miles; ejemplo: 1250.50');
+  const [major, fraction = ''] = normalized.split('.');
+  const minor = Number(major) * 100 + Number(fraction.padEnd(2, '0'));
+  if (!Number.isSafeInteger(minor) || minor <= 0 || minor > 2147483647)
+    throw new Error('Monto fuera de rango');
+  return minor;
+}
+
 export function parseSignedAmount(value: string, maxMinor = 2147483647): number {
   const match = /^(-?)([0-9]+)(?:[.,]([0-9]{1,2}))?$/.exec(value.trim());
   if (!match) throw new Error('Usa un monto sin separadores de miles; ejemplo: -1250.50');

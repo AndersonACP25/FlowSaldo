@@ -14,7 +14,7 @@ export function GmailConnection({ token }: { token: string }) {
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
   const load = useCallback(async () => {
-    const result = await accessRequest('/integrations/gmail', undefined, token);
+    const result = await accessRequest<{ status: Status }>('/integrations/gmail', undefined, token);
     setStatus(result.status);
     setAuthorizationUrl('');
   }, [token]);
@@ -52,7 +52,7 @@ export function GmailConnection({ token }: { token: string }) {
           disabled={busy}
           onPress={() =>
             void run(async () => {
-              const { authorizationUrl } = await accessRequest(
+              const { authorizationUrl } = await accessRequest<{ authorizationUrl: string }>(
                 '/integrations/gmail/connect',
                 {},
                 token,

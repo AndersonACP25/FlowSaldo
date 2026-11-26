@@ -1,5 +1,6 @@
 import { ledgerBalance } from './finance.ts';
-import { isCurrency, type Currency, type Movement } from './index.ts';
+import { isCurrency, type Currency } from './finance.ts';
+import type { Movement } from './movement.ts';
 
 export type SavingsContribution = { id: string } & (
   { kind: 'manual'; amountMinor: number } | { kind: 'transfer'; movementId: string }

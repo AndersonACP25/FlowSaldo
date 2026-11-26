@@ -1,5 +1,7 @@
 import { ledgerBalance } from './finance.ts';
-import { isCurrency, validDate, type Currency, type Movement } from './index.ts';
+import { isCurrency, type Currency } from './finance.ts';
+import { validDate } from './dateTime.ts';
+import type { Movement } from './movement.ts';
 import { pendingRemaining, type PendingItem } from './pendingPayments.ts';
 
 export type ClosingPending = Pick<PendingItem, 'id' | 'name' | 'kind' | 'dueAt'> & {

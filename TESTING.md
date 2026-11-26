@@ -12,7 +12,7 @@ Las unitarias y Playwright cubren lo relevante del CORE, no una matriz de todo e
 | Metro dev | Bundle HTTP 200 y arranque del producto, sin navegar todas las secciones | Cambios de arranque/dependencias; CI Linux/Windows |
 | Export guardian | Contrato real de columnas/archivos CSV y XLSX del tooling | Cambios de exportación |
 | Contratos IA | Catálogo/planes/entregas, independientes de los tests de producto | Cambios ai/ o contratos/instrucciones |
-| Android | Bundle y compatibilidad con SDK instalado; dispositivo para compartir archivos | Cambios nativos |
+| Android | CI exporta el bundle de Android. La instalación y actualización se comprueban en dispositivo. | PR, push y validación previa al release |
 
 ## Comandos
 

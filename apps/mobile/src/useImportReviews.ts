@@ -1,8 +1,10 @@
+import { readMovement } from './apiContracts';
 import { useState } from 'react';
 import { useInfiniteQuery, useQuery, useQueryClient } from '@tanstack/react-query';
-import { parseDominicanDateTime, selectedCategory, type Movement } from '@flowsaldo/domain';
+import { parseDominicanDateTime, selectedCategory } from '@flowsaldo/domain';
 import type { LocalScope } from './dataScopes';
-import type { MovementRequest, Page } from './history';
+import type { Page } from './history';
+import type { ApiRequest } from './apiClient';
 import type { ImportStats } from './ImportQueue';
 import { checkLocalMovementAccounts } from './movementCommands';
 import type { Draft } from './MovementForm';
@@ -30,7 +32,7 @@ export function useImportReviews({
   reviewsOpen: boolean;
   local: LocalData;
   localRef: { current: LocalData };
-  request: MovementRequest;
+  request: ApiRequest;
   persist: (update: LocalUpdate) => Promise<void>;
   refreshMovements: () => Promise<void>;
   setNotice: (notice: string) => void;
@@ -81,10 +83,12 @@ export function useImportReviews({
     : local.reviews.filter((i) => i.status === 'REVIEW').length;
   async function resolveReview(id: string, draft: Draft) {
     if (connected) {
-      const movement: Movement = await request(`/imports/${id}/resolve`, {
-        method: 'POST',
-        body: JSON.stringify(draft),
-      });
+      const movement = readMovement(
+        await request(`/imports/${id}/resolve`, {
+          method: 'POST',
+          body: JSON.stringify(draft),
+        }),
+      );
       await Promise.all([client.invalidateQueries({ queryKey: ['imports'] }), refreshMovements()]);
       if (notify) void notifyTransaction(movement.id, 'Transacción de aviso confirmada');
     } else {
@@ -159,7 +163,7 @@ export function useImportReviews({
 
   async function getReviewedMovement(id: string) {
     return connected
-      ? request<Movement | null>(`/movements/${id}`)
+      ? readMovement(await request(`/movements/${encodeURIComponent(id)}`))
       : (localRef.current.movements.find((movement) => movement.id === id) ?? null);
   }
 

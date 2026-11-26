@@ -68,7 +68,7 @@ export function DataRetention({
             if (!/^\d+$/.test(days) || Number(days) < 7 || Number(days) > 365)
               throw new Error('Selecciona de 7 a 365 días.');
             setPreview(
-              await accessRequest(
+              await accessRequest<Preview>(
                 '/auth/data/retention/preview',
                 { olderThanDays: Number(days) },
                 token,
@@ -126,7 +126,7 @@ export function DataRetention({
             disabled={busy || !password || confirmation !== 'ELIMINAR CONTENIDO'}
             onPress={() =>
               void run(async () => {
-                const result = await accessRequest(
+                const result = await accessRequest<Pick<Preview, 'reviewBodies' | 'failedBodies'>>(
                   '/auth/data/retention/apply',
                   { previewId: preview.previewId, currentPassword: password, confirmation },
                   token,

@@ -1,7 +1,6 @@
-import type { Movement, MovementType } from './index.ts';
+import type { Movement, MovementType, SplitAmount } from './movement.ts';
 
-export type SplitAmount = { categoryId: string; amountMinor: number };
-export type MovementSplit = SplitAmount & { category: string };
+export type { MovementSplit, SplitAmount } from './movement.ts';
 export const maxMovementSplits = 12;
 
 export function checkMovementSplits(

@@ -305,3 +305,11 @@ App.tsx monta los proveedores de tema y consultas. AccessGate presenta el arranq
 ## Contexto por área en paquetes de revisión (2026-11-26)
 
 Los perfiles de solo lectura reciben las instrucciones AGENTS.md de los implementadores de la ruta activa. Sus tareas mantienen el ámbito de escritura vacío. docs/architecture.md describe el punto de entrada, el acceso, Workspace y el aislamiento de la planificación local.
+
+## Dependencias del dominio y verificación de Android (2026-11-26)
+
+Los módulos del dominio importan desde el archivo que define cada símbolo. El punto de entrada público conserva sus exportaciones y ESLint impide importar ese punto de entrada desde el propio dominio. Quality exporta el bundle Android en un job separado. La instalación y actualización de la APK se verifican en dispositivo antes del release.
+
+## Transporte HTTP y estado de Movimientos (2026-11-26)
+
+El cliente HTTP móvil comparte la lectura de JSON y CSV, los plazos de respuesta y los errores de la API. El acceso distingue credenciales incorrectas de la expiración de una sesión personal. Las consultas de movimientos, devoluciones y saldos verifican sus respuestas antes de renderizarlas. useMovementFlow concentra filtros, selección de borrado y borradores de creación, duplicado, edición o devolución. Workspace conserva las transiciones entre pantallas.

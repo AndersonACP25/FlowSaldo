@@ -1,5 +1,5 @@
 import { parseDominicanDateTime } from './dateTime.ts';
-import { isCurrency, type Currency } from './index.ts';
+import { isCurrency, type Currency } from './finance.ts';
 import { nextMonthlyDate } from './recurring.ts';
 import { monthlyInterestMinor } from './finance.ts';
 

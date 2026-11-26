@@ -1,5 +1,5 @@
 import { checkMovementSplits } from './movementSplits.ts';
-import type { Movement } from './index.ts';
+import type { Movement } from './movement.ts';
 export interface Category {
   id: string;
   name: string;

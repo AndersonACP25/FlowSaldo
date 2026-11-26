@@ -1,5 +1,6 @@
 import { ledgerBalance } from './finance.ts';
-import { isCurrency, type Currency, type Movement } from './index.ts';
+import { isCurrency, type Currency } from './finance.ts';
+import type { Movement } from './movement.ts';
 
 export const localAccountKinds = ['BANK', 'CASH', 'CREDIT_CARD'] as const;
 

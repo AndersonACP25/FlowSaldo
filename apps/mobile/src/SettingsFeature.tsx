@@ -27,7 +27,7 @@ import { DueNotificationSettings } from './DueNotificationSettings';
 import { FinancePanel, type FinancialAccount } from './FinancePanel';
 import { GmailConnection } from './GmailConnection';
 import { HelpScreen } from './HelpScreen';
-import type { MovementRequest } from './history';
+import type { ApiRequest } from './apiClient';
 import { IconButton } from './IconButton';
 import { LocalAccountsScreen } from './LocalAccountsScreen';
 import { restoreLocalBackup } from './localBackup';
@@ -97,7 +97,7 @@ export function SettingsFeature({
   banks: BankRegistration[];
   onBankChange: (id: string, registered: boolean) => void;
   accountsQuery: UseQueryResult<FinancialAccount[]>;
-  request: MovementRequest;
+  request: ApiRequest;
   dueNotificationSettings: ComponentProps<typeof DueNotificationSettings>;
   onRetentionApplied: () => Promise<void>;
   preferences: Preferences;

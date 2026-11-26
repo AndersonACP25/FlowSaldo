@@ -11,7 +11,7 @@ import {
   type RecurringTemplate,
 } from '@flowsaldo/domain';
 import type { LocalScope } from './dataScopes';
-import type { MovementRequest } from './history';
+import type { ApiRequest } from './apiClient';
 import { localMovementIndex } from './localRecords';
 import type { Draft } from './MovementForm';
 import type { LocalData, LocalUpdate } from './storage';
@@ -33,7 +33,7 @@ export function useRecurringTemplates({
   notify: boolean;
   local: LocalData;
   localRef: { current: LocalData };
-  request: MovementRequest;
+  request: ApiRequest;
   persist: (update: LocalUpdate) => Promise<void>;
   refreshMovements: () => Promise<void>;
   setCurrency: (currency: Currency) => void;

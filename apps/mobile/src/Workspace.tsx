@@ -1,3 +1,5 @@
+import { ApiError, createApiClient } from './apiClient';
+import { readFinancialAccounts, readMovement } from './apiContracts';
 import { MonthlyOverview } from './MonthlyOverview';
 import { useMonthlyOverview } from './useMonthlyOverview';
 import { SettingsFeature } from './SettingsFeature';
@@ -33,10 +35,8 @@ import {
   formatMinorAmount,
   pendingOccurrence,
   currencies,
-  movementDate,
   type Movement,
   type Currency,
-  type MovementType,
 } from '@flowsaldo/domain';
 import { SettingsOptionsContext, useTheme } from './theme';
 import { Button, Choice } from './ui';
@@ -51,8 +51,7 @@ import { MovementForm, type Draft } from './MovementForm';
 import { ImportReviewFeature } from './ImportReviewFeature';
 import { useImportReviews } from './useImportReviews';
 import type { AuthRoute } from './AuthScreen';
-import { type FinancialAccount } from './FinancePanel';
-import { AccessError, apiBase, type Owner, type PersonalSession } from './access';
+import { apiBase, type Owner, type PersonalSession } from './access';
 import {
   defaultPreferences,
   loadPreferences,
@@ -62,9 +61,9 @@ import {
 import { useLocalWorkspace } from './useLocalWorkspace';
 import { usePendingPayments } from './usePendingPayments';
 import { useSavingsGoals } from './useSavingsGoals';
-import { newLocalId } from './localRecords';
+import { useMovementFlow } from './useMovementFlow';
 import { useMovementHistory } from './useMovementHistory';
-import { movementCommands, type RefundDraft } from './movementCommands';
+import { movementCommands } from './movementCommands';
 const formatMoney = (minor: number, currency: Currency) =>
   `${currency} ${formatMinorAmount(minor)}`;
 export function Workspace({
@@ -174,14 +173,11 @@ export function Workspace({
         : fromMovements
           ? 'Movimientos'
           : 'Inicio';
-  const [accountFilter, setAccountFilter] = useState('');
-  const [search, setSearch] = useState('');
-  const [type, setType] = useState<MovementType | 'ALL'>('ALL');
-  const [categoryFilter, setCategoryFilter] = useState('');
-  const [duplicate, setDuplicate] = useState<Movement | null>(null);
-  const [refundDraft, setRefundDraft] = useState<RefundDraft | null>(null);
-  const [editor, setEditor] = useState<Movement | 'new' | null>(null);
-  const [deleteId, setDeleteId] = useState<string | null>(null);
+  const movementFlow = useMovementFlow(month);
+  const { editor, refundDraft, deleteId, setDeleteId, resetFilters, closeDraft, filters } =
+    movementFlow;
+  const { search, type, categoryFilter, accountFilter, setAccountFilter, setCategoryFilter } =
+    filters;
   const [token, setToken] = useState('');
   const [developmentSession, setSession] = useState('');
   const session = personal?.token ?? developmentSession;
@@ -192,13 +188,11 @@ export function Workspace({
   const goBack = useCallback(() => {
     if (busy) return;
     if (fromMovements) {
-      setEditor(null);
-      setDuplicate(null);
+      closeDraft();
       setTransferForSavings(null);
-      setRefundDraft(null);
     }
     setScreen(backTo);
-  }, [backTo, busy, fromMovements]);
+  }, [backTo, busy, closeDraft, fromMovements]);
   useEffect(() => {
     if (Platform.OS !== 'android' || !secondary) return;
     const subscription = BackHandler.addEventListener('hardwareBackPress', () => {
@@ -217,28 +211,19 @@ export function Workspace({
   const connected = !!session;
   const dataScope = localDataScope(url, connected ? (personal?.owner.id ?? 'development') : null);
   const commerceRules = local.commerceRules[dataScope] ?? [];
-  async function request(path: string, options: RequestInit = {}) {
-    const response = await fetch(`${url}${path}`, {
-      ...options,
-      headers: { Authorization: `Bearer ${session}`, 'Content-Type': 'application/json' },
-    });
-    if (response.status === 401 && personal) {
-      await onExpired();
-      throw new Error('La sesión ya no está disponible.');
-    }
-    if (!response.ok) {
-      const data = await response.json().catch(() => null);
-      throw new AccessError(data?.error ?? 'No se pudo conectar con la API.', response.status);
-    }
-    return response.status === 204 ? null : response.json();
-  }
+  const api = createApiClient({
+    baseUrl: url,
+    token: session,
+    onUnauthorized: personal ? onExpired : undefined,
+  });
+  const request = api.json;
   async function movementForLink(id: string): Promise<Movement | null> {
     if (!connected)
       return localRef.current.movements.find((movement) => movement.id === id) ?? null;
     try {
-      return await request(`/movements/${encodeURIComponent(id)}`);
+      return readMovement(await request(`/movements/${encodeURIComponent(id)}`));
     } catch (error) {
-      if (error instanceof AccessError && error.status === 404) return null;
+      if (error instanceof ApiError && error.status === 404) return null;
       throw error;
     }
   }
@@ -259,7 +244,7 @@ export function Workspace({
         screen === 'Por revisar' ||
         screen === 'Movimientos'),
     retry: false,
-    queryFn: async (): Promise<FinancialAccount[]> => request('/accounts'),
+    queryFn: async ({ signal }) => readFinancialAccounts(await request('/accounts', { signal })),
   });
   const { catalog, categoryCatalog, catalogReady, saveCategory, archiveCategory, deleteCategory } =
     useCategoryCatalog({
@@ -299,7 +284,7 @@ export function Workspace({
     refreshMovements,
     exportAll,
   } = useMovementHistory({
-    connection: connected ? { url, token: session, scope: dataScope, request } : null,
+    connection: connected ? { scope: dataScope, request, requestText: api.text } : null,
     rows: local.movements,
     month,
     currency,
@@ -404,7 +389,7 @@ export function Workspace({
     );
   }
   async function saveMovement(draft: Draft) {
-    const edit = editor && editor !== 'new' ? editor : null;
+    const edit = editor?.kind === 'edit' ? editor.movement : null;
     const movementId = await commands.save(draft, edit);
     if (personal && !edit && draft.type !== 'EXPENSE') {
       void notifyTransaction(
@@ -412,26 +397,19 @@ export function Workspace({
         draft.type === 'INCOME' ? 'Ingreso registrado' : 'Transferencia o pago registrado',
       );
     }
-    setDuplicate(null);
-    setCategoryFilter('');
-    setAccountFilter('');
+    resetFilters();
     setPeriodDate(draft.occurredAt.slice(0, 10));
     setCurrency(draft.currency);
-    setSearch('');
-    setType('ALL');
-    setEditor(null);
+    closeDraft();
     setScreen('Movimientos');
     setNotice('Movimiento guardado.');
   }
   async function recordRefund(amountMinor: number, occurredAt: string) {
     if (!refundDraft) return;
     await commands.refund(refundDraft, amountMinor, occurredAt);
-    setRefundDraft(null);
+    closeDraft();
     setPeriodDate(occurredAt.slice(0, 10));
-    setType('ALL');
-    setSearch('');
-    setCategoryFilter('');
-    setAccountFilter('');
+    resetFilters();
     setScreen('Movimientos');
     setNotice('Devolución registrada.');
   }
@@ -449,7 +427,7 @@ export function Workspace({
   function connectDevelopment() {
     client.clear();
     setCategoryFilter('');
-    setDuplicate(null);
+    closeDraft();
     setSession(token);
     setToken('');
     setScreen('Inicio');
@@ -460,8 +438,7 @@ export function Workspace({
     setSession('');
     setToken('');
     client.clear();
-    setEditor(null);
-    setDuplicate(null);
+    closeDraft();
     setCategoryFilter('');
     setDeleteId(null);
     setNotice('Sesión cerrada. Volviste a la demo local.');
@@ -490,10 +467,7 @@ export function Workspace({
   }
 
   function clearMovementFilters() {
-    setCategoryFilter('');
-    setAccountFilter('');
-    setSearch('');
-    setType('ALL');
+    resetFilters();
     setNotice('');
     setError('');
   }
@@ -505,41 +479,24 @@ export function Workspace({
     setAccountFilter('');
   }
 
-  function cancelMovementEditor() {
-    setEditor(null);
-    setDuplicate(null);
-  }
-
-  function editMovement(m: Movement) {
-    setDuplicate(null);
-    setEditor(m);
-    setDeleteId(null);
+  function editMovement(movement: Movement) {
+    movementFlow.startEdit(movement);
     setNotice('');
     setError('');
     setScreen('Editar movimiento');
   }
-  function duplicateMovement(m: Movement) {
-    const d = new Date();
-    const today = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
-    setDuplicate({
-      ...m,
-      occurredAt: movementDate(month, today) + 'T12:00:00.000Z',
-    });
-    setEditor('new');
-    setDeleteId(null);
+  function duplicateMovement(movement: Movement) {
+    movementFlow.startDuplicate(movement);
     setNotice('Borrador duplicado. Revisa los datos y guarda para crear el movimiento.');
   }
-  function openRefund(m: Movement) {
-    setRefundDraft({ expense: m, requestKey: 'refund-' + newLocalId() });
-    setDeleteId(null);
-    setEditor(null);
+  function openRefund(movement: Movement) {
+    movementFlow.startRefund(movement);
     setNotice('');
     setError('');
     setScreen('Registrar devolución');
   }
   function openSavingsTransfer(m: Movement) {
-    setEditor(null);
-    setDuplicate(null);
+    closeDraft();
     setDeleteId(null);
     setNotice('');
     setError('');
@@ -553,8 +510,7 @@ export function Workspace({
       text="+ Añadir"
       disabled={!ready || busy || !!editor || !catalogReady}
       onPress={() => {
-        setDuplicate(null);
-        setEditor('new');
+        movementFlow.startNew();
         setScreen('Movimientos');
         setError('');
         setNotice('');
@@ -563,10 +519,8 @@ export function Workspace({
   );
   function navigate(destination: Tab | DrawerDestination | 'Configuración') {
     if (busy) return;
-    setEditor(null);
+    closeDraft();
     setTransferForSavings(null);
-    setRefundDraft(null);
-    setDuplicate(null);
     setDeleteId(null);
     if (destination === 'Configuración') setPreviousTab(activeTab);
     if (destination === 'Disponible hasta el próximo cobro') setProjectionCurrency(currency);
@@ -750,12 +704,8 @@ export function Workspace({
                 saveForm={saveForm}
                 onMovements={() => {
                   if (!uncategorizedId) return;
-                  setEditor(null);
-                  setDuplicate(null);
-                  setSearch('');
-                  setType('ALL');
-                  setAccountFilter('');
-                  setCategoryFilter(uncategorizedId);
+                  closeDraft();
+                  resetFilters(uncategorizedId);
                   setScreen('Movimientos');
                 }}
                 onPending={(id) => openPending(null, id, 'Cierre mensual')}
@@ -807,7 +757,6 @@ export function Workspace({
             {editor && (screen === 'Movimientos' || screen === 'Editar movimiento') && (
               <MovementEditor
                 editor={editor}
-                duplicate={duplicate}
                 fullScreen={screen === 'Editar movimiento'}
                 connected={connected}
                 accountsQuery={accountsQuery}
@@ -819,7 +768,7 @@ export function Workspace({
                 currency={currency}
                 month={month}
                 onSave={(draft) => saveForm(() => saveMovement(draft))}
-                onCancel={screen === 'Editar movimiento' ? goBack : cancelMovementEditor}
+                onCancel={screen === 'Editar movimiento' ? goBack : closeDraft}
               />
             )}
             {screen === 'Registrar devolución' && refundDraft && (
@@ -858,16 +807,7 @@ export function Workspace({
                 currency={currency}
                 accounts={accounts}
                 categoryCatalog={categoryCatalog}
-                filters={{
-                  search,
-                  type,
-                  accountFilter,
-                  categoryFilter,
-                  setSearch,
-                  setType,
-                  setAccountFilter,
-                  setCategoryFilter,
-                }}
+                filters={filters}
                 visible={visible}
                 query={query}
                 refreshMovements={refreshMovements}
@@ -894,8 +834,7 @@ export function Workspace({
                     month={month}
                     onSave={(draft, id) => saveForm(() => saveRecurring(draft, id))}
                     onCreate={() => {
-                      setEditor(null);
-                      setDuplicate(null);
+                      closeDraft();
                       setDeleteId(null);
                       setNotice('');
                       setError('');

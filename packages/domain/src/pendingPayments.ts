@@ -1,4 +1,6 @@
-import { isCurrency, validDate, type Currency, type Movement } from './index.ts';
+import { isCurrency, type Currency } from './finance.ts';
+import { validDate } from './dateTime.ts';
+import type { Movement } from './movement.ts';
 import { parseDominicanDateTime } from './dateTime.ts';
 
 type PendingOccurrence = { templateId: string; scheduledFor: string };

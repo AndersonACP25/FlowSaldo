@@ -1,10 +1,5 @@
-export class AccessError extends Error {
-  status: number;
-  constructor(message: string, status: number) {
-    super(message);
-    this.status = status;
-  }
-}
+import { createApiClient } from './apiClient.ts';
+
 export interface Owner {
   id: number;
   name: string;
@@ -46,35 +41,18 @@ export function apiBase() {
     throw new Error('Configura una URL HTTPS, o una dirección local de desarrollo.');
   return url.toString().replace(/\/$/, '');
 }
-export async function accessRequest(
+export function accessRequest<T = unknown>(
   path: string,
   body?: unknown,
   token?: string,
   method = body === undefined ? 'GET' : 'POST',
 ) {
-  const base = apiBase();
-  if (!base) throw new Error('La API de FlowSaldo no está configurada en esta instalación.');
-  const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), 10000);
-  try {
-    const response = await fetch(base + path, {
-      method,
-      headers: {
-        'Content-Type': 'application/json',
-        ...(token ? { Authorization: `Bearer ${token}` } : {}),
-      },
-      ...(body === undefined ? {} : { body: JSON.stringify(body) }),
-      signal: controller.signal,
-    });
-    if (!response.ok) {
-      const data = await response.json().catch(() => null);
-      throw new AccessError(
-        data?.error ?? 'No se pudo completar la solicitud de acceso.',
-        response.status,
-      );
-    }
-    return response.status === 204 ? null : await response.json();
-  } finally {
-    clearTimeout(timer);
-  }
+  return createApiClient({
+    baseUrl: apiBase(),
+    token,
+    fallbackMessage: 'No se pudo completar la solicitud de acceso.',
+  }).json<T>(path, {
+    method,
+    ...(body === undefined ? {} : { body: JSON.stringify(body) }),
+  });
 }
