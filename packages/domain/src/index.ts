@@ -1,5 +1,8 @@
 import { csvTextCell } from './csv.ts';
-import { movementCategories, type MovementSplit } from './movementSplits.ts';
+import { validDate } from './dateTime.ts';
+import { isCurrency, type Currency } from './finance.ts';
+import type { Movement, MovementType } from './movement.ts';
+import { movementCategories } from './movementSplits.ts';
 
 export * from './bank-mail.ts';
 export * from './recurring.ts';
@@ -9,32 +12,13 @@ export * from './cashProjection.ts';
 export * from './savings.ts';
 export * from './planning.ts';
 export * from './finance.ts';
+export type { Movement, MovementType } from './movement.ts';
+export { validateExportName, validateExportTable } from './csv.ts';
 export * from './localAccounts.ts';
 export * from './movementSplits.ts';
 export * from './monthlyClosing.ts';
 export * from './refunds.ts';
 export * from './commerceRules.ts';
-export const currencies = ['DOP', 'USD', 'EUR'] as const;
-export type Currency = (typeof currencies)[number];
-export const isCurrency = (value: unknown): value is Currency =>
-  currencies.some((currency) => currency === value);
-export type MovementType = 'INCOME' | 'EXPENSE' | 'TRANSFER';
-export interface Movement {
-  id: string;
-  amountMinor: number;
-  currency: Currency;
-  type: MovementType;
-  description: string;
-  occurredAt: string;
-  category: string;
-  categoryId?: string | null;
-  splits?: MovementSplit[];
-  accountId?: string | null;
-  targetAccountId?: string | null;
-  requestKey?: string | null;
-  refundOfId?: string | null;
-  balanceAdjustment?: { expectedMinor: number; statementMinor: number };
-}
 export interface MailInput {
   externalId: string;
   body: string;
@@ -125,22 +109,6 @@ export const demoMovements: Movement[] = [
   },
 ];
 
-export function parseAmount(value: string): number {
-  // One decimal separator, never guess thousands separators.
-  const normalized = value.trim().replace(',', '.');
-  if (!/^\d+(\.\d{1,2})?$/.test(normalized))
-    throw new Error('Usa un monto positivo sin separadores de miles; ejemplo: 1250.50');
-  const [major, fraction = ''] = normalized.split('.');
-  const minor = Number(major) * 100 + Number(fraction.padEnd(2, '0'));
-  if (!Number.isSafeInteger(minor) || minor <= 0 || minor > 2147483647)
-    throw new Error('Monto fuera de rango');
-  return minor;
-}
-export function validDate(value: string): boolean {
-  if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) return false;
-  const stamp = Date.parse(value + 'T12:00:00.000Z');
-  return Number.isFinite(stamp) && new Date(stamp).toISOString().slice(0, 10) === value;
-}
 export function filterMovements(
   rows: Movement[],
   filter: {
@@ -242,32 +210,6 @@ export const movementExportHeaders = [
   'Descripción',
   'Categoría',
 ] as const;
-export function validateExportName(name: string): void {
-  if (!/^\p{Lu}/u.test(name) || /[\\/:]/.test(name) || name.includes('..'))
-    throw new Error('El nombre del archivo debe comenzar con mayúscula y no contener rutas');
-}
-export function validateExportTable(
-  headers: readonly string[],
-  rows: readonly (readonly unknown[])[],
-): void {
-  if (
-    headers.length < 2 ||
-    new Set(headers).size !== headers.length ||
-    headers.some((h) => !/^\p{Lu}/u.test(h.trim()) || /[,;\t\r\n]/.test(h))
-  )
-    throw new Error(
-      'Los encabezados deben ser distintos, comenzar con mayúscula y ocupar columnas separadas',
-    );
-  if (
-    rows.some(
-      (row) =>
-        row.length !== headers.length ||
-        row.filter((value) => value !== null && value !== undefined && value !== '').length < 2,
-    )
-  )
-    throw new Error('Cada fila debe tener una celda por columna');
-}
-
 export { dominicanBanks, type BankRegistration } from './dominicanBanks.ts';
 
 export {

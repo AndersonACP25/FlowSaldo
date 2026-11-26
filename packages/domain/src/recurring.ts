@@ -1,4 +1,5 @@
-import { validDate, type Movement } from './index.ts';
+import { validDate } from './dateTime.ts';
+import type { Movement } from './movement.ts';
 import { parseDominicanDateTime } from './dateTime.ts';
 export interface RecurringTemplate {
   id: string;

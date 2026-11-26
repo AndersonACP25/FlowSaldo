@@ -1,6 +1,6 @@
 import { parseDominicanDateTime } from './dateTime.ts';
 import { monthlyInterestMinor } from './finance.ts';
-import { isCurrency, type Currency } from './index.ts';
+import { isCurrency, type Currency } from './finance.ts';
 import { nextMonthlyDate } from './recurring.ts';
 
 export const maxLoanInstallments = 600;

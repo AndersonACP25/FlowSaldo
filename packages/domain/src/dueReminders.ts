@@ -5,7 +5,7 @@ import {
   type RecurringReceipt,
   type RecurringTemplate,
 } from './recurring.ts';
-import type { Movement } from './index.ts';
+import type { Movement } from './movement.ts';
 
 export interface DueReminder {
   kind: 'payment' | 'monthly';

@@ -1,5 +1,5 @@
 import { movementCategories, type MovementSplit } from './movementSplits.ts';
-import type { Movement } from './index.ts';
+import type { Movement } from './movement.ts';
 
 type RefundSource = Pick<
   Movement,

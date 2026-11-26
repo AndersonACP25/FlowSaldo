@@ -1,6 +1,6 @@
 import { dominicanDateTime, parseDominicanDateTime } from './dateTime.ts';
 import { ledgerBalance } from './finance.ts';
-import type { Currency } from './index.ts';
+import type { Currency } from './finance.ts';
 import { pendingOccurrence, type PendingItem } from './pendingPayments.ts';
 import {
   nextMonthlyDate,

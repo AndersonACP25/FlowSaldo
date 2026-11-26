@@ -1,4 +1,6 @@
-import { parseAmount, validDate, type Movement } from './index.ts';
+import { parseAmount } from './finance.ts';
+import { validDate } from './dateTime.ts';
+import type { Movement } from './movement.ts';
 
 export type BankParserVersion = 'bhd-withdrawal-v1' | 'popular-withdrawal-v1';
 type BankSuggestion = { parserVersion: BankParserVersion; movement: Omit<Movement, 'id'> };
