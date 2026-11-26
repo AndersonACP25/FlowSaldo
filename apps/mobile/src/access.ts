@@ -1,4 +1,4 @@
-import { createApiClient } from './apiClient';
+import { createApiClient } from './apiClient.ts';
 
 export interface Owner {
   id: number;

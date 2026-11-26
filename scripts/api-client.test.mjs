@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
+import { accessRequest } from '../apps/mobile/src/access.ts';
 import { ApiError, createApiClient } from '../apps/mobile/src/apiClient.ts';
 import {
   readFinancialAccounts,
@@ -24,7 +25,12 @@ test('FlowSaldo HTTP keeps login errors separate from expired sessions and suppo
       assert.equal(headers.get('Authorization'), 'Bearer token-sintético');
     return responses.shift();
   });
-  const login = createApiClient({ baseUrl });
+  const previousApiUrl = process.env.EXPO_PUBLIC_API_URL;
+  process.env.EXPO_PUBLIC_API_URL = baseUrl;
+  t.after(() => {
+    if (previousApiUrl === undefined) delete process.env.EXPO_PUBLIC_API_URL;
+    else process.env.EXPO_PUBLIC_API_URL = previousApiUrl;
+  });
   const personal = createApiClient({
     baseUrl,
     token: 'token-sintético',
@@ -32,7 +38,7 @@ test('FlowSaldo HTTP keeps login errors separate from expired sessions and suppo
       expired++;
     },
   });
-  await assert.rejects(login.json('/auth/login'), {
+  await assert.rejects(accessRequest('/auth/login', { email: 'qa@example.test' }), {
     status: 401,
     message: 'Credenciales incorrectas.',
   });
