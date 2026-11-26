@@ -15,6 +15,8 @@ pnpm ai:test
 
 `ai:plan` emite JSON en stdout con el grafo de tareas, responsables y dependencias. Es un borrador: el orquestador debe sustituir los criterios genéricos por criterios verificables de la solicitud antes de delegar. `ai:packet` emite instrucciones y contexto para copiar al host elegido. No ejecutan modelos, shell de terceros, MCP ni cambios del producto. Solo leen archivos del repositorio. La delegación efectiva y el control de permisos corresponden a tu editor/CLI o a un futuro adaptador. Sin capacidad de subagentes, ejecuta los roles secuencialmente y declara que no hubo revisión independiente.
 
+El paquete incluye los `AGENTS.md` de las áreas del perfil que implementa. Los perfiles de solo lectura reciben los `AGENTS.md` de las áreas que implementan en la ruta del plan. Por ejemplo, `pnpm ai:packet --task "Revisar el refactor móvil" --scope frontend --agent reviewer` incluye `apps/mobile/AGENTS.md`. El ámbito de escritura del revisor sigue vacío.
+
 Para guardar un plan local sin versionarlo: `pnpm ai:plan --task "Corregir filtro" --scope frontend > ai/runs/plan.txt`. El prefijo de npm puede añadir su cabecera; para JSON limpio utiliza `node scripts/ai.mjs plan --task "Corregir filtro" --scope frontend > ai/runs/plan.json`. La carpeta existe y su contenido está ignorado excepto .gitkeep. Revisar siempre las instrucciones antes de compartirlas con un modelo externo.
 
 ## Agentes y flujo

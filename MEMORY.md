@@ -297,3 +297,7 @@ Movimientos reúne filtros, historial, acciones y paginación en su componente. 
 ## Punto de entrada, acceso y resumen mensual (2026-11-26)
 
 App.tsx monta los proveedores de tema y consultas. AccessGate presenta el arranque y el acceso con la gestión de sesión en usePersonalAccess. Workspace.tsx coordina las pantallas autenticadas o de demostración. Los módulos propios de resumen y reportes, almacenamiento local, categorías y bancos reúnen las consultas y las operaciones relacionadas. Se conservan las claves de datos conectados, la cola de escrituras y la limpieza de sesión.
+
+## Contexto por área en paquetes de revisión (2026-11-26)
+
+Los perfiles de solo lectura reciben las instrucciones AGENTS.md de los implementadores de la ruta activa. Sus tareas mantienen el ámbito de escritura vacío. docs/architecture.md describe el punto de entrada, el acceso, Workspace y el aislamiento de la planificación local.
