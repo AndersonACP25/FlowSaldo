@@ -1,6 +1,6 @@
 import { MovementRoutes } from './MovementRoutes';
 import { useWorkspaceMovements } from './useWorkspaceMovements';
-import { ApiError, createApiClient } from './apiClient';
+import { ApiError } from './apiClient';
 import { readFinancialAccounts, readMovement } from './apiContracts';
 import { MonthlyOverview } from './MonthlyOverview';
 import { useMonthlyOverview } from './useMonthlyOverview';
@@ -20,7 +20,7 @@ import { FilterRow } from './ScreenChrome';
 import { testAccount } from './testAccount';
 import React, { useEffect, useState } from 'react';
 import { View, Text, ActivityIndicator } from 'react-native';
-import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { useQuery } from '@tanstack/react-query';
 import { formatMinorAmount, currencies, type Movement, type Currency } from '@flowsaldo/domain';
 import { useTheme } from './theme';
 import { Button, Choice } from './ui';
@@ -31,7 +31,7 @@ import { useBudgets } from './useBudgets';
 import { ImportReviewFeature } from './ImportReviewFeature';
 import { useImportReviews } from './useImportReviews';
 import type { AuthRoute } from './AuthScreen';
-import { apiBase, type Owner, type PersonalSession } from './access';
+import type { Owner, PersonalSession } from './access';
 import {
   defaultPreferences,
   loadPreferences,
@@ -43,6 +43,7 @@ import { usePendingPayments } from './usePendingPayments';
 import { useSavingsGoals } from './useSavingsGoals';
 import { useMovementFlow } from './useMovementFlow';
 import { useWorkspaceNavigation } from './useWorkspaceNavigation';
+import { useWorkspaceConnection } from './useWorkspaceConnection';
 import { WorkspaceShell } from './WorkspaceShell';
 const formatMoney = (minor: number, currency: Currency) =>
   `${currency} ${formatMinorAmount(minor)}`;
@@ -62,7 +63,6 @@ export function Workspace({
   accessNotice?: string;
 }) {
   const { styles: s, palette } = useTheme();
-  const client = useQueryClient();
   const [preferences, setPreferences] = useState<Preferences>(defaultPreferences);
   useEffect(() => {
     void loadPreferences()
@@ -82,9 +82,6 @@ export function Workspace({
   const movementFlow = useMovementFlow(month);
   const { editor, setDeleteId, resetFilters, closeDraft, filters } = movementFlow;
   const { setAccountFilter, setCategoryFilter } = filters;
-  const [token, setToken] = useState('');
-  const [developmentSession, setSession] = useState('');
-  const session = personal?.token ?? developmentSession;
   const [notice, setNotice] = useState('');
   const [error, setError] = useState('');
   const [operations, setOperations] = useState(0);
@@ -116,21 +113,31 @@ export function Workspace({
     clearDeletion: () => setDeleteId(null),
     clearFeedback,
   });
-  const [resetConfirm, setResetConfirm] = useState(false);
-  let url = '';
-  try {
-    url = apiBase();
-  } catch {
-    /* Auth screen explains invalid API configuration. Demo stays available. */
-  }
-  const connected = !!session;
+  const {
+    url,
+    api,
+    connected,
+    token,
+    setToken,
+    resetConfirm,
+    connectDevelopment,
+    disconnect,
+    requestReset,
+    cancelReset,
+  } = useWorkspaceConnection({
+    personalToken: personal?.token,
+    onExpired: personal ? onExpired : undefined,
+    clearAccountFilter: () => setAccountFilter(''),
+    clearCategoryFilter: () => setCategoryFilter(''),
+    closeDraft,
+    clearDeletion: () => setDeleteId(null),
+    openHome: () => openScreen('Inicio'),
+    resetDemo,
+    action,
+    setNotice,
+  });
   const dataScope = localDataScope(url, connected ? (personal?.owner.id ?? 'development') : null);
   const commerceRules = local.commerceRules[dataScope] ?? [];
-  const api = createApiClient({
-    baseUrl: url,
-    token: session,
-    onUnauthorized: personal ? onExpired : undefined,
-  });
   const request = api.json;
   async function movementForLink(id: string): Promise<Movement | null> {
     if (!connected)
@@ -281,31 +288,6 @@ export function Workspace({
       setError(e instanceof Error ? e.message : 'No se pudo completar la acción.');
     }
   }
-  async function reset() {
-    await resetDemo();
-    setResetConfirm(false);
-    setAccountFilter('');
-    setNotice('Demo restablecida.');
-  }
-  function connectDevelopment() {
-    client.clear();
-    setCategoryFilter('');
-    closeDraft();
-    setSession(token);
-    setToken('');
-    openScreen('Inicio');
-  }
-
-  function disconnect() {
-    setAccountFilter('');
-    setSession('');
-    setToken('');
-    client.clear();
-    closeDraft();
-    setCategoryFilter('');
-    setDeleteId(null);
-    setNotice('Sesión cerrada. Volviste a la demo local.');
-  }
   async function saveForm(save: () => Promise<void>) {
     setOperations((count) => count + 1);
     try {
@@ -370,7 +352,7 @@ export function Workspace({
             label={
               resetConfirm ? 'Confirmar borrado local y restablecer' : 'Restablecer datos locales'
             }
-            onPress={() => (resetConfirm ? void action(reset) : setResetConfirm(true))}
+            onPress={requestReset}
           />
         </View>
       )}
@@ -652,8 +634,8 @@ export function Workspace({
               onDisconnect={disconnect}
               onLogout={onLogout}
               onEnqueueSample={() => void action(importReviews.enqueueSample)}
-              onReset={() => (resetConfirm ? void action(reset) : setResetConfirm(true))}
-              onCancelReset={() => setResetConfirm(false)}
+              onReset={requestReset}
+              onCancelReset={cancelReset}
             />
           )}
         </>

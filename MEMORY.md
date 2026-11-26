@@ -325,3 +325,7 @@ useWorkspaceMovements coordina las consultas de historial y plantillas, los coma
 ## Operaciones locales de Configuración (2026-11-26)
 
 DeviceSettingsRoutes conecta Cuentas y saldos, Respaldo y restauración y Reglas por comercio con sus pantallas. localSettingsCommands concentra los cambios en la cola de escritura, incluidas la validación del saldo de conciliación y la comprobación de que la vista previa del respaldo sigue vigente.
+
+## Separación de formularios, API y verificación (2026-11-26)
+
+Workspace delega la sesión de desarrollo, la conexión y el restablecimiento local. Los editores de pendientes y metas, los campos de cuenta de un movimiento, la conciliación y la comparación de deuda tienen componentes propios. Tema separa paletas y estilos. Los controladores de acceso montan recuperación, sesiones y retención bajo las mismas rutas. Historial separa el resumen y los correos paginados de los movimientos y comparte filtros y cursores. Los recorridos web se agrupan por flujo y ai-core conserva su entrada pública para contratos, planificación y paquetes. Las pruebas unitarias de dominio siguen agrupadas en core.test.ts.
