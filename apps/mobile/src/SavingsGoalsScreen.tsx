@@ -146,15 +146,13 @@ export function SavingsGoalsScreen({
               }, 'Meta guardada.')
             }
           />
-          <View style={{ alignItems: 'center' }}>
-            <Choice
-              label="Cancelar meta"
-              text="Cancelar"
-              selected={false}
-              disabled={saving}
-              onPress={() => setEditing(null)}
-            />
-          </View>
+          <Button
+            label="Cancelar meta"
+            text="Cancelar"
+            variant="secondary"
+            disabled={saving}
+            onPress={() => setEditing(null)}
+          />
         </View>
       ) : (
         <Button label="Nueva meta de ahorro" disabled={saving} onPress={() => openGoal()} />

@@ -75,6 +75,11 @@ export async function checkCoreFlows(browser) {
     );
     await button('Volver').click();
     await button('Preferencias').click();
+    const backStyle = await button('Volver').evaluate((control) => {
+      const style = control.ownerDocument.defaultView.getComputedStyle(control);
+      return { radius: style.borderTopLeftRadius, border: style.borderTopWidth };
+    });
+    assert.deepEqual(backStyle, { radius: '12px', border: '1px' });
     await button('EUR').click();
     await button('Guardar preferencias').click();
     await page.getByText('Preferencias guardadas en este dispositivo.', { exact: true }).waitFor();
@@ -145,6 +150,17 @@ export async function checkCoreFlows(browser) {
     await page.getByText('1 movimiento', { exact: true }).waitFor();
     await button('Editar Compra CORE').click();
     await page.getByRole('heading', { name: 'Editar movimiento', exact: true }).waitFor();
+    const saveMovementButton = button('Guardar movimiento');
+    const cancelMovementButton = button('Cancelar');
+    assert.equal(
+      (await saveMovementButton.boundingBox()).width,
+      (await cancelMovementButton.boundingBox()).width,
+    );
+    const background = (control) =>
+      control.evaluate(
+        (element) => element.ownerDocument.defaultView.getComputedStyle(element).backgroundColor,
+      );
+    assert.notEqual(await background(saveMovementButton), await background(cancelMovementButton));
     assert.equal(
       await page.getByLabel('Buscar descripción o categoría', { exact: true }).count(),
       0,
@@ -178,7 +194,9 @@ export async function checkCoreFlows(browser) {
     assert.equal(rows.length, 2);
     assert.equal(rows[1].at(-1), 'Gasto dividido');
     const original = (await stored()).movements.find((item) => item.description === 'Compra CORE');
-    await button('Registrar devolución de Compra CORE').click();
+    const refundAction = button('Registrar devolución de Compra CORE');
+    assert.ok(await refundAction.locator('[aria-hidden="true"]').count());
+    await refundAction.click();
     await page.getByLabel('Importe de la devolución', { exact: true }).fill('50.00');
     await page
       .getByLabel('Fecha y hora de la devolución', { exact: true })
@@ -211,10 +229,20 @@ export async function checkCoreFlows(browser) {
       reportRows.find((row) => row[3] === 'Alimentación'),
       [month, 'EUR', 'Gasto neto por categoría', 'Alimentación', '35.55'],
     );
-    await button('Inicio').click();
+    await button('Abrir menú').click();
+    const drawer = page.getByRole('dialog');
+    const drawerHome = drawer.getByRole('button', { name: 'Inicio', exact: true });
+    assert.equal(await drawer.getByRole('button').nth(1).getAttribute('aria-label'), 'Inicio');
+    assert.ok(await drawerHome.locator('[aria-hidden="true"]').count());
+    await drawerHome.click();
+    await page.getByRole('heading', { name: 'Inicio', exact: true }).waitFor();
     await button('Abrir menú').click();
     await button('Metas de ahorro').click();
     await button('Nueva meta de ahorro').click();
+    assert.equal(
+      (await button('Cancelar meta').boundingBox()).width,
+      (await button('Guardar meta').boundingBox()).width,
+    );
     await page.getByLabel('Nombre de la meta', { exact: true }).fill('Laptop CORE');
     await page.getByLabel('Monto objetivo', { exact: true }).fill('1000');
     await button('Guardar meta').click();

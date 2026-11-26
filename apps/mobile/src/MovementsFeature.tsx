@@ -222,29 +222,28 @@ export function MovementsFeature({
               </>
             )}
             {m.type === 'EXPENSE' && (
-              <Choice
+              <IconButton
+                icon="restore"
                 label={`Registrar devolución de ${m.description}`}
-                text="Devolución"
-                selected={false}
                 disabled={busy}
                 onPress={() => onRefund(m)}
               />
             )}
             <IconButton icon="trash" label="Eliminar" danger onPress={() => onSelectDelete(m.id)} />
             {m.type !== 'TRANSFER' && !m.refundOfId && (
-              <Choice
+              <IconButton
+                icon="link"
                 label={`Vincular a pendiente: ${m.description}`}
-                text={pendingMovementIds.includes(m.id) ? 'Ver vínculo' : 'Vincular a pendiente'}
-                selected={false}
+                selected={pendingMovementIds.includes(m.id)}
                 disabled={busy}
                 onPress={() => onPending(m)}
               />
             )}
             {m.type === 'TRANSFER' && !m.balanceAdjustment && !isLocalCardPayment(m) && (
-              <Choice
+              <IconButton
+                icon="piggy-bank"
                 label={`Vincular a meta: ${m.description}`}
-                text={savingsTransferIds.includes(m.id) ? 'Ver aporte' : 'Vincular a meta'}
-                selected={false}
+                selected={savingsTransferIds.includes(m.id)}
                 disabled={busy}
                 onPress={() => onSavings(m)}
               />
