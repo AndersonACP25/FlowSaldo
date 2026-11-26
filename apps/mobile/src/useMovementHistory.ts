@@ -8,7 +8,9 @@ import {
 } from '@flowsaldo/domain';
 import type { LocalScope } from './dataScopes';
 import { exportCsv, exportCsvText } from './exportCsv';
-import { movementParams, type MovementRequest, type Page } from './history';
+import { movementParams } from './history';
+import { readMovementPage, readRefundInfo } from './apiContracts';
+import type { ApiRequest } from './apiClient';
 
 export function useMovementHistory({
   connection,
@@ -19,7 +21,11 @@ export function useMovementHistory({
   closing,
   refundSource,
 }: {
-  connection: { url: string; token: string; scope: LocalScope; request: MovementRequest } | null;
+  connection: {
+    scope: LocalScope;
+    request: ApiRequest;
+    requestText: (path: string) => Promise<string>;
+  } | null;
   rows: Movement[];
   month: string;
   currency: Currency;
@@ -39,9 +45,12 @@ export function useMovementHistory({
     enabled: connected,
     retry: false,
     initialPageParam: null as string | null,
-    queryFn: ({ pageParam }) =>
-      connection!.request<Page<Movement>>(
-        `/movements?page=true&${params}${pageParam ? `&cursor=${encodeURIComponent(pageParam)}` : ''}`,
+    queryFn: async ({ pageParam, signal }) =>
+      readMovementPage(
+        await connection!.request(
+          `/movements?page=true&${params}${pageParam ? `&cursor=${encodeURIComponent(pageParam)}` : ''}`,
+          { signal },
+        ),
       ),
     getNextPageParam: (last) => last.nextCursor ?? undefined,
   });
@@ -56,10 +65,10 @@ export function useMovementHistory({
     ],
     enabled: connected && closing.active && !!closing.categoryId,
     retry: false,
-    queryFn: async () => {
+    queryFn: async ({ signal }) => {
       const query = movementParams(month, currency, 'ALL', '', closing.categoryId ?? '');
-      const page = await connection!.request<Page<Movement>>(
-        `/movements?page=true&limit=1&${query}`,
+      const page = readMovementPage(
+        await connection!.request(`/movements?page=true&limit=1&${query}`, { signal }),
       );
       return page.total;
     },
@@ -68,10 +77,15 @@ export function useMovementHistory({
     queryKey: ['movements', 'refunds', connection?.scope, refundSource?.id],
     enabled: connected && !!refundSource,
     retry: false,
-    queryFn: () =>
-      connection!.request<{ source: Movement; refundedMinor: number; remainingMinor: number }>(
-        `/movements/${encodeURIComponent(refundSource!.id)}/refunds`,
-      ),
+    queryFn: async ({ signal }) => {
+      const expenseId = refundSource!.id;
+      return readRefundInfo(
+        await connection!.request(`/movements/${encodeURIComponent(expenseId)}/refunds`, {
+          signal,
+        }),
+        expenseId,
+      );
+    },
   });
   const pagedRows = query.data?.pages.flatMap((page) => page.items) ?? [];
   const visible = connected
@@ -112,11 +126,8 @@ export function useMovementHistory({
       await exportCsv(visible, month);
       return;
     }
-    const response = await fetch(`${connection.url}/movements/export?${params}`, {
-      headers: { Authorization: `Bearer ${connection.token}` },
-    });
-    if (!response.ok) throw new Error('No se pudo exportar. Reintenta la descarga.');
-    await exportCsvText(await response.text(), `FlowSaldo-${month}.csv`);
+    const csv = await connection.requestText(`/movements/export?${params}`);
+    await exportCsvText(csv, `FlowSaldo-${month}.csv`);
   }
 
   return {

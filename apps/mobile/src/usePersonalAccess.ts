@@ -35,7 +35,11 @@ export function usePersonalAccess() {
         return;
       }
       try {
-        const data = await accessRequest('/auth/me', undefined, saved.token);
+        const data = await accessRequest<Omit<PersonalSession, 'token'>>(
+          '/auth/me',
+          undefined,
+          saved.token,
+        );
         client.clear();
         setPersonal({ ...data, token: saved.token });
         setRoute('personal');

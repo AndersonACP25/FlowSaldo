@@ -5,7 +5,8 @@ import { IconButton } from './IconButton';
 import { Button, Field, Choice } from './ui';
 import { useTheme } from './theme';
 import { isTestAccountEmail, testAccount } from './testAccount';
-import { AccessError, accessRequest, type PersonalSession } from './access';
+import { ApiError } from './apiClient';
+import { accessRequest, type PersonalSession } from './access';
 const invalidCredentials = 'Correo o contraseña incorrectos. Revisa tus datos e intenta de nuevo.';
 
 export type AuthRoute = 'login' | 'register' | 'recover';
@@ -61,12 +62,12 @@ export function AuthScreen({
         if (password === testAccount.password) onTestLogin();
         else setError(invalidCredentials);
       } else {
-        const session: PersonalSession = await accessRequest('/auth/login', { email, password });
+        const session = await accessRequest<PersonalSession>('/auth/login', { email, password });
         setPassword('');
         await onSession(session);
       }
     } catch (e) {
-      if (route === 'login' && e instanceof AccessError && e.status === 401) {
+      if (route === 'login' && e instanceof ApiError && e.status === 401) {
         setPassword('');
         setError(invalidCredentials);
       } else if (

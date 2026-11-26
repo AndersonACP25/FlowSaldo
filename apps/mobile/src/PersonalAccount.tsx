@@ -81,7 +81,7 @@ export function PersonalAccount({
               disabled={busy || !name.trim() || !email.trim() || !profilePassword}
               onPress={() =>
                 void run(async () => {
-                  const { owner } = await accessRequest(
+                  const { owner } = await accessRequest<{ owner: Owner }>(
                     '/auth/me',
                     { name, email, currentPassword: profilePassword },
                     session.token,
@@ -128,7 +128,13 @@ export function PersonalAccount({
           disabled={busy}
           onPress={() =>
             void run(async () =>
-              setSessions(await accessRequest('/auth/sessions', undefined, session.token)),
+              setSessions(
+                await accessRequest<NonNullable<typeof sessions>>(
+                  '/auth/sessions',
+                  undefined,
+                  session.token,
+                ),
+              ),
             )
           }
         />

@@ -1,7 +1,7 @@
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { dominicanBanks, type BankRegistration } from '@flowsaldo/domain';
 import type { LocalScope } from './dataScopes';
-import type { MovementRequest } from './history';
+import type { ApiRequest } from './apiClient';
 import type { LocalUpdate } from './storage';
 
 export function useBankDirectory({
@@ -16,7 +16,7 @@ export function useBankDirectory({
   connected: boolean;
   enabled: boolean;
   bankIds: string[];
-  request: MovementRequest;
+  request: ApiRequest;
   persist: (change: LocalUpdate) => Promise<void>;
 }) {
   const client = useQueryClient();

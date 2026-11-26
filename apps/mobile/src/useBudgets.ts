@@ -3,7 +3,8 @@ import { useQuery } from '@tanstack/react-query';
 import { movementCategories, type Category, type Currency, type Movement } from '@flowsaldo/domain';
 import type { LocalScope } from './dataScopes';
 import type { ServerBudget } from './FinancePanel';
-import type { MonthlySummary, MovementRequest } from './history';
+import type { MonthlySummary } from './history';
+import type { ApiRequest } from './apiClient';
 import type { LocalData, LocalUpdate } from './storage';
 
 export function useBudgets({
@@ -27,7 +28,7 @@ export function useBudgets({
   period: Movement[];
   remoteCategoryTotals?: MonthlySummary['categoryTotals'];
   persist: (update: LocalUpdate) => Promise<void>;
-  request: MovementRequest;
+  request: ApiRequest;
 }) {
   const [budgetInput, setBudgetInput] = useState('');
   const serverBudget = useQuery({

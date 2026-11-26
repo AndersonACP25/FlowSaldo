@@ -24,7 +24,7 @@
     "db:seed": "pnpm --filter @flowsaldo/database seed",
     "typecheck": "pnpm -r --if-present typecheck",
     "lint": "eslint .",
-    "test": "node --test packages/domain/test/core.test.ts scripts/local-store.test.mjs",
+    "test": "node --test packages/domain/test/core.test.ts scripts/local-store.test.mjs scripts/api-client.test.mjs",
     "check": "pnpm lint && pnpm typecheck && pnpm test && pnpm text:check && pnpm exports:test",
     "test:web": "node scripts/test-web.mjs",
     "test:dev": "node scripts/dev-smoke.mjs",

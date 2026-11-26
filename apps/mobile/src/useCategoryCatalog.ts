@@ -1,7 +1,7 @@
 import { useQuery } from '@tanstack/react-query';
 import { categoryName, categoryKey, type Category } from '@flowsaldo/domain';
 import type { LocalScope } from './dataScopes';
-import type { MovementRequest } from './history';
+import type { ApiRequest } from './apiClient';
 import type { LocalUpdate } from './storage';
 
 export function useCategoryCatalog({
@@ -14,7 +14,7 @@ export function useCategoryCatalog({
   dataScope: LocalScope;
   connected: boolean;
   localCategories: Category[];
-  request: MovementRequest;
+  request: ApiRequest;
   persist: (change: LocalUpdate) => Promise<void>;
 }) {
   const catalog = useQuery({

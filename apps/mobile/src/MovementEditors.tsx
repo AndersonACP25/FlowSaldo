@@ -1,16 +1,16 @@
 import React from 'react';
 import { Text, View } from 'react-native';
 import type { UseQueryResult } from '@tanstack/react-query';
-import type { Category, CommerceRule, Currency, Movement } from '@flowsaldo/domain';
+import type { Category, CommerceRule, Currency } from '@flowsaldo/domain';
 import { MovementForm, type Draft, type MovementAccount } from './MovementForm';
 import { RefundScreen } from './RefundScreen';
 import { useTheme } from './theme';
 import { Button } from './ui';
+import type { MovementEditorDraft } from './useMovementFlow';
 import type { useMovementHistory } from './useMovementHistory';
 
 export function MovementEditor({
   editor,
-  duplicate,
   fullScreen,
   connected,
   accountsQuery,
@@ -24,8 +24,7 @@ export function MovementEditor({
   onSave,
   onCancel,
 }: {
-  editor: Movement | 'new';
-  duplicate: Movement | null;
+  editor: MovementEditorDraft;
   fullScreen: boolean;
   connected: boolean;
   accountsQuery: Pick<UseQueryResult, 'isSuccess' | 'error' | 'refetch'>;
@@ -40,6 +39,8 @@ export function MovementEditor({
   onCancel: () => void;
 }) {
   const { styles: s } = useTheme();
+  const editing = editor.kind === 'edit';
+  const movement = editing ? editor.movement : editor.duplicate;
   return (
     <>
       {connected && !accountsQuery.isSuccess && (
@@ -60,10 +61,10 @@ export function MovementEditor({
           localAccounts={!connected}
           categories={categoryCatalog}
           recent={recent}
-          editing={editor !== 'new'}
-          title={fullScreen ? null : duplicate ? 'Duplicar movimiento' : undefined}
-          key={editor === 'new' ? 'new-' + (duplicate?.id ?? '') : editor.id}
-          movement={editor === 'new' ? (duplicate ?? undefined) : editor}
+          editing={editing}
+          title={fullScreen ? null : movement ? 'Duplicar movimiento' : undefined}
+          key={editing ? editor.movement.id : 'new-' + (editor.duplicate?.id ?? '')}
+          movement={movement}
           currency={currency}
           month={month}
           onSave={onSave}

@@ -6,7 +6,8 @@ import {
   type LocalAccount,
   type Movement,
 } from '@flowsaldo/domain';
-import type { MovementRequest } from './history';
+import { readMovement } from './apiContracts.ts';
+import type { ApiRequest } from './apiClient';
 import type { Draft } from './MovementForm';
 import type { LocalUpdate } from './storage';
 
@@ -36,17 +37,19 @@ export function movementCommands({
   persist,
   refreshMovements,
 }: {
-  request: MovementRequest | null;
+  request: ApiRequest | null;
   persist: (change: LocalUpdate) => Promise<void>;
   refreshMovements: () => Promise<void>;
 }) {
   return {
     async save(draft: Draft, edit: Movement | null) {
       if (request) {
-        const movement = await request<Movement>(edit ? `/movements/${edit.id}` : '/movements', {
-          method: edit ? 'PATCH' : 'POST',
-          body: JSON.stringify(draft),
-        });
+        const movement = readMovement(
+          await request(edit ? `/movements/${encodeURIComponent(edit.id)}` : '/movements', {
+            method: edit ? 'PATCH' : 'POST',
+            body: JSON.stringify(draft),
+          }),
+        );
         await refreshMovements();
         return movement.id;
       }

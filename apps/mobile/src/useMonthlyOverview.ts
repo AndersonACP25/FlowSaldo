@@ -9,7 +9,8 @@ import {
   type Movement,
 } from '@flowsaldo/domain';
 import type { LocalScope } from './dataScopes';
-import type { MonthlySummary, MovementRequest } from './history';
+import type { MonthlySummary } from './history';
+import type { ApiRequest } from './apiClient';
 
 export function useMonthlyOverview({
   dataScope,
@@ -22,7 +23,7 @@ export function useMonthlyOverview({
 }: {
   dataScope: LocalScope;
   connected: boolean;
-  request: MovementRequest;
+  request: ApiRequest;
   rows: Movement[];
   month: string;
   currency: Currency;

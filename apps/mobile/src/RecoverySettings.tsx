@@ -58,7 +58,7 @@ export function RecoverySettings({ token }: { token: string }) {
           disabled={busy || !password}
           onPress={() =>
             void run(async () => {
-              const result = await accessRequest(
+              const result = await accessRequest<{ codes: string[]; expiresAt: string }>(
                 '/auth/recovery-codes',
                 { currentPassword: password },
                 token,
