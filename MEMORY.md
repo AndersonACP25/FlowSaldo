@@ -293,3 +293,7 @@ Presupuestos concentra el límite general, las categorías, los totales y la cop
 ## Pantallas de movimientos, configuración y conexiones (2026-11-26)
 
 Movimientos reúne filtros, historial, acciones y paginación en su componente. Los editores de movimientos y devoluciones gestionan su presentación y estados de carga. Configuración reúne el menú, las subopciones, el respaldo y la conciliación local. Conexiones muestra el estado de la API, los bancos, la cola de correo y los controles de demostración. App.tsx conserva la navegación entre pantallas, la sesión y las operaciones que comparten datos entre módulos.
+
+## Punto de entrada, acceso y resumen mensual (2026-11-26)
+
+App.tsx monta los proveedores de tema y consultas. AccessGate presenta el arranque y el acceso con la gestión de sesión en usePersonalAccess. Workspace.tsx coordina las pantallas autenticadas o de demostración. Los módulos propios de resumen y reportes, almacenamiento local, categorías y bancos reúnen las consultas y las operaciones relacionadas. Se conservan las claves de datos conectados, la cola de escrituras y la limpieza de sesión.

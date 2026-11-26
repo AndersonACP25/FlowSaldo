@@ -8,14 +8,13 @@ import {
 } from '@flowsaldo/domain';
 import type { LocalScope } from './dataScopes';
 import { exportCsv, exportCsvText } from './exportCsv';
-import { movementParams, type MonthlySummary, type MovementRequest, type Page } from './history';
+import { movementParams, type MovementRequest, type Page } from './history';
 
 export function useMovementHistory({
   connection,
   rows,
   month,
   currency,
-  periodDate,
   filters,
   closing,
   refundSource,
@@ -24,7 +23,6 @@ export function useMovementHistory({
   rows: Movement[];
   month: string;
   currency: Currency;
-  periodDate: string;
   filters: { type: MovementType | 'ALL'; search: string; categoryId: string; accountId: string };
   closing: { active: boolean; categoryId?: string };
   refundSource: Movement | null;
@@ -75,16 +73,6 @@ export function useMovementHistory({
         `/movements/${encodeURIComponent(refundSource!.id)}/refunds`,
       ),
   });
-  const totals = useQuery({
-    queryKey: ['summary', connection?.scope, month, currency, periodDate],
-    enabled: connected,
-    retry: false,
-    queryFn: () =>
-      connection!.request<MonthlySummary>(
-        `/summary?month=${month}&currency=${currency}&weekEnd=${periodDate}`,
-      ),
-  });
-
   const pagedRows = query.data?.pages.flatMap((page) => page.items) ?? [];
   const visible = connected
     ? pagedRows
@@ -136,7 +124,6 @@ export function useMovementHistory({
     closingUncategorized,
     refundQuery,
     refundInfo,
-    totals,
     visible,
     recent,
     refreshMovements,
